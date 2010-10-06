@@ -60,7 +60,7 @@ CRON_DEST := /etc/cron.d/
 
 SM_TESTS := $(MY_OUTPUT_DIR)/storage-manager-tests.tar
 
-REPO := $(call hg_loc,sm)
+REPO := $(call hg_loc,xen-sm)
 
 PKG := $(MY_MAIN_PACKAGES)/sm.tar.bz2
 PKG_STAMP := $(MY_MAIN_PACKAGES)/.dirstamp
