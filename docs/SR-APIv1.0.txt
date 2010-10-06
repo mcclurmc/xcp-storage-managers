@@ -1,0 +1,375 @@
+SR Driver API Specification
+===========================
+
+Description of arguments used in signatures below
+-------------------------------------------------
+
+dconf: when a host is made aware of an existing SR, or when 
+       a host is asked to create a new SR (via the _external 
+       API_) then a "device config" string may be required. 
+       The dconf string contains enough information for the 
+       appropriate SR-backend to identify and configure the 
+       device(s) that contain the SR's VDI information (e.g. 
+       it may contain a list of device names that mean 
+       something to the host; or it may contain the IP address 
+       of a filer; or WWID of shared-storage etc.). The dconf 
+       string lives in the "smtab" on a host and is passed to 
+       the SM-backends on every API call.
+
+       --> note: even if the same SR is mapped into different 
+       hosts, then the "dconf" string may be different on each 
+       host. This reflects the fact that the same underlying 
+       storage may be exposed differently (e.g. through 
+       different device nodes) on different hosts. The backend 
+       does not concern itself with managing dconf strings,
+       it just receives one and uses the bits of it it needs 
+       in every driver function.
+
+       --> note: the information stored in dconf will vary 
+       from driver to driver. We may want to impose a structuring 
+       format as to how this information is represented (e.g. 
+       key/value pairs, sexp etc.). However, this document does 
+       not yet specify the details of this -- left as TBD.
+
+SR-UUID:   UUID that refers to an SR
+VDI-UUID:  UUID that refers to a VDI
+HOST-UUID: UUID that refers to an XE host
+
+HOST-AGENT-METADATA: Freeform data provided by host-agent for its
+	convenience. SM does not understand the format of this data
+
+
+SR-level Operations
+===================
+
+Within the agent SR requests translate down to a set of
+operations on the substrate itself. All metadata related to 
+the internal consistency of SR data objects is handled by the 
+substrate driver which is always considered to be authoritative. 
+The implementation of SR objects is based on the ability of the
+storage substrate to maintain internal consistency of metadata.
+In cases where storing additional metadata strings such as the
+user generated label or description fields are concerned, simple
+backend implementations are not expected to support the feature
+and should not return any data for unsupported objects when 
+queried. In such cases, the agent may store it's own metadata 
+in a local database. Any values returned by the 
+{sr|vdi}_get_params() call are considered to be authoritative 
+and always override any locally cached values by the host agent.
+
+SR Objects
+----------
+The agent provides a generic plugin architecture for storage
+substrate drivers. Each driver type accesses and refers to the 
+following objects that may be queried at any time by the host
+agent via the sr_get_params() call:
+
+SR Sexpression objects:
+<uuid> [A globally unique SR identifier conforming to OSF DEC 1.1]
+<label> [A User generated tag string for identifyng the SR]
+<description> [A longer user generated description string]
+<VDIs> [A list of VDI UUIDs that are contained within this SR]
+<physical_utilisation> [The amount of physical space in Bytes consumed by VDIs]
+<virtual_allocation> [The virtual disk space in Bytes allocated to this SR]
+<size> [The physical disk space in Bytes allocated to this SR]
+<type> [An SR type string, e.g. LVM, NFS]
+<location> [A location string provided by the user]
+
+
+SR-Level API Operations
+-----------------------
+SR Driver API operations are defined as:
+
+sr_create()
+Arguments:   SR-UUID
+Description: Create an SR using the given dconf string. This operation 
+             may delete existing data.
+Result:      Returns SUCCESS or FAILURE + error string. The
+             operation IS NOT idempotent and may produce different
+	     results depending upon the state of the device. The
+	     operation will fail if an SR of the same UUID and
+	     driver type already exists.
+ 
+
+sr_delete()
+Arguments:   SR-UUID
+Description: Deletes the specified SR and its contents. 
+Result:      Returns SUCCESS or FAILURE + error string. The
+	     operation IS idempotent and should succeed
+	     if the SR exists and can be deleted or if the SR 
+	     does not exist. The higher-level management tools
+	     must ensure that all VDIs are unlocked and detached
+	     and that the SR itself has been detached before
+	     calling sr_delete(). 
+	     The call will FAIL if any VDIs in the SR are in use.
+
+
+sr_attach()  
+Arguments:   SR-UUID
+Description: Initiate local access to the SR. Initialises any 
+	     device state required to access the substrate.
+Result:      Returns SUCCESS or FAILURE + error string. The
+	     operation is idempotent and will return successs
+	     if the SR can be attached or if the SR is already 
+	     attached.
+
+
+sr_detach()  
+Arguments:   SR-UUID
+Description: Remove local access to the SR. Destroys any device 
+	     state initiated by the sr_attach() operation.
+Result:      Returns SUCCESS or FAILURE + error string. The
+	     operation is idempotent and will return success
+	     if the SR can be detached or if the SR is already 
+	     detached. All VDIs must be detached in order for
+	     the operation to succeed.
+
+
+sr_get_params()
+Arguments:   SR-UUID
+Description: List the SR metadata as stored on disk. 
+Result:      Returns a non-zero length sexpression string of the
+	     SR data class type. Required fields are: 
+		- entries for every VDI present within the SR
+		- the physical_utilisation
+		- the size
+		- the SR type
+	     All other data fields are optional. A zero-length
+	     string indicates that the SR was not available.
+
+
+VDI Objects
+----------
+In addition to the SR-level objects outlined above, each driver 
+type accesses and refers to the following VDI-specific objects 
+that may be queried at any time by the host agent via the 
+vdi_get_params() call:
+
+<uuid> [A globally unique VDI identifier conforming to OSF DEC 1.1]
+<label> [A User generated tag string for identifyng the VDI]
+<description> [A longer user generated description string]
+<SR> [The SR UUID in which this VDI resides]
+<VBDs> [A list of VBDs that currently hold a lock on this VDI 
+       (host generated string for informational purposes)]
+<virtual_size> [The virtual size in Bytes of this VDI as reported to the VM]
+<physical_utilisation> [The actual size in Bytes of data on disk that is 
+		       utilised. For non-sparse disks, 
+		       physical_utilisation == virtual_size]
+<sector_size> [The disk sector size in Bytes as reported to the VM]
+<type> [The disk type, e.g. raw file, partition]
+<parent> [The UUID of the parent backing VDI if this disk is a 
+	 CoW instance]
+<children> [A list of UUIDs of children CoW instances if they exist]
+<shareable> [Does this disk support multiple writer instances? e.g. 
+	    shared OCFS disk]
+<attached> [A boolean value indicating whether VDI is attached]
+<lock> [Indicates whether disk is locked. Can be either '1' => LOCKED 
+       or '0' => UNLOCKED]
+<read_only> [Indicates whether disk is read-only. Can be either 
+	    '1' => RO or '0' => RW]
+
+VDI-Level API Operations
+-----------------------
+VDI Driver API operations are defined as:
+
+vdi_create()
+Arguments:   SR-UUID, VDI-UUID, Size
+Description: Create a VDI of size <Size> MB on the given SR. 
+Result:      Returns SUCCESS or FAILURE + error string. The
+             operation IS NOT idempotent and will fail if the
+	     UUID already exists or if there is insufficient 
+	     space. The vdi must be explicitly attached via
+	     the vdi_attach() command following creation. The 
+	     actual disk size created may be larger than the 
+	     requested size if the substrate requires a size 
+	     in multiples of a certain extent size. The SR 
+	     must be queried for the exact size.
+
+
+vdi_delete()
+Arguments:   SR-UUID, VDI-UUID
+Description: Delete the specified VDI from the given SR.
+Result:      Returns SUCCESS or FAILURE + error string. The
+	     operation IS idempotent and should succeed if the
+	     VDI exists and can be deleted or if the VDI does
+	     not exist. It is the responsibility of the 
+	     higher-level management tool to ensure that the
+	     vdi_detach() operation has been explicitly called
+	     prior to deletion, otherwise the vdi_delete() will 
+	     fail if the disk is still attached.
+
+
+vdi_attach()
+Arguments:   SR-UUID, VDI-UUID
+Description: Initiate local access to the VDI. Initialises any 
+	     device state required to access the VDI.
+Result:      Returns a SUCCESS or FAILURE return code with a 
+	     descriptive string. If the operation succeeds the
+	     string contains the local device path. The operation
+	     IS idempotent and should succeed if the VDI can be 
+	     attached or if the VDI is already attached.
+
+
+vdi_detach()
+Arguments:   SR-UUID, VDI-UUID
+Description: Remove local access to the VDI. Destroys any device 
+	     state initialised via the vdi_attach() command.
+Result:      Returns SUCCESS or FAILURE + error string. The
+	     operation IS idempotent and will always return
+	     SUCCESS if the VDI can be detached from the system 
+	     (e.g. all filehandles are closed) or if the VDI is 
+	     already detached.
+
+
+vdi_clone()
+Arguments:   SR-UUID, source:VDI-UUID, dest:VDI-UUID
+Description: Create a mutable instance of the referenced VDI.
+Result:      Returns SUCCESS or FAILURE + error string. The
+             operation is not idempotent and will fail if the
+	     UUID already exists or if there is insufficient 
+	     space. The SRC VDI must be in a detached state
+	     and unlocked. Upon successful creation of the
+	     clone, the cloen vdi must be explicitly attached via
+	     the vdi_attach(). If the driver does not support 
+	     cloning this operation should fail with an error 
+	     code of EPERM.
+
+
+vdi_snapshot()
+Arguments:   SR-UUID, source:VDI-UUID, dest:VDI-UUID
+Description: Save an immutable copy of the referenced VDI.
+Result:      Returns SUCCESS or FAILURE + error string. The
+             operation IS NOT idempotent and will fail if the
+	     UUID already exists or if there is insufficient 
+	     space. The vdi must be explicitly attached via
+	     the vdi_attach() command following creation. If
+	     the driver does not support snapshotting this 
+	     operation should fail with an error code of EPERM.
+
+
+vdi_resize()
+Arguments:   SR-UUID, VDI-UUID, new-size
+Description: Resize the given VDI to size <new-size> MB. Size can
+	     be any valid disk size greater than [or smaller than]
+	     the current value.
+Result:      Returns SUCCESS or FAILURE + error string. The
+	     operation IS idempotent and should succeed
+	     if the VDI can be resized to the specified value or 
+	     if the VDI is already the specified size. The actual 
+	     disk size created may be larger than the requested 
+	     size if the substrate requires a size in multiples 
+	     of a certain extent size. The SR must be queried for 
+	     the exact size. This operation does not modify the
+	     contents on the disk such as the filesystem. 
+	     Responsibility for resizing the FS is left to the
+	     VM administrator. [Reducing the size of the disk is
+	     a very dangerous operation and should be conducted
+	     very carefully.] Disk contents should always be backed 
+	     up in advance.
+
+
+vdi_lock()
+Arguments:   SR-UUID, VDI-UUID, Force, User string
+Description: Allocate a persistent VDI lock on the storage device 
+	     for this VDI. The user string may be stored in the VBD 
+	     string list as on-disk metadata. The 'Force' parameter
+	     contains a boolean value of TRUE or FALSE.
+Result:      Returns SUCCESS or FAILURE + error string. The
+             operation IS NOT idempotent and will fail if the
+	     VDI does not exist or the disk access has exceeded the
+	     maximum number of users as permitted by the SR type 
+	     (typically only 1). If the locking feature is not 
+	     supported on the substrate this operation will fail 
+	     with an error code of EPERM. If the disk is already
+	     locked by another user and the Force flag is set to
+	     TRUE, the driver will attempt to break the lock and
+	     reclaim it for this user. The Force flag should be used
+	     *very* sparingly and only after confirmation by the 
+	     administrator or during controlled migration of VMs
+	     between hosts. 
+
+
+vdi_unlock()
+Arguments:   SR-UUID, VDI-UUID, Force, User string
+Description: Remove the persistent VDI lock on the storage device 
+	     for this VDI. The stored user string is matched and
+	     removed from the VBD string list. The 'Force' parameter
+	     contains a boolean value of TRUE or FALSE.
+Result:      Returns SUCCESS or FAILURE + error string. The
+             operation IS NOT idempotent and will fail if the
+	     VDI or the user string do not exist. If the locking 
+	     feature is not supported on the substrate this operation
+	     should fail with an error code of EPERM. If the disk is
+	     locked by another user and the Force flag is set to
+	     TRUE, the driver will attempt to break the lock and
+	     reclaim it for this user. The Force flag should be used
+	     *very* sparingly and only after confirmation by the 
+	     administrator or during controlled migration of VMs
+	     between hosts.
+
+
+vdi_get_params()
+Arguments:   SR-UUID, VDI-UUID
+Description: List the VDI metadata as stored on disk. 
+Result:      Returns a non-zero length sexpression string of the
+	     VDI data class type. Required fields are:
+	        - Any entries for VBD refcount user strings 
+		  (see vdi_{lock|unlock}())
+		- the virtual_size
+		- the physical_utilisation
+		- the sector_size
+		- the VDI type
+		- the attached status
+	     All other data fields are optional. A zero-length
+	     string indicates that the VDI was not available.
+
+
+
+Metadata Management
+===================
+As a general rule of thumb, the SR stores only the minimal amount
+of metadata necessary. The following rules apply:
+
+- The SR always remains authoritative on the existence of VDI 
+  objects. This can be as simple as an "lvscan" for locally managed
+  LVM substrates, or a more complex operation for file-backed NAS.
+- Safe metadata updates must be provided by the SR driver using 
+  exclusive locking.
+- The SR driver does not provide any secure access control to VDIs.
+- The SR is responsible for providing locking for VDIs such that 
+  concurrent write access can be avoided.  In some environments,
+  where simplified backend drivers are utilised, locking operations 
+  may not be provided since it is trivial for a single host to control
+  concurrent access by VMs to the same VDI.
+- The host management tool must ensure that any cached SR data such as 
+  VDIs remains consistent with the actual state on disk. The 
+  {sr|vdi}_get_params() driver commands are provided for this purpose.
+- For clustered SRs, e.g. NAS storage that is accessed by multiple 
+  hosts that do not communicate at the Xen management level, a 
+  backchannel may be required to monitor the cluster and trigger the 
+  agent to refresh it's state when changes occur.
+- The host manager must always explicitly lock and unlock a VDI before
+  and after use by calling the vdi_{lock|unlock}() commands. 
+
+
+Error Codes
+===========
+
+SUCCESS is defined as a zero return code. FAILURE can comprise any one
+of the following subset of generic system error codes:
+
+#define EPERM            1      /* Operation not permitted */
+#define EIO              5      /* I/O error */
+#define E2BIG            7      /* Arg list too long */
+#define EACCES          13      /* Permission denied */
+#define EBUSY           16      /* Device or resource busy */
+#define ENODEV          19      /* No such device */
+#define EINVAL          22      /* Invalid argument */
+#define ENOSPC          28      /* No space left on device */
+#define ENOLCK          37      /* No record locks available */
+#define ENOMSG          42      /* No message of desired type */
+
+#define ENOSR		100	/* No such SR*/
+#define ENOVDI		101	/* No such VDI on the SR */
+#define ESRBUSY		102	/* SR not available */
+#define EVDIBUSY	103	/* VDI not available */

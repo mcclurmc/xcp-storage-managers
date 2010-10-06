@@ -1,0 +1,75 @@
+Setting up an iSCSI Software Target
+===================================
+
+In this directory you will find some iSCSI software target setup
+utilities. Steps are as follows:
+
+1) Install the ietd target software on the host following instructions
+from the project website:
+
+http://iscsitarget.sourceforge.net/
+
+2) Create a large, empty Volume Group named "VolGroup00" on the host.
+This will be used to store the logical volumes which serve as the
+LUN virtual disks
+
+3) Copy the contents of this directory on to the host and run the
+setup.sh script.
+
+4) You should now be able to allocate LUN resources following the 
+instructions below
+
+
+Allocating LUNs on the Target
+=============================
+1) Logon to lork.uk.xensource.com as root (+ usual development password)
+2) Run the admin script '/usr/sbin/iscsi-conf.sh' with the parameters:
+usage: iscsi-conf.sh <initiator host> <LUN size (GiB)>
+(e.g. to allocate a 10GB LUN to the machine madagascar `iscsi-conf.sh madagascar 10`
+This can be repeated multiple times to add more resources
+
+
+Removing LUNs on the Target
+===========================
+1) Unplug any active SRs that have attached this particular host entry.
+2) Logon to lork.uk.xensource.com as root (+ usual development password)
+3) Run the admin script '/usr/sbin/iscsi-remove.sh' with the parameters:
+usage: iscsi-conf.sh <initiator host> [<LUN id>]
+(The LUN id parameter is optional. Without specifying an id, the whole record is deleted)
+
+
+Accessing the iscsi SR on a host
+================================
+1) Introduce the SR to the host database:
+xe sr-introduce content-type="iSCSI" name-label="iSCSI SR" physical-size=0 type=iscsi uuid=`uuidgen`
+
+2) Figure out the host IP address, target IQN and local host IQN:
+IP=`ifconfig xenbr0 | awk '/inet addr:/{sub(/addr:/,"");print $2}'`
+targetIQN=`echo "iqn.2007-10.com.xensource.uk:${IP}"`
+localIQN=`echo "${targetIQN}.initiator"`
+
+3) Add a PBD:
+xe pbd-create host-uuid=<auto complete> sr-uuid=<return value of sr-introduce> device-config-target=lork device-config-targetIQN= ${targetIQN}device-config-localIQN=${localIQN} device-config-introduced="auto"
+
+4) Activate the PBD:
+xe pbd-plug uuid=<return value of pbd-create>
+
+All the above operations can be automated by running the following script on the rio host:
+========================BEGIN
+#!/bin/sh
+set -e
+SR_UUID=`uuidgen`
+xe sr-introduce content-type="iSCSI" name-label="iSCSI SR" physical-size=0 type=iscsi uuid=${SR_UUID}
+
+IP=`ifconfig xenbr0 | awk '/inet addr:/{sub(/addr:/,"");print $2}'`
+targetIQN=`echo "iqn.2007-10.com.xensource.uk:${IP}"`
+localIQN=`echo "${targetIQN}.initiator"`
+
+HOST_NAME=`hostname`
+HOSTID=`xe host-list hostname=${HOST_NAME} --minimal`
+
+PBD_UUID=`xe pbd-create host-uuid=${HOSTID} sr-uuid=${SR_UUID} device-config-target=lork device-config-targetIQN=${targetIQN} device-config-localIQN=${localIQN} device-config-introduced=auto`
+
+xe pbd-plug uuid=${PBD_UUID}
+
+========================END 

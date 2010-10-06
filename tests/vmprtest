@@ -1,0 +1,1805 @@
+#!/usr/bin/python -u
+#
+# Copyright (c) 2010 Citrix Systems, Inc. All use and distribution of this
+# copyrighted material is governed by and subject to terms and conditions
+# as licensed by Citrix Systems, Inc. All other rights reserved.
+# Xen, XenSource and XenEnterprise are either registered trademarks or
+# trademarks of Citrix Systems, Inc. in the United States and/or other countries.
+#
+
+"""VMPR unit test"""
+
+import os
+import sys
+import time
+import commands
+from optparse import OptionParser
+sys.path.insert(0, '/opt/xensource/sm')
+import util
+import re
+import datetime
+import xml.dom.minidom
+
+# argument format:
+#  keyword
+#  text
+#  white space
+#  default value
+#  short form of option
+#  log form of option
+__flags__ = [    
+    ["setup", "perform setup for the unit tests",             " : ", None, "optional", "-s", ""],
+    ["destroy", "perform cleanup of all objects created for the unit tests",             " : ", None, "optional", "-d", ""],
+    ["test1", "regular scheduled execution",                           " : ", None, "optional", "-1", ""],
+    ["test2", "missed event xapi down",                           " : ", None, "optional", "-2", ""],
+    ["test3", "missed event schedule overlap",                           " : ", None, "optional", "-3", ""],
+    ["test4", "master failover during backup/archive",                            " : ", None, "optional", "-4", ""],
+    ["test5", "system clock in the past",                            " : ", None, "optional", "-5", ""],
+    ["test6", "licence checks",                            " : ", None, "optional", "-6", ""],
+    ["test7", "lock sync between protect and protect_now",                            " : ", None, "optional", "-7", ""],
+    #["test8", "archive target out of space",                            " : ", None, "optional", "-8", ""],
+    ["test8", "protect_now tests",                            " : ", None, "optional", "-8", ""],
+    ["test9", "test_archive_target tests",                            " : ", None, "optional", "-9", ""],
+    ["testall", "perform all tests including setup and cleanup", " : ", None, "optional", "-a", ""],
+    ["help",  "show this help message and exit",              " : ", None, "optional", "-h", "" ]]
+
+__params__ = [
+    ["templateWithoutPVDrivers",     "[required for setup] Template to use for installation of VMs without PV drivers. ", " : ", None,        "required", "-t", "--templatenoPV"],
+    ["templateWithPVDrivers",     "[required for setup] Template to use for installation of VMs with PV drivers. ", " : ", None,        "required", "-v", "--templatePV"      ],
+    ["nfslocation",     "[required for setup] Location of the NFS target ", " : ", None,        "required", "-n", "--nfs"      ],
+    ["cifslocation",     "[required for setup] Location of the CIFS target ", " : ", None,        "required", "-c", "--cifs"      ],
+    ["cifsusername",        "[required for setup] Username for CIFS target ", " : ", None,        "required", "-u", "--cifsusername"    ],
+    ["cifspassword",      "[required for setup] Password for CIFS target ", " : ", None,        "required", "-p", "--cifspassword"  ],
+    ["email",      "[required for setup] Email address for notification ", " : ", None,        "required", "-e", "--email"  ],
+    ["smtpserver",      "[required for setup] SMTP server for notification ", " : ", None,        "required", "-m", "--smtpserver"  ],
+    ["smtpport",      "[required for setup] SMTP port for notification ", " : ", None,        "required", "-o", "--smtpport"  ],
+    ["number",      "[optional for setup] Number of VMs to setup, maximum 8", " : ", None,        "optional", "-b", "--number"  ]]
+
+def main():
+    """Main Routine"""
+    g_storage_conf = {}
+    (options, args) = parse_args("%prog 1.0. \nCitrix Systems, VMPR.\n")
+      
+    if args:
+        Print("Unknown arguments found: %s" % args)
+        sys.exit(1)
+	
+    if options.help:
+	DisplayUsage()
+	return 0
+    
+    if options.setup and (options.templateWithoutPVDrivers == None or
+			    options.templateWithPVDrivers == None or
+			    options.nfslocation == None or
+			    options.cifslocation == None or
+			    options.cifsusername == None or
+			    options.cifspassword == None or
+			    options.email == None or
+			    options.smtpserver == None or
+			    options.smtpport == None ):
+	Print("\nMissing required parameters for setup.\n")
+	DisplaySetupOptions()
+	return 0
+   
+    Print("********************** Welcome to vmprtest 1.0 *****************")  
+    Print("Test start time: %s" % time.asctime(time.localtime()))
+    start = datetime.datetime.now()
+    Print("***********************************************************************")  
+    
+    if options.setup:
+	Print("Performing setup.")
+    	retVal = PerformSetup(options)
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR setup results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR setup results', timeOfCompletion))
+	    
+    if options.test1 or options.testall:
+	Print("Performing test1.")
+    	retVal = PerformTest1()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test1 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test1 results', timeOfCompletion))
+	    
+    if options.test2 or options.testall:
+	Print("Performing test2.")
+    	retVal = PerformTest2()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test2 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test2 results', timeOfCompletion))
+
+    if options.test3 or options.testall:
+	Print("Performing test3.")
+    	retVal = PerformTest3()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test3 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test3 results', timeOfCompletion))
+    
+    if options.test4 or options.testall:
+	Print("Performing test4.")
+    	retVal = PerformTest4()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test4 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test4 results', timeOfCompletion))
+	    
+    if options.test5 or options.testall:
+	Print("Performing test5.")
+    	retVal = PerformTest5()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test5 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test5 results', timeOfCompletion))
+
+    if options.test6 or options.testall:
+	Print("Performing test6.")
+    	retVal = PerformTest6()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test6 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test6 results', timeOfCompletion))
+    
+    if options.test7 or options.testall:
+	Print("Performing test7.")
+    	retVal = PerformTest7()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test7 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test7 results', timeOfCompletion))
+	    
+    if options.test8 or options.testall:
+	Print("Performing test8.")
+    	retVal = PerformTest8()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test8 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test8 results', timeOfCompletion))
+
+    if options.test9 or options.testall:
+	Print("Performing test9.")
+    	retVal = PerformTest9()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR test9 results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR test9 results', timeOfCompletion))
+	    
+    if options.destroy:
+	Print("Performing cleanup.")
+    	retVal = PerformCleanup()
+	Print("***********************************************************************")
+	timeOfCompletion = time.asctime(time.localtime())
+    
+	if retVal: 
+            Print("%-50s: PASS, Completed: %s" %
+		('VMPR cleanup results', timeOfCompletion))
+	else:
+            Print("%-50s: FAIL, Completed: %s" %
+		  ('VMPR cleanup results', timeOfCompletion))
+	
+    Print("***********************************************************************")
+    Print("End of vmprtest suite.")
+    Print("***********************************************************************")
+    end = datetime.datetime.now()
+    Print("Test end time: %s" % time.asctime(time.localtime()))
+    timed = end - start
+    hr = timed.seconds/3600
+    min = timed.seconds%3600/60
+    sec = timed.seconds%60
+    if hr > 0:
+	Print("Execution time: %d hours, %d minutes, %d seconds." % (hr, min, sec))
+    elif min > 0:
+	Print("Execution time: %d minutes, %d seconds." % (min, sec))
+    elif sec > 0:
+        Print("Execution time: %d seconds." % sec)	    
+    
+    Print("***********************************************************************")  
+    sys.exit(0)    
+    
+def parse_args(version_string):
+    """Parses the command line arguments"""
+    
+    opt = OptionParser("usage: %prog [arguments seen below]",
+            version=version_string,
+           add_help_option=False)
+    
+    for element in __flags__:
+	opt.add_option(element[5], element[6],
+		       action="store_true",
+                       default=element[3],
+                       help=element[1],
+                       dest=element[0])
+	
+    for element in __params__:
+	opt.add_option(element[5], element[6],
+		       default=element[3],
+                       help=element[1],
+                       dest=element[0])
+    
+    return opt.parse_args()
+
+def DisplayOptions():
+    Print("usage: vmprtest [arguments seen below] \n\
+\n\
+Common options:\n")
+    for item in __flags__:
+        printHelpItem(item)
+    
+    Print("")
+    
+def DisplaySetupOptions():
+    Print(" Setup parameters:\n")
+    for item in __params__:
+        printHelpItem(item)
+ 
+def DisplayUsage(storage_type = None):
+    DisplayOptions();
+    DisplaySetupOptions();
+
+def printHelpItem(item):
+    Print(" %s %-20s\t[%s] %s" % (item[5], item[0], item[4], item[1]))
+    
+def Print(message):
+    # Print to the stdout and to a temp file.
+    try:
+	print message
+	util.VMPRlog(message)
+    except:
+	pass
+
+def PerformSetup(options):
+    try:
+	# Check if number of VMs passed in is sane
+	number = 1
+	if options.number != None:
+	    number = options.number
+	else:
+	    number = '8'
+	    
+	if number > '8':
+	    raise Exception("More than 8 VMs passed in for setup. Please pass in a number less than or equal to 8.")
+	    
+	Print(" - First create a SR to install VMs on.")
+	# Create a shared nfs SR for use
+	cmd = ['xe', 'sr-create', 'type=nfs', 'device-config:server=%s' % options.nfslocation.split(':')[0], 'device-config:serverpath=%s' % options.nfslocation.split(':')[1], 'name-label=vmprtestSR', 'shared=true']
+	SR = util.pread(cmd)
+	SR = SR.strip('\n')
+	
+	Print(" - Now get the hosts in the pool to install the VMs on.")
+	# Look at the current pool and list hosts
+	session = util.get_localAPI_session()
+	pool = session.xenapi.pool.get_all()[0]
+	pool_uuid = session.xenapi.pool.get_uuid(pool)
+	cmd = ['xe', 'pool-param-set', 'uuid=%s' % pool_uuid, 'default-SR=%s' % SR]
+	util.pread(cmd)
+	
+	Print(" - Create VMPP-1")
+	cmd = ['xe', 'vmpp-create', 'name-label=VMPP-1',
+	       'backup-type=snapshot', 'backup-frequency=hourly', 'backup-schedule:min=15',
+	       'archive-frequency=daily', 'archive-schedule:hour=14', 'archive-schedule:min=0',
+	       'archive-target-type=nfs', 'archive-target-config:location=%s' % options.nfslocation,
+	       'alarm-config:email-address=%s' % options.email, 'alarm-config:smtp-server=%s' % options.smtpserver, 'alarm-config:smtp-port=%s' % options.smtpport]
+	vmpp1=util.pread(cmd)
+	vmpp1=vmpp1.strip('\n')	
+	
+	Print(" - Create VMPP-2")
+	cmd = ['xe', 'vmpp-create', 'name-label=VMPP-2',
+	       'backup-type=checkpoint', 'backup-frequency=daily', 'backup-schedule:hour=12', 'backup-schedule:min=0',
+	       'archive-frequency=weekly', 'archive-schedule:days=Monday,Friday', 'archive-schedule:hour=15', 'archive-schedule:min=30',
+	       'archive-target-type=cifs', 'archive-target-config:location=%s' % options.cifslocation, 'archive-target-config:username=%s' % options.cifsusername, 'archive-target-config:password=%s' % options.cifspassword,
+	       'alarm-config:email-address=%s' % options.email, 'alarm-config:smtp-server=%s' % options.smtpserver, 'alarm-config:smtp-port=%s' % options.smtpport]
+	
+	vmpp2=util.pread(cmd)
+	vmpp2=vmpp2.strip('\n')
+	
+	Print(" - Create VMPP-3")
+	cmd = ['xe', 'vmpp-create', 'name-label=VMPP-3',
+	       'backup-type=checkpoint', 'backup-frequency=hourly', 'backup-schedule:min=45',
+	       'archive-frequency=daily', 'archive-schedule:hour=16', 'archive-schedule:min=0',
+	       'archive-target-type=cifs', 'archive-target-config:location=%s' % options.cifslocation, 'archive-target-config:username=%s' % options.cifsusername, 'archive-target-config:password=%s' % options.cifspassword,
+	       'alarm-config:email-address=%s' % options.email, 'alarm-config:smtp-server=%s' % options.smtpserver, 'alarm-config:smtp-port=%s' % options.smtpport]
+	vmpp3=util.pread(cmd)
+	vmpp3=vmpp3.strip('\n')
+	
+	Print(" - Create VMPP-4")
+	cmd = ['xe', 'vmpp-create', 'name-label=VMPP-4',
+	       'backup-type=snapshot', 'backup-frequency=daily', 'backup-schedule:hour=0', 'backup-schedule:min=0',
+	       'archive-frequency=weekly', 'archive-schedule:days=Monday,Friday', 'archive-schedule:hour=13', 'archive-schedule:min=30',
+	       'archive-target-type=nfs', 'archive-target-config:location=%s' % options.nfslocation,
+	       'alarm-config:email-address=%s' % options.email, 'alarm-config:smtp-server=%s' % options.smtpserver, 'alarm-config:smtp-port=%s' % options.smtpport]
+	vmpp4=util.pread(cmd)
+	vmpp4=vmpp4.strip('\n')
+	
+	vmpp1_ref = session.xenapi.VMPP.get_by_uuid(vmpp1)
+	vmpp2_ref = session.xenapi.VMPP.get_by_uuid(vmpp2)
+	vmpp3_ref = session.xenapi.VMPP.get_by_uuid(vmpp3)
+	vmpp4_ref = session.xenapi.VMPP.get_by_uuid(vmpp4)
+	
+	# First disable all policies created.
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp1_ref, False)
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp2_ref, False)
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp3_ref, False)
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp4_ref, False)
+	
+	# Grab the first 2 hosts
+	hosts = session.xenapi.host.get_all()
+	host1 = session.xenapi.host.get_uuid(hosts[0])
+	host2 = session.xenapi.host.get_uuid(hosts[1])
+    
+	# Have a loop to install VMs
+	for i in range(1, int(number) + 1):
+
+	    # In each install a VM on this host
+	    Print(" - Installing VM: VMPP-VM%d" % i)
+	    
+	    if i > 2 and i < 7:
+		cmd = ['xe', 'vm-install', 'template=%s' % options.templateWithPVDrivers, 'new-name-label=VMPP-VM%d' % i, 'sr-uuid=%s' % SR]
+	    else:
+		cmd = ['xe', 'vm-install', 'template=%s' % options.templateWithoutPVDrivers, 'new-name-label=VMPP-VM%d' % i, 'sr-uuid=%s' % SR]
+		
+	    print cmd	
+	    VM = util.pread(cmd)
+	    VM = VM.strip('\n')	    
+	    
+	    # Now set the affinity
+	    vm_ref = session.xenapi.VM.get_by_uuid(VM)	    
+	    if i%2:
+		session.xenapi.VM.set_affinity(vm_ref, host1)
+	    else:
+		session.xenapi.VM.set_affinity(vm_ref, host2)
+	    
+	    Print(' - Starting VM: %s' % VM)
+	    cmd = ['xe', 'vm-start', 'uuid=%s' % VM]
+	    util.pread(cmd)
+	
+	    # Now assign this VM to the correct VMPP 	    
+	    if i>0 and i<3:
+		session.xenapi.VM.set_protection_policy(vm_ref, vmpp1_ref)
+		
+	    if i>2 and i<5:
+		session.xenapi.VM.set_protection_policy(vm_ref, vmpp2_ref)
+	    
+	    if i>4 and i<7:
+		session.xenapi.VM.set_protection_policy(vm_ref, vmpp3_ref)
+		
+	    if i>6 and i<9:
+		session.xenapi.VM.set_protection_policy(vm_ref, vmpp4_ref)
+		
+    except Exception, e:
+	Print("There was an exception performing setup. Error: %s" % str(e))
+	return(False, 1,1)
+    
+    return( True, 1, 1)
+
+def destroy_snapshot(session, snap_ref):
+    try:
+	# Generate a list of VM VDIs so we can verify snap VDIs are related
+	vdimap = {}
+	VBDs = session.xenapi.VM.get_VBDs(snap_ref)
+	for vbd in VBDs:
+	    if session.xenapi.VBD.get_type(vbd) == 'Disk':
+		# store the vdi
+		vdimap[session.xenapi.VBD.get_VDI(vbd)] = '1'	    
+	
+	# Now destroy the VM
+	# First hard_shutdown the VM, this is required for a checkpoint
+	try:
+	    session.xenapi.VM.hard_shutdown(snap_ref)	    
+	except Exception, e:
+	    # This must be a snapshot, rather than a checkpoint
+	    pass
+    
+	# Now try destroying the VM, this should work for both snapshot and checkpoint
+	try:
+	    session.xenapi.VM.destroy(snap_ref)
+	except Exception, e:
+	    Print("Could not destroy the VM: %s, error: %s" % (snap_ref, str(e)))
+		
+	for vdi in vdimap.keys():
+	    try:
+		session.xenapi.VDI.destroy(vdi)
+	    except Exception, e:
+		Print("Could not destroy the vdi: %s. Error: %s" % (vdi, str(e)))
+	
+	# Now attempt to destroy the VBDs, if not dont worry about it, they will be GCd later
+	for vbd in VBDs:
+	    try:
+		session.xenapi.VBD.destroy(vbd)
+	    except:
+		pass
+	
+    except Exception, e:
+	Print("Could not destroy snapshot successfully, please destroy the snapshot %s manually. Error: %s" % (snap_ref, str(e)))
+
+def PerformCleanup():    
+    try:
+	# Look at the current pool and list hosts
+	session = util.get_localAPI_session()	
+    
+    	# Force uninstall all the test VMs
+	vms = session.xenapi.VM.get_all()
+	for vm in vms:
+	    regex = re.compile("VMPP-VM*")
+	    if regex.search(session.xenapi.VM.get_name_label(vm), 0) == None:
+		continue
+	    
+	    # If this VM is itself a snapshot then continue.
+	    if session.xenapi.VM.get_is_a_snapshot(vm):
+		continue
+	    
+	    name = session.xenapi.VM.get_name_label(vm)
+	    
+	    Print(" - Handling VM: %s" % name)
+	    # First destroy all the snapshots
+	    Print("   - Destroy all snapshots of the VM.")
+	    snaps = session.xenapi.VM.get_snapshots(vm)
+	    for snap in snaps:
+		destroy_snapshot(session, snap)
+		vms.remove(snap)
+	    
+	    Print("   - Now uninstall the VM itself. ")
+	    vm_uuid = session.xenapi.VM.get_uuid(vm)
+	    cmd = ['xe', 'vm-uninstall', 'vm=%s' % vm_uuid, 'force=true']
+	    text = util.pread(cmd)
+	    
+	Print(" - Now delete the VMPP objects.")
+	# Now delete the VMPP objects
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    name = session.xenapi.VMPP.get_name_label(vmpp)
+	    if name == 'VMPP-1' or name == 'VMPP-2' or name == 'VMPP-3' or name == 'VMPP-4':
+		session.xenapi.VMPP.destroy(vmpp)
+		
+	Print(" - Now destroy the SR created for the testing")
+	# Now destroy the SR created for the testing
+	srs = session.xenapi.SR.get_all()
+	for sr in srs: 
+	    if session.xenapi.SR.get_name_label(sr) != 'vmprtestSR':
+		continue
+	    else:
+		# Find PBDs for SR
+		Print("   - Find PBDs for the SR and unplug them.")
+		pbds = session.xenapi.SR.get_PBDs(sr)
+		for pbd in pbds:
+		    session.xenapi.PBD.unplug(pbd)
+		Print("   - Now destroy the SR.")
+		session.xenapi.SR.destroy(sr)
+    
+    except Exception, e:
+	Print("There was an exception performing cleanup. Error: %s" % str(e))
+	return False
+    
+    return True
+    
+def getMonthDayHourMin(curtime):
+    if curtime.month < 10:
+	month = '0%d' % curtime.month
+    else:
+	month = str(curtime.month)
+    
+    if curtime.day < 10:
+	day = '0%d' % curtime.day
+    else:
+	day = str(curtime.day)
+	
+    if curtime.hour < 10:
+	hour = '0%d' % curtime.hour
+    else:
+	hour = str(curtime.hour)
+	
+    if curtime.minute < 10:
+	min = '0%d' % curtime.minute
+    else:
+	min = str(curtime.minute)
+	
+    return (month, day, hour, min)
+    
+def get_next_run_time(schedule):
+    next_run_time = None
+    
+    try:
+	# Get the current time	
+	now = datetime.datetime.now()
+	
+	# check operation frequency
+	if schedule['frequency'] == 'hourly':
+	    # calculate the last expected run time, based on the current time.
+	    if now.minute > int(schedule['min']) or now.minute == int(schedule['min']):		
+		next_run_time = datetime.datetime(now.year, now.month, now.day, now.hour, int(schedule['min']),0,0) + datetime.timedelta(hours = 1)
+	    else:
+		# current mins are less than schedule mins so no need to change the hour
+		next_run_time = datetime.datetime(now.year, now.month, now.day, now.hour, int(schedule['min']),0,0)
+	elif schedule['frequency'] == 'daily':
+	    # calculate the last expected run time, based on the current date and time.
+	    if now.hour > int(schedule['hour']):
+		next_run_time = datetime.datetime(now.year, now.month, now.day, int(schedule['hour']), int(schedule['min']),0,0) + datetime.timedelta(days = 1)
+	    else:
+		# current hours are less than schedule hours so no need to change the day
+		next_run_time = datetime.datetime(now.year, now.month, now.day, int(schedule['hour']), int(schedule['min']),0,0)
+	elif schedule['frequency'] == 'weekly':
+	    # First create a map of the days in the schedule for ease of computation later
+	    dayMap = {}
+	    for day in schedule['days'].split(','):
+		dayMap[day] = '1'	    
+
+	    nextDayFound = False
+	    
+	    # calculate the next run time, based on the current date and time.
+	    # if current time is less than scheduled time
+	    if (now.hour < int(schedule['hour'])) or ((now.hour == int(schedule['hour']) and (now.minute < int(schedule['min'])))):
+		# go to the last day on the scheduled time list excluding today		
+		noOfDays = 0
+	    else:
+		# go to the last day on the scheduled time list including today
+		noOfDays = 1	    
+	    
+	    newDate = now	    
+	    while not nextDayFound and noOfDays < 7:
+		td = datetime.timedelta(days = noOfDays)
+		newDate = now + td
+		if dayMap.has_key(newDate.strftime("%A")):
+		    nextDayFound = True
+		else:
+		    noOfDays += 1
+	    
+	    if not nextDayFound:
+		raise Exception("Could not find the next execution time for the schedule: %s" % schedule)		
+		
+	    # generate a date with this day and the scheduled time
+	    next_run_time = datetime.datetime(now.year, now.month, newDate.day, int(schedule['hour']), int(schedule['min']),0,0)
+    except Exception, e:
+        Print("There was an exception in finding out the next run time of a schedule. %s" % str(e))
+	    
+    return next_run_time
+    
+def PerformTest1():    
+    try:
+	(month,day, hour, min) = getMonthDayHourMin(datetime.datetime.now())
+	
+	Print(" - Create a map of policies we are interested in")
+	# Create a map of policies we are interested in
+	mapNameToRef = {}
+	session = util.get_localAPI_session()
+	vmpps = session.xenapi.VMPP.get_all()
+	regex = re.compile("VMPP-*")
+	for vmpp in vmpps:
+	    name = session.xenapi.VMPP.get_name_label(vmpp)
+	    if regex.search(name) != None:
+		mapNameToRef[name] = vmpp		
+	    
+	Print(" - Change the system clock to a time when none of the policies qualify for a run.")
+	#1. Change the system clock to a time when none of the above qualify for a run.	
+	cmd = ['date', '%s%s0030' % (month,day)]
+	util.pread(cmd)
+	
+	Print(" - Now wait for a minute before checking the results of this time change.")
+	time.sleep(60)
+	
+	Print(" - Make sure none of the policies go into a running state on either backup or archive.")
+	# Make sure none of the policies go into a running state on either backup or archive.
+	for key in mapNameToRef.keys():
+	    if session.xenapi.VMPP.get_is_backup_running(mapNameToRef[key]) or session.xenapi.VMPP.get_is_archive_running(mapNameToRef[key]):
+		raise Exception("The policy %s started running backup out of turn." % key)
+	
+	Print(" - Now go through each policy in turn")
+	# Now go through each policy in turn
+	for key in mapNameToRef.keys():
+	    schedule = {}
+	    vmpp = mapNameToRef[key]
+	    
+	    Print("   - Looking at policy: %s" % key)
+	    Print("     - Enable the policy.")
+	    # Enable the policy
+	    session.xenapi.VMPP.set_is_policy_enabled(vmpp, True)
+	    
+	    # Test the backup
+	    schedule = session.xenapi.VMPP.get_backup_schedule(vmpp)
+	    schedule['frequency'] = session.xenapi.VMPP.get_backup_frequency(vmpp)
+	    next_run_time = get_next_run_time(schedule)
+	    (month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	    # save the last backup run time	    
+	    old_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    
+	    Print("     - Change the system clock to next backup time %s." % next_run_time)
+	    #2. Change the system clock to next backup time
+	    cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	    util.pread(cmd)
+	
+	    Print("     - Make sure vmpp starts taking snapshots within 2 minutes or so.")
+	    # Make sure vmpp starts taking snapshots within 2 minute ors so.
+	    count = 0
+	    backuprunning = False
+	    new_last_run_time = old_last_run_time
+	    while not backuprunning and count < 120 and new_last_run_time == old_last_run_time:
+		backuprunning = session.xenapi.VMPP.get_is_backup_running(vmpp)		
+		new_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+		time.sleep(1)
+		count += 1
+	    
+	    if count == 120:
+		# Disable the policy
+		Print("     - Disable the policy.")
+		session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+		raise Exception(" - Backups did not start for the VMPP %s within 2 minute of due schedule." % key)
+	    else:
+		WaitForBackupAndArchive(session, vmpp)
+    	    
+	    # Test the archive
+	    schedule = {}
+	    schedule = session.xenapi.VMPP.get_archive_schedule(vmpp)
+	    schedule['frequency'] = session.xenapi.VMPP.get_archive_frequency(vmpp)
+	    next_run_time = get_next_run_time(schedule)
+	    (month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	    # save the last archive run time
+	    old_last_run_time = session.xenapi.VMPP.get_archive_last_run_time(vmpp)
+	    
+	    Print("     - Change the system clock to next archive time %s." % next_run_time)
+	    #2. Change the system clock to next archive time
+	    cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]	
+	    util.pread(cmd)
+	
+	    Print("     - Make sure vmpp starts taking archives within 5 minutes or so.")
+	    # Make sure vmpp starts taking archives within a minute or so.
+	    count = 0
+	    archiverunning = False
+	    new_last_run_time = old_last_run_time
+	    while not archiverunning and count < 300 and new_last_run_time == old_last_run_time:
+		archiverunning = session.xenapi.VMPP.get_is_archive_running(vmpp)
+		new_last_run_time = session.xenapi.VMPP.get_archive_last_run_time(vmpp)
+		time.sleep(1)
+		count += 1
+	    
+	    if count == 300:
+		# Disable the policy
+		Print("     - Disable the policy.")
+		session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+		raise Exception("Archives did not start for the VMPP %s within 5 minutes of due schedule." % key)
+	    else:
+		WaitForBackupAndArchive(session, vmpp)
+    	    
+	    # Disable the policy
+	    Print("     - Disable the policy.")
+	    session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+		
+    except Exception, e:
+	Print("Test1 failed to execute with the following error: %s" % str(e))
+	return False
+
+    return True
+    
+def PerformTest2():    
+    try:
+	Print(" - Find the policy vmpp-1")
+	session = util.get_localAPI_session()
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-1':
+		break		
+	    
+	Print(" - Enable the policy")
+	# Enable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, True)
+	
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_backup_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_backup_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	Print(" - Stop XAPI on the system.")
+	#1. Stop XAPI on the system.
+	cmd = ['service', 'xapi', 'stop']
+	util.pread(cmd)
+	
+	Print(" - Change the system clock to the next backup run time %s." % next_run_time)
+	#2. Change the system clock to the next backup run time. 
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	util.pread(cmd)
+	
+	Print(" - Sleep for 5 minutes.")
+	# Sleep for 5 minutes.
+	time.sleep(300)
+	
+	Print(" - Start XAPI on the system.")
+	#3. Start XAPI on the system.
+	cmd = ['service', 'xapi', 'start']
+	util.pread(cmd)
+	
+        # save the last backup run time
+        old_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	
+	#4. Change the system clock to the next cron run.
+	next_cron_time = next_run_time + datetime.timedelta(minutes=15)
+	(month,day, hour, min) = getMonthDayHourMin(next_cron_time)
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	Print(" - Change the system clock to the next cron run time %s." % next_cron_time)
+	util.pread(cmd)
+	
+	Print(" - Make sure vmpp starts taking snapshots within 2 minutes or so, thus recovering from the XAPI unavailability on the last cron run.")
+        # Make sure vmpp starts taking snapshots within a minute or so, thus recovering from the XAPI unavailability on the last cron run.
+	count = 0
+	backuprunning = False
+	new_last_run_time = old_last_run_time
+	while not backuprunning and count < 120 and new_last_run_time == old_last_run_time:
+	    backuprunning = session.xenapi.VMPP.get_is_backup_running(vmpp)		
+	    #print backuprunning
+	    new_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    time.sleep(1)
+	    count += 1
+	
+	if count == 120:
+	    # Disable the policy
+	    Print(" - Disable the policy")
+	    session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	    raise Exception("Backups did not start for the VMPP %s within 2 minutes of due schedule." % vmpp)
+	else:
+	    Print(" - Wait for the backup to get over")
+	    # wait for the backup to get over
+	    while session.xenapi.VMPP.get_is_backup_running(vmpp):
+		time.sleep(1)
+	
+	Print(" - VMPP backup recovered from xapi shutdown.")
+	# Get the next archive run time
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_archive_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_archive_frequency(vmpp)
+	#print schedule
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+
+	Print(" - Stop XAPI on the system.")
+	#5. Stop XAPI on the system.
+	cmd = ['service', 'xapi', 'stop']
+	util.pread(cmd)
+	
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	Print(" - Now change the system clock to the next archive time %s." % next_run_time)
+	#6. Change the system clock to the next archive time. 
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]	
+	util.pread(cmd)
+	
+	Print(" - Sleep for 5 minutes.")
+	# Sleep for 5 minutes.
+	time.sleep(300)
+	
+	Print(" - Start XAPI on the system.")
+	#7. Start XAPI on the system.
+	cmd = ['service', 'xapi', 'start']
+	util.pread(cmd)
+	
+	# save the last archive run time
+        old_last_run_time = session.xenapi.VMPP.get_archive_last_run_time(vmpp)
+	
+	#8. Change the system clock to the next cron run.
+	next_cron_time = next_run_time + datetime.timedelta(minutes=15)
+	(month,day, hour, min) = getMonthDayHourMin(next_cron_time)
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	Print(" - Change the system clock to the next cron run %s." % next_cron_time)	
+	util.pread(cmd)
+	
+	Print(" - Make sure vmpp-1 starts archiving within 2 minutes or so, thus recovering from the XAPI unavailability on the last cron run.")
+	# Make sure vmpp-1 starts archiving within a minute or so, thus recovering from the XAPI unavailability on the last cron run.
+	count = 0
+	archiverunning = False
+	new_last_run_time = old_last_run_time
+	while not archiverunning and count < 120 and new_last_run_time == old_last_run_time:
+	    archiverunning = session.xenapi.VMPP.get_is_archive_running(vmpp)
+	    #print archiverunning
+	    new_last_run_time = session.xenapi.VMPP.get_archive_last_run_time(vmpp)
+	    time.sleep(1)
+	    count += 1
+	
+	if count == 120:
+	    # Disable the policy
+	    session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	    raise Exception("Archives did not start for the VMPP %s within 2 minutes of due schedule." % vmpp)
+	else:
+	    WaitForBackupAndArchive(session, vmpp)
+	
+	Print(" - VMPP archives recovered from xapi shutdown.")
+	# Disable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+		
+    except Exception, e:
+	Print(" - Test2 failed to execute with the following error: %s" % str(e))
+	return False
+
+    return True
+    
+def PerformTest3():    
+    try:
+	session = util.get_localAPI_session()
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-1':
+		break		
+	    
+	# Enable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, True)
+	
+	Print(" - Get the next backup run time for the policy.")
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_backup_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_backup_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	Print(" - Change the system clock to the next backup run time %s." %  next_run_time)
+	#2. Change the system clock to the next backup run time. 
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	util.pread(cmd)
+	
+	Print(" - Wait for vmpp-1 to flag that a backup is running.")	
+	while not session.xenapi.VMPP.get_is_backup_running(vmpp):
+	    continue
+	
+	# Get the last alert time
+	ts=get_last_alert_timestamp(session,vmpp)
+	
+	#4. Change the system clock to the one hour later.
+	next_run_time = get_next_run_time(schedule) + datetime.timedelta(hours = 1) + datetime.timedelta(minutes = 15)	
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	Print(" - Change the system clock to after the next cron run %s." %  next_run_time)
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	util.pread(cmd)
+	
+	Print(" - Wait for vmpp-1 to flag that a backup is no longer running.")	
+        while session.xenapi.VMPP.get_is_backup_running(vmpp):
+	    time.sleep(1)
+	
+	# Now check from the recent alerts that a missed event alert was generated.
+	if not is_one_of_recent_alerts(session, vmpp, 'VMPP_BACKUP_MISSED_EVENT', ts):
+	    Print(" - The VMPP_BACKUP_MISSED_EVENT alert was not generated even when a backup event was lost because of an overlapping backup operation.")
+	    raise Exception(" - The VMPP_BACKUP_MISSED_EVENT alert was not generated even when a backup event was lost because of an overlapping backup operation.")
+	
+	Print(" - Get the next archive run time")
+	# Get the next archive run time
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_archive_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_archive_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	Print(" - Change the system clock to the next archive time %s. " % next_run_time)
+	#6. Change the system clock to the next archive time. 
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]	
+	util.pread(cmd)	
+	
+	Print(" - Wait for vmpp-1 to flag that an archive is running.")
+	while not session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    continue
+
+	# Get the last alert time
+	ts=get_last_alert_timestamp(session,vmpp)
+	
+	#8. Change the system clock to the next cron run.
+	next_run_time = get_next_run_time(schedule) + datetime.timedelta(hours = 1) + datetime.timedelta(days = 1)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	Print(" - Change the system clock to the next cron run %s." %  next_run_time)	
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	util.pread(cmd)
+	
+	Print(" - Wait for vmpp-1 to flag that the archive is no longer running.")	
+        while session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    time.sleep(1)
+	
+		# Now check from the recent alerts that a missed event alert was generated.
+	if not is_one_of_recent_alerts(session, vmpp, 'VMPP_ARCHIVE_MISSED_EVENT', ts):
+	    Print(" - The VMPP_ARCHIVE_MISSED_EVENT alert was not generated even when an archive event was lost because of an overlapping backup operation.")
+	    
+	# Disable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+		
+    except Exception, e:
+	# Disable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	Print(" - Test3 failed to execute with the following error: %s" % str(e))
+	return False
+
+    return True
+    
+def PerformTest4():    
+    try:
+	session = util.get_localAPI_session()
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-1':
+		break		
+	    
+	# Find the current pool master
+	slave = ''
+	pool = session.xenapi.pool.get_all()[0]
+	master = session.xenapi.pool.get_master(pool)
+	 
+	# Find a slave to test with
+	hosts = session.xenapi.host.get_all()
+	for host in hosts:
+	    if host != master:
+		slave = host
+		break;
+	
+	if slave == '':
+	    raise Exception("Could not find any slave host.")
+	    
+	master_uuid = session.xenapi.host.get_uuid(master)
+	slave_uuid = session.xenapi.host.get_uuid(slave)
+	    
+	# Enable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, True)
+	
+	Print(" - Get the next backup run time for the policy.")
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_backup_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_backup_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	Print(" - Change the system clock to the next backup run time %s." %  next_run_time)
+	#2. Change the system clock to the next backup run time. 
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	util.pread(cmd)
+	
+	Print(" - Wait for vmpp-1 to flag that a backup is running.")	
+	while not session.xenapi.VMPP.get_is_backup_running(vmpp):
+	    continue
+	
+	# Designate the slave as the master
+	Print(" - Designate the slave as the master")
+	cmd = ['xe', 'pool-designate-new-master', 'host-uuid=%s' % slave_uuid]
+	util.pread(cmd)
+	
+	Print(" - Wait for it to appear as the master in the pool config for 10 minutes.")
+	# Wait for it to appear as the master in the pool config for 10 minutes
+	count = 0
+	newmaster = ''
+	while newmaster != slave and count < 600:
+	    try:
+		newmaster = session.xenapi.pool.get_master(pool)
+	        count += 1
+	        time.sleep(1)	
+	    except:
+		count += 1
+		time.sleep(1)
+	    
+	if count == 600:
+	    raise Exception(" - The slave did not appear as the master in 10 minutes.")
+	
+	Print(" - Now wait for the backups to start on VMPP-1 for 15 minutes. ")
+	count = 0
+	
+	Print(" - Wait for vmpp-1 to flag that a backup is running.")	
+        while not session.xenapi.VMPP.get_is_backup_running(vmpp) and count < 900:
+	    count += 1
+	    time.sleep(1)
+	    
+	if count == 900:
+	    raise Exception(" - Backups did not start on the new master within 15 minutes of failover.")
+	else:
+	    Print(" - Backups started on the new master within 15 minutes of failover.")
+	
+	Print(" - Wait for vmpp-1 to flag that the backup is no longer running.")	
+        while session.xenapi.VMPP.get_is_backup_running(vmpp):
+	    time.sleep(1)
+	    
+	# Designate the old master as the new master
+	Print(" - Designate the old master as the new master")
+	cmd = ['xe', 'pool-designate-new-master', 'host-uuid=%s' % master_uuid]
+	util.pread(cmd)
+	
+	Print(" - Wait for it to appear as the new master in the pool config for 10 minutes.")
+	# Wait for it to appear as the new master in the pool config for 10 minutes
+	count = 0
+	newmaster = ''	
+	while newmaster != master and count < 600:
+	    try:
+		newmaster = session.xenapi.pool.get_master(pool)
+	        count += 1
+	        time.sleep(1)	
+	    except:
+		count += 1
+		time.sleep(1)
+	    
+	if count == 600:
+	    raise Exception("The old master did not appear as the master in 10 minutes.")
+	    
+	Print(" - Wait for the pool to reach a consistent state.")
+	time.sleep(300)
+	    
+	Print(" - Get the next archive run time")
+	# Get the next archive run time
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_archive_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_archive_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	Print(" - Change the system clock to the next archive time %s. " % next_run_time)
+	#6. Change the system clock to the next archive time. 
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]	
+	util.pread(cmd)	
+	
+	Print(" - Wait for vmpp-1 to flag that an archive is running.")
+	while not session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    continue
+
+	# Designate the slave as the master
+	Print(" - Designate the slave as the master")
+	cmd = ['xe', 'pool-designate-new-master', 'host-uuid=%s' % slave_uuid]
+	util.pread(cmd)
+	
+	Print(" - Wait for it to appear as the master in the pool config for 10 minutes.")
+	# Wait for it to appear as the master in the pool config for 10 minutes
+	count = 0
+	newmaster = ''
+	while newmaster != slave and count < 600:
+	    try:
+		newmaster = session.xenapi.pool.get_master(pool)
+	        count += 1
+	        time.sleep(1)	
+	    except:
+		count += 1
+		time.sleep(1)
+	    
+	if count == 600:
+	    raise Exception(" - The slave did not appear as the master in 10 minutes.")	
+	
+	Print(" - Now wait for the archives to start on VMPP-1 for 15 minutes. ")
+	count = 0
+	
+	Print(" - Wait for vmpp-1 to flag that a archive is running.")	
+        while not session.xenapi.VMPP.get_is_archive_running(vmpp) and count < 900:
+	    count += 1
+	    time.sleep(1)
+	    
+	if count == 900:
+	    raise Exception(" - Archives did not start on the new master within 15 minutes of failover.")
+	else:
+	    Print(" - Archives started on the new master within 15 minutes of failover.")
+	
+	Print(" - Wait for vmpp-1 to flag that the archive is no longer running.")	
+        while session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    time.sleep(1)
+	    
+	# Designate the old master as the new master
+	Print(" - Designate the old master as the new master")
+	cmd = ['xe', 'pool-designate-new-master', 'host-uuid=%s' % master_uuid]
+	util.pread(cmd)
+	
+	Print(" - Wait for it to appear as the new master in the pool config for 10 minutes.")
+	# Wait for it to appear as the new master in the pool config for 10 minutes
+	count = 0
+	newmaster = ''	
+	while newmaster != master and count < 600:
+	    try:
+		newmaster = session.xenapi.pool.get_master(pool)
+	        count += 1
+	        time.sleep(1)	
+	    except:
+		count += 1
+		time.sleep(1)
+	    
+	if count == 600:
+	    raise Exception(" - The old master did not appear as the master in 10 minutes.")
+	    
+	# Disable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+		
+    except Exception, e:
+	# Disable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	Print(" - Test4 failed to execute with the following error: %s" % str(e))
+	return False
+
+    return True
+
+def PerformTest5():
+    try:
+	Print(" - Find the policy vmpp-1")
+	# Find the policy vmpp-1
+	session = util.get_localAPI_session()
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-1':
+		break		
+	    
+	Print(" - Enable the policy")
+	# Enable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, True)
+	
+	Print(" - Invoke the protect_now call on vmpp-1 using the plug-in.")
+	# Invoke the protect_now call on vmpp-1 using the plug-in.
+	host_ref = util.get_localhost_uuid(session)
+	host_uuid = session.xenapi.host.get_uuid(host_ref)
+	vmpp_uuid = session.xenapi.VMPP.get_uuid(vmpp)
+	cmd = ['xe', 'host-call-plugin', 'host-uuid=%s' % host_uuid,'plugin=vmpr', 'fn=protect_now', 'args:vmpp_uuid=%s' % vmpp_uuid]
+	util.pread(cmd)
+	
+	Print(" - Wait till both the backup and archive operations are complete.")
+	# Wait till both the backup and archive operations are complete.
+	while session.xenapi.VMPP.get_is_backup_running(vmpp) or session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    time.sleep(1)
+	    
+	Print(" - Set the system time to the closest 15 min value in the past.")
+	# Set the system time to the closest 15 min value in the past.
+	(month,day, hour, min) = getMonthDayHourMin(datetime.datetime.now() - datetime.timedelta(hours = 1))
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	
+	Print(" - Make sure backups start running on vmpp-1 within a minute or so.")
+	# save the last backup run time
+	old_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    
+	count = 0
+	backuprunning = False
+	new_last_run_time = old_last_run_time
+	while not backuprunning and count < 60 and new_last_run_time == old_last_run_time:
+	    backuprunning = session.xenapi.VMPP.get_is_backup_running(vmpp)		
+	    #print backuprunning
+	    new_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    time.sleep(1)
+	    count += 1
+	
+	if count == 60:
+	    session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	    raise Exception(" - Backups did not start for the VMPP %s within 1 minute of due schedule." % vmpp)
+	else:
+	    WaitForBackupAndArchive(session, vmpp)
+	
+	# Disable the policy
+	Print(" - Disable the policy")
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	
+    except Exception, e:
+	# Disable the policy
+	Print(" - Disable the policy")
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	Print(" - Test5 failed with the following error: %s" % str(e))
+	return False
+
+    return True
+    
+def PerformTest6():
+    try:	
+	Print(" - Find the policy vmpp-1")
+	# Find the policy vmpp-1
+	session = util.get_localAPI_session()
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-1':
+		break		
+	    
+	# Test the backup
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_backup_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_backup_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+    
+	Print(" - Enable the policy")
+	# Enable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, True)
+	
+	Print(" - If either backup or archive is running on the policy, wait for it to get over before continuing.")
+	WaitForBackupAndArchive(session, vmpp)
+	
+	# save the last backup run time
+	old_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+		
+	Print (" - Revoke platinum licence from the master")
+	# Revoke platinum licence from the master.
+	cmd = ['xe', 'host-apply-edition', 'edition=free']
+	util.pread(cmd)	
+	
+	Print(" - Change the system clock to next backup time %s." % next_run_time)
+	# Change the system clock to next backup time
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	util.pread(cmd)
+    
+	Print(" - Wait for 5 mins and make sure vmpp does not start taking snapshots.")
+	# Wait for 5 mins and make sure vmpp does not start taking snapshots.
+	count = 0
+	backuprunning = False
+	new_last_run_time = old_last_run_time
+	while not backuprunning and count < 300 and new_last_run_time == old_last_run_time:
+	    backuprunning = session.xenapi.VMPP.get_is_backup_running(vmpp)		
+	    new_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    time.sleep(1)
+	    count += 1
+	
+	if backuprunning:
+	    WaitForBackupAndArchive(session, vmpp)
+	    raise Exception("Backups started for the VMPP %s even after revoking the appropriate licensing." % vmpp)
+	    
+	if new_last_run_time > old_last_run_time:
+	    raise Exception("Backups attempted for the VMPP %s even after revoking the appropriate licensing." % vmpp)
+	
+	# Test the archive
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_archive_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_archive_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+    
+	# save the last archive run time
+	old_last_run_time = session.xenapi.VMPP.get_archive_last_run_time(vmpp)
+	
+	Print(" - Change the system clock to next archive time %s." % next_run_time)
+	# Change the system clock to next archive time
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]	
+	util.pread(cmd)
+    	
+	Print(" - Wait for 5 mins and make sure vmpp does not start taking archives.")
+	# Make sure vmpp does not start archives within a minute or so.
+	count = 0
+	archiverunning = False
+	new_last_run_time = old_last_run_time
+	while not archiverunning and count < 300 and new_last_run_time == old_last_run_time:
+	    archiverunning = session.xenapi.VMPP.get_is_archive_running(vmpp)
+	    new_last_run_time = session.xenapi.VMPP.get_archive_last_run_time(vmpp)
+	    time.sleep(1)
+	    count += 1
+	
+	if archiverunning:
+	    WaitForBackupAndArchive(session, vmpp)
+	    raise Exception("Archives started for the VMPP %s even after revoking the appropriate licensing." % vmpp)
+	    
+	if new_last_run_time > old_last_run_time:
+	    raise Exception("Archives attempted for the VMPP %s even after revoking the appropriate licensing." % vmpp)
+	
+	Print(" - Re-grant platinum licence to the master.")
+	# Re-grant platinum licence from the master.
+	cmd = ['xe', 'host-apply-edition', 'edition=platinum']
+	util.pread(cmd)
+	
+	# Test the backup
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_backup_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_backup_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+    
+	# save the last backup run time
+	old_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+		
+	Print(" - Change the system clock to next backup time %s." % next_run_time)
+	# Change the system clock to next backup time
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	util.pread(cmd)
+    
+	Print(" - Make sure vmpp starts taking snapshots within a minute or so.")
+	# Make sure vmpp starts taking snapshots within a minute or so.
+	count = 0
+	backuprunning = False
+	new_last_run_time = old_last_run_time
+	while not backuprunning and count < 60 and new_last_run_time == old_last_run_time:
+	    backuprunning = session.xenapi.VMPP.get_is_backup_running(vmpp)		
+	    #print backuprunning
+	    new_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    time.sleep(1)
+	    count += 1
+	
+	if count == 60:	    
+	    raise Exception("Backups did not start for the VMPP %s even a minute after the scheduled time." % vmpp)
+	else:
+	    WaitForBackupAndArchive(session, vmpp)
+	
+	# Disable the policy
+	Print(" - Disable the policy")
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	
+    except Exception, e:
+	# Regrant platinum licence from the master.
+	cmd = ['xe', 'host-apply-edition', 'edition=platinum']
+	util.pread(cmd)
+	
+	# Disable the policy
+	Print(" - Disable the policy")
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	Print(" - Test6 failed to execute with the following error: %s" % str(e))
+	return False
+
+    return True
+    
+def get_last_alert_timestamp(session, vmpp_ref):
+    try:
+	alerts = session.xenapi.VMPP.get_recent_alerts(vmpp_ref)
+	
+	dom = xml.dom.minidom.parseString(alerts[0])
+	list = dom.getElementsByTagName("time")
+	for node in list[0].childNodes:
+	    # there should only be one
+	    return node.nodeValue.split('.')[0]	    
+	    
+    except Exception, e:
+	Print("Exception getting last alert time stamp: %s" % str(e))
+	return ''
+    
+# This returns a list of alerts after a particular timestamp
+# If no timestamp is given it returns the time for the latest alert. 
+def is_one_of_recent_alerts(session, vmpp_ref, messagetolookfor, since = ''):
+    try:
+	alerts = session.xenapi.VMPP.get_recent_alerts(vmpp_ref)
+	
+	# Look at all the recent alerts and return a list of messages since the time mentioned
+	timestamptolookfor = time.strptime(since,"%Y-%m-%d %H:%M:%S")
+	for alert in alerts:
+	    dom = xml.dom.minidom.parseString(alert)
+	    list = dom.getElementsByTagName("time")
+	    for node in list[0].childNodes:
+		timestamp = node.nodeValue.split('.')[0]
+	    
+	    timestampintime = time.strptime(timestamp,"%Y-%m-%d %H:%M:%S")
+	    timesince = time.strptime(since,"%Y-%m-%d %H:%M:%S")
+	    if timestampintime > timesince:
+		try:
+		    if messagetolookfor == dom.getElementsByTagName("message")[0].firstChild.nodeValue:
+			return True
+		except:
+		    continue
+	return False
+	    
+    except Exception, e:
+	Print("Exception getting alerts: %s" % str(e))
+	return False
+	
+def PerformTest7():    
+    try:
+	Print(" - Find the policy VMPP-1")
+	session = util.get_localAPI_session()
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-1':
+		break		
+	    
+	# Enable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, True)
+	
+	Print(" - Get the next backup run time for the policy.")
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_backup_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_backup_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	Print(" - Change the system clock to the next backup run time %s." %  next_run_time)
+	#2. Change the system clock to the next backup run time. 
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]
+	util.pread(cmd)
+	
+	Print(" - Wait for vmpp-1 to flag that a backup is running.")	
+	while not session.xenapi.VMPP.get_is_backup_running(vmpp):
+	    continue
+	
+	Print(" - Invoke the protect_now call on vmpp-1 using the plug-in.")
+	# Invoke the protect_now call on vmpp-1 using the plug-in.
+	host_ref = util.get_localhost_uuid(session)
+	host_uuid = session.xenapi.host.get_uuid(host_ref)
+	vmpp_uuid = session.xenapi.VMPP.get_uuid(vmpp)
+	cmd = ['xe', 'host-call-plugin', 'host-uuid=%s' % host_uuid,'plugin=vmpr', 'fn=protect_now', 'args:vmpp_uuid=%s' % vmpp_uuid]
+	text=util.pread(cmd)
+	
+	if text.find('The backup sub-policy is already executing for this protection policy. Please try again later') == -1:
+	    raise Exception(" - The plug-in did not return a backup sub-policy already executing message.")
+	    
+	Print(" - Wait for vmpp-1 to flag that the backup is no longer running.")	
+        while session.xenapi.VMPP.get_is_backup_running(vmpp):
+	    time.sleep(1)
+	
+	Print(" - Get the next archive run time")
+	# Get the next archive run time
+	schedule = {}
+	schedule = session.xenapi.VMPP.get_archive_schedule(vmpp)
+	schedule['frequency'] = session.xenapi.VMPP.get_archive_frequency(vmpp)
+	next_run_time = get_next_run_time(schedule)
+	(month,day, hour, min) = getMonthDayHourMin(next_run_time)
+	
+	Print(" - Change the system clock to the next archive time %s. " % next_run_time)
+	#6. Change the system clock to the next archive time. 
+	cmd = ['date', '%s%s%s%s' % (month, day, hour, min)]	
+	util.pread(cmd)	
+	
+	Print(" - Wait for vmpp-1 to flag that an archive is running.")
+	while not session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    continue
+
+	Print(" - Invoke the protect_now call on vmpp-1 using the plug-in.")
+	# Invoke the protect_now call on vmpp-1 using the plug-in.
+	host_ref = util.get_localhost_uuid(session)
+	host_uuid = session.xenapi.host.get_uuid(host_ref)
+	vmpp_uuid = session.xenapi.VMPP.get_uuid(vmpp)
+	cmd = ['xe', 'host-call-plugin', 'host-uuid=%s' % host_uuid,'plugin=vmpr', 'fn=protect_now', 'args:vmpp_uuid=%s' % vmpp_uuid]
+	text=util.pread(cmd)
+	
+	if text.find('The backup sub-policy is already executing for this protection policy. Please try again later') == -1:
+	    raise Exception(" - The plug-in did not return a backup sub-policy already executing message.")
+	    
+	Print(" - Wait for vmpp-1 to flag that the archive is no longer running.")	
+        while session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    time.sleep(1)
+	
+	Print(" - Invoke the protect_now call on vmpp-1 using the plug-in.")
+	# Invoke the protect_now call on vmpp-1 using the plug-in.
+	host_ref = util.get_localhost_uuid(session)
+	host_uuid = session.xenapi.host.get_uuid(host_ref)
+	vmpp_uuid = session.xenapi.VMPP.get_uuid(vmpp)
+	cmd = ['xe', 'host-call-plugin', 'host-uuid=%s' % host_uuid,'plugin=vmpr', 'fn=protect_now', 'args:vmpp_uuid=%s' % vmpp_uuid]
+	text=util.pread(cmd)
+	    
+	Print(" - Wait for vmpp-1 to flag that a backup is running.")	
+	while not session.xenapi.VMPP.get_is_backup_running(vmpp):
+	    continue
+	
+        Print(" - Invoke the protect_now call on vmpp-1 using the plug-in.")
+	# Invoke the protect_now call on vmpp-1 using the plug-in.
+	host_ref = util.get_localhost_uuid(session)
+	host_uuid = session.xenapi.host.get_uuid(host_ref)
+	vmpp_uuid = session.xenapi.VMPP.get_uuid(vmpp)
+	cmd = ['xe', 'host-call-plugin', 'host-uuid=%s' % host_uuid,'plugin=vmpr', 'fn=protect_now', 'args:vmpp_uuid=%s' % vmpp_uuid]
+	text=util.pread(cmd)
+	
+	if text.find('The backup sub-policy is already executing for this protection policy. Please try again later') == -1:
+	    raise Exception(" - The plug-in did not return a backup sub-policy already executing message.")
+	    
+	Print(" - Wait for vmpp-1 to flag that the backup and archive is no longer running.")	
+        while session.xenapi.VMPP.get_is_backup_running(vmpp) or session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    time.sleep(1)
+	
+	# Disable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+		
+    except Exception, e:
+	# Disable the policy
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp, False)
+	Print(" - Test7 failed to execute with the following error: %s" % str(e))
+	return False
+
+    return True
+
+def PerformTest8():
+    retVal = True
+    vmpp1 = None
+    try:
+	session = util.get_localAPI_session()
+	Print(" - Create a VMPP for this test, first with only a backup sub-policy with disk only backups")
+	cmd = ['xe', 'vmpp-create', 'name-label=VMPP-8',
+	       'backup-type=snapshot', 'backup-frequency=hourly', 'backup-schedule:min=15']
+	vmpp_uuid = util.pread(cmd)
+	vmpp_uuid = vmpp_uuid.strip('\n')
+	vmpp = session.xenapi.VMPP.get_by_uuid(vmpp_uuid)
+	
+	Print(" - Find VM-6")
+	vms = session.xenapi.VM.get_all()
+	for vm in vms:
+	    if session.xenapi.VM.get_name_label(vm) == 'VMPP-VM6':
+		break
+	    
+	old_protection_policy = session.xenapi.VM.get_protection_policy(vm)
+	
+	Print(" - Assign the VM to the VMPP created above")
+	# Assign the VM to the VMPP created above
+	session.xenapi.VM.set_protection_policy(vm, vmpp)
+	
+	# save the last backup run time
+	old_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    
+	# Test the backup
+	Print(" - Test protect_now with only backup and backup type snapshot")
+	session.xenapi.VMPP.protect_now(vmpp)
+	
+	Print("   - Make sure vmpp starts taking snapshots within 3 seconds or so.")
+	# Make sure vmpp starts taking snapshots within 3 seconds or so.
+	count = 0
+	backuprunning = False
+	new_last_run_time = old_last_run_time
+	while not backuprunning and count < 4 and new_last_run_time == old_last_run_time:
+	    backuprunning = session.xenapi.VMPP.get_is_backup_running(vmpp)		
+	    new_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    time.sleep(1)
+	    count += 1
+	
+	if count == 4:
+	    raise Exception("Backups did not start for the VMPP %s within 3 seconds of triggering protect_now." % vmpp_uuid)
+	else:
+	    WaitForBackupAndArchive(session, vmpp)
+	
+	Print(" - Now change the snapshot type to checkpoint")
+	session.xenapi.VMPP.set_backup_type(vmpp, 'checkpoint')
+
+    	# save the last backup run time
+	old_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    
+	# Test the backup
+	Print(" - Test protect_now with only backup and backup type checkpoint")
+	session.xenapi.VMPP.protect_now(vmpp)
+	
+	Print("   - Make sure vmpp starts taking snapshots within 3 seconds or so.")
+	# Make sure vmpp starts taking snapshots within 3 seconds or so.
+	count = 0
+	backuprunning = False
+	new_last_run_time = old_last_run_time
+	while not backuprunning and count < 4 and new_last_run_time == old_last_run_time:
+	    backuprunning = session.xenapi.VMPP.get_is_backup_running(vmpp)		
+	    new_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp)
+	    time.sleep(1)
+	    count += 1
+	
+	if count == 4:
+	    raise Exception("Backups did not start for the VMPP %s within 3 seconds of triggering protect_now." % vmpp_uuid)
+	else:
+	    WaitForBackupAndArchive(session, vmpp)
+		
+	Print(" - Find VMPP-1")
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp_ref in vmpps:
+	    if session.xenapi.VMPP.get_name_label(vmpp_ref) == 'VMPP-1':
+		vmpp1 = vmpp_ref
+	
+	Print(" - Enable VMPP-1")
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp1, True)
+	
+	# save the last backup run time
+	old_last_run_time_backup = session.xenapi.VMPP.get_backup_last_run_time(vmpp1)
+	old_last_run_time_archive = session.xenapi.VMPP.get_archive_last_run_time(vmpp1)
+	
+	Print(" - run protect_now on VMPP-1")
+	session.xenapi.VMPP.protect_now(vmpp1)
+	
+	Print("   - Make sure vmpp starts taking snapshots within 3 seconds or so.")
+	
+	# Make sure vmpp starts taking snapshots within 3 seconds or so.
+	count = 0
+	backuprunning = False
+	new_last_run_time = old_last_run_time_backup
+	while not backuprunning and count < 4 and new_last_run_time == old_last_run_time_backup:
+	    backuprunning = session.xenapi.VMPP.get_is_backup_running(vmpp1)		
+	    new_last_run_time = session.xenapi.VMPP.get_backup_last_run_time(vmpp1)
+	    time.sleep(1)
+	    count += 1
+	
+	if count == 4:
+	    raise Exception("Backups did not start for the VMPP %s within 3 seconds of triggering protect_now." % vmpp1)
+	else:
+	    WaitForBackupAndArchive(session, vmpp1)
+	
+	Print("   - Make sure vmpp starts taking archives follow the snapshots within 3 seconds or so.")	
+	count = 0
+	archiverunning = False
+	new_last_run_time = old_last_run_time_archive
+	while not archiverunning and count < 4 and new_last_run_time == old_last_run_time_archive:
+	    archiverunning = session.xenapi.VMPP.get_is_archive_running(vmpp1)		
+	    new_last_run_time = session.xenapi.VMPP.get_archive_last_run_time(vmpp1)
+	    time.sleep(1)
+	    count += 1
+	
+	if count == 4:
+	    raise Exception("Archives did not start for the VMPP %s within 3 seconds of triggering protect_now." % vmpp1)
+	else:
+	    WaitForBackupAndArchive(session, vmpp1)
+	
+	# Disable VMPP-1
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp1, False)
+	
+    except Exception, e:
+	# Disable VMPP-1
+	session.xenapi.VMPP.set_is_policy_enabled(vmpp1, False)
+	Print(" - Test8 failed to execute with the following error: %s" % str(e))	    
+	retVal = False
+	
+    try:
+	Print(" - Un-assign the VM to the VMPP object.")
+	session.xenapi.VM.set_protection_policy(vm, old_protection_policy)
+	
+	Print(" - Now destroy the VMPP created for testing")
+	session.xenapi.VMPP.destroy(vmpp)
+	
+    except Exception, e:
+	Print(" - Failed to destroy the vmpp %s with error %s" % (vmpp, str(e)))
+    
+    return retVal
+    
+#def PerformTest8():    
+#    try:
+#	totalCheckPoints = 2
+#	checkpoints = 0
+#	
+#	Print(" - Find the policy VMPP-1")
+#	session = util.get_localAPI_session()
+#	vmpps = session.xenapi.VMPP.get_all()
+#	for vmpp in vmpps:
+#	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-1':
+#		break		
+#	    
+#	checkpoints += 1
+#	
+#	Print(" - Mount the archive target locally.")
+#	config=session.xenapi.VMPP.get_archive_target_config(vmpp)
+#	config['type']=session.xenapi.VMPP.get_archive_target_type(vmpp)
+#	args['local_mount_dir'] = os.path.join(TEMP_DIR, commands.getoutput('uuidgen'))
+#	os.mkdir(args['local_mount_dir'])
+#	ret = (vmpr.mount_archive_target(session, args))
+#	if ret != str(True):
+#	    raise Exception("Failed to mount the archive target with config: %s. Error: %s." % (args, ret))
+#	
+#	Print(" - Find the first snapshot of the first VM returned in VMPP-1")
+#	vm = session.xenapi.VMPP.get_VMs(vmpp)[0]
+#	snap = session.xenapi.VM.get_snapshots(vm)[0]
+#	snapshot_uuid = session.xenapi.VM.get_uuid(snap)
+#	
+#	Print(" - Now iteratively perform exports waiting for an out-of-space failure.")
+#	#  Invoke the archive_now call on the snapshot using the plug-in.
+#	snap_name = session.xenapi.VM.get_name_label(snap)
+#	
+#	noerror = True
+#	index = 1
+#	filesToDelete = []
+#	while noerror:
+#	    archive_name = os.path.join(archive_target_config['local_mount_dir'],"%s-vmprtest-%d.xva" % (snap_name, index))
+#	    cmd = [ 'xe', 'vm-export', 	'vm=%s' % snap_uuid, 'filename=%s' % archive_name, 'task-uuid=%s' % task_uuid, "compress=true"]
+#	    Print("Calling export command: %s" % cmd)
+#	    text = util.pread(cmd)
+#	    #filesToDelete.append(archive_name)
+#	    print text
+#	
+#	for file in filesToDelete:
+#	    os.unlink(file)
+#	    
+#	unmount_args = {}
+#	unmount_args['local_mount_dir'] = args['local_mount_dir']
+#	if not unmount_archive_target(session, unmount_args):
+#	    raise Exception("Unmount failed for the directory: %s, please unmount manually." % unmount_args['local_mount_dir'])
+#		
+#    except Exception, e:
+#	os.rmdir(unmount_args['local_mount_dir'])
+#	Print(" - Test3 failed to execute with the following error: %s" % str(e))
+#	
+#	return (False, checkpoints, totalCheckPoints)
+#
+#    return( True, checkpoints, totalCheckPoints)
+    
+def PerformTest9():
+    try:
+	Print(" - First find the relevant VMPPs")	
+	session = util.get_localAPI_session()
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-1':
+		vmpp1 = vmpp
+		
+	    if session.xenapi.VMPP.get_name_label(vmpp) == 'VMPP-2':
+		vmpp2 = vmpp
+		    
+	Print(" - Save VMPP-1 initial nfs location.")
+	initialvmpp1 = session.xenapi.VMPP.get_archive_target_config(vmpp1)
+	initialvmpp2 = session.xenapi.VMPP.get_archive_target_config(vmpp2)
+	
+	pool = session.xenapi.pool.get_all()[0]
+	args = {}
+	
+	# With invalid nfs path
+	Print(" - test_archive_target with invalid nfs path")	
+	args['type'] = session.xenapi.VMPP.get_archive_target_type(vmpp1)
+	args['location'] = initialvmpp1['location'] + commands.getoutput('uuidgen')
+	exception = False
+	try:
+	    session.xenapi.pool.test_archive_target(pool, args)
+	except Exception, e:
+	    Print(" - The test failed with exception: %s" % str(e))
+	    exception = True
+	    
+	if not exception:
+	    raise Exception("test_archive_target did not fail with invalid nfs path.")
+	
+	# With invalid cifs path
+	Print(" - test_archive_target with invalid cifs path")
+	args = initialvmpp2
+	args['type'] = session.xenapi.VMPP.get_archive_target_type(vmpp2)
+	args['location'] = initialvmpp2['location'] + commands.getoutput('uuidgen')
+	exception = False
+	try:
+	    session.xenapi.pool.test_archive_target(pool, args)
+	except Exception, e:
+	    Print(" - The test failed with exception: %s" % str(e))
+	    exception = True
+	    
+	if not exception:
+	    raise Exception("test_archive_target did not fail with invalid cifs path.")
+	    
+	# With invalid cifs credentials
+	Print(" - test_archive_target with invalid cifs credentials")
+	args = initialvmpp2
+	args['type'] = session.xenapi.VMPP.get_archive_target_type(vmpp2)
+	secret_ref = session.xenapi.secret.get_by_uuid(initialvmpp2['password'])
+	args['password'] = session.xenapi.secret.get_value(secret_ref) + commands.getoutput('uuidgen')
+	exception = False
+	try:
+	    session.xenapi.pool.test_archive_target(pool, args)
+	except Exception, e:
+	    Print(" - The test failed with exception: %s" % str(e))
+	    exception = True
+	    
+	if not exception:
+	    raise Exception("test_archive_target did not fail with invalid cifs credentials.")
+	
+    except Exception, e:
+	Print(" - Test9 failed to execute with the following error: %s" % str(e))
+	
+	return False
+
+    return True
+
+def WaitForBackupAndArchive(session, vmpp):
+    try:
+	# wait for backup to get over
+	if session.xenapi.VMPP.get_is_backup_running(vmpp):
+	    Print("     - Wait for backup to get over")
+	    while session.xenapi.VMPP.get_is_backup_running(vmpp):
+		time.sleep(1)
+	    
+	    # Sleep for 30 seconds in case there is a delay between backup and archive operations.
+	    time.sleep(30)
+	
+	# wait for archive to get over too
+	if session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    Print("     - Wait for archive to get over")
+	while session.xenapi.VMPP.get_is_archive_running(vmpp):
+	    time.sleep(1)
+    except Exception, e:
+	Print("     - Exception waiting for backup and archive operations. Error: %s" % str(e))
+	pass
+    
+if __name__ == "__main__":
+    main()

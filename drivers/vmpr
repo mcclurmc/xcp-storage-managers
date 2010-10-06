@@ -1,0 +1,1227 @@
+#!/usr/bin/python
+# Copyright (C) 2006-2007 XenSource Ltd.
+# Copyright (C) 2008-2010 Citrix Ltd.
+#
+# This program is free software; you can redistribute it and/or modify 
+# it under the terms of the GNU Lesser General Public License as published 
+# by the Free Software Foundation; version 2.1 only.
+#
+# This program is distributed in the hope that it will be useful, 
+# but WITHOUT ANY WARRANTY; without even the implied warranty of 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the 
+# GNU Lesser General Public License for more details.
+#
+# A plugin which facilitates VM protection and recovery.  
+# vmpr
+import os
+import sys
+import XenAPIPlugin
+sys.path.append("/opt/xensource/sm/")
+import util
+import time
+from threading import Thread
+from subprocess import Popen
+import commands
+import xmlrpclib
+import datetime
+import XenAPI
+import lock
+import random
+
+TEMP_DIR = "/tmp"
+MAX_THREADS = 50
+INITIAL_RUN_TIME = u'19700101T00:00:00Z'
+
+errorcodeToErrorMap = {
+    'VMPP_SNAPSHOT_LOCK_FAILED': 'The snapshot phase is already executing for this protection policy. Please try again later',
+    'VMPP_SNAPSHOT_SUCCEEDED': 'Successfully performed the snapshot phase of the protection policy',
+    'VMPP_SNAPSHOT_FAILED': 'The snapshot phase of the protection policy failed',
+    'VMPP_ARCHIVE_LOCK_FAILED':'The archive sub-policy is already executing for some protection policy in the pool.Please try again later', 
+    'VMPP_ARCHIVE_FAILED_0':'The archive phase failed for this protection policy',
+    'VMPP_ARCHIVE_SUCCEEDED':'Successfully performed the archive phase of the protection policy',
+    'VMPP_ARCHIVE_TARGET_MOUNT_FAILED':'Failed to mount the archive target. Please check the archive target configuration settings',
+    'VMPP_ARCHIVE_TARGET_UNMOUNT_FAILED':'Failed to unmount the archive target. Please make sure than the local directory was mounted successfully and has no open handles', 
+    'VMPP_LICENSE_ERROR': 'This operation is not allowed under your license.  Please contact your support representative', 
+    'VMPP_XAPI_LOGON_FAILURE':'Could not login to API session',
+    'VMPP_SNAPSHOT_MISSED_EVENT': 'A scheduled snapshot event was missed due to another on-going scheduled snapshot run. This is unexpected behaviour, please re-configure your snapshot sub-policy',
+    'VMPP_ARCHIVE_MISSED_EVENT': 'A scheduled archive event was missed due to another on-going scheduled archive run. This is unexpected behaviour, please re-configure your archive sub-policy',
+    'VMPP_SNAPSHOT_ARCHIVE_ALREADY_EXISTS': 'Failed to archive the snapshot, it has already been archived on the specified target'
+}	
+
+# See http://msdn.microsoft.com/library/default.asp?url=/library/en-us/fileio/fs/naming_a_file.asp
+forbiddenNames = ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"]
+excludedChars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+
+def local_to_utc(t):
+    """Make sure that the dst flag is -1 -- this tells mktime to take daylight
+    savings into account"""
+    secs = time.mktime(t)
+    return time.gmtime(secs)
+
+def SanitizeVMNameForWindows(name):
+    try:
+	# Don't allow empty filename
+        if len(name) == 0:
+	    return '_'
+	    
+	newname = ''
+	
+	# Allow only 31 < c < 126, excluding  < > : " / \ | ? *	
+        for c in name:
+            if ord(c) > 31 and ord(c) < 127 and c != ' ' and not IsCharExcluded(c):
+		newname += c
+            else:
+                newname += '_'
+        
+	# Make sure the name does not start with a Windows forbidden name
+	for forbidden in forbiddenNames:
+	    # Names can't be any of com1, com2, or com1.xyz, com2.abc etc.
+	    if newname == forbidden or newname.startswith(forbidden):
+	        newname = "_" + newname;
+		
+        # Windows also seems not to like filenames ending '.'
+        if newname.endswith('.'):
+	    temp = ''
+	    index = 0
+	    for c in newname:
+		if index==(len(p)-1):
+		    p1 += '_'
+		else:
+		    p1 += c
+		index += 1
+	    newname = temp
+		
+	return newname
+    
+    except Exception, e:
+	Print("Exception in SanitizeVMNameForWindows: %s" % str(e))
+	return ''
+
+def IsCharExcluded(c):
+    for excluded in excludedChars:
+        if c == excluded:
+            return True            
+    return False
+
+def Print(message):
+    util.VMPRlog(message)
+   
+def get_API_session():
+    # First acquire a valid session
+    session = XenAPI.xapi_local()
+    try:
+        session.xenapi.login_with_password('__dom0__vmpr','')
+    except Exception, e:
+        raise Exception("%s. Error: %s" % (errorcodeToErrorMap['VMPP_XAPI_LOGON_FAILURE'],str(e)))
+    return session
+
+def findAvailableThreadsForArchive():
+    try:
+	cmd = ['cat', '/sys/devices/system/cpu/online']
+	range = util.pread(cmd)
+	range = range.strip()
+	list = range.split('-')
+	numberOfCPUs = int(list[1]) - int(list[0]) + 1
+	
+	threads = int(numberOfCPUs/2)
+	if threads < 1:
+	    return 1
+	else:
+	    return threads
+	
+    except Exception, e:
+	Print("Exception calculating threads available for archive, defaulting to 1. Error: %s" % str(e))
+	return 1
+
+def findAvailableThreadsForBackup():
+	return 1
+    
+def destroy_snapshot(session, snap_ref):
+    try:
+	# Generate a list of VM VDIs so we can verify snap VDIs are related
+	vdimap = {}
+	VBDs = session.xenapi.VM.get_VBDs(snap_ref)
+	for vbd in VBDs:
+	    if session.xenapi.VBD.get_type(vbd) == 'Disk':
+		# store the vdi
+		vdimap[session.xenapi.VBD.get_VDI(vbd)] = '1'	    
+	
+	# Now destroy the VM
+	# First hard_shutdown the VM, this is required for a checkpoint
+	try:
+	    session.xenapi.VM.hard_shutdown(snap_ref)	    
+	except Exception, e:
+	    # This must be a snapshot, rather than a checkpoint
+	    pass
+    
+	# Now try destroying the VM, this should work for both snapshot and checkpoint
+	try:
+	    session.xenapi.VM.destroy(snap_ref)
+	except Exception, e:
+	    Print("Could not destroy the VM: %s, error: %s" % (snap_ref, str(e)))
+		
+	for vdi in vdimap.keys():
+	    try:
+		session.xenapi.VDI.destroy(vdi)
+	    except Exception, e:
+		Print("Could not destroy the vdi: %s. Error: %s" % (vdi, str(e)))
+	
+	# Now attempt to destroy the VBDs, if not dont worry about it, they will be GCd later
+	for vbd in VBDs:
+	    try:
+		session.xenapi.VBD.destroy(vbd)
+	    except:
+		pass
+	
+    except Exception, e:
+	Print("Could not destroy snapshot successfully, please destroy the snapshot %s manually. Error: %s" % (snap_ref, str(e)))
+	
+class single_backup(Thread):
+    def __init__(self, session, vmpp_ref, vm_ref):
+	checkLicense(session)
+	Thread.__init__(self) # init the thread
+	self.session = session
+	self.vmpp_ref = vmpp_ref
+	self.vm_ref = vm_ref
+	self.retVal = str(True)
+	
+    def run(self):	
+	try:
+	    Print("In single_backup")
+	    # First find the snapshot type from the VMPP object
+	    backup_type = self.session.xenapi.VMPP.get_backup_type(self.vmpp_ref)
+	    	    
+	    # Now create the snapshot name.
+	    vm = self.session.xenapi.VM.get_uuid(self.vm_ref)
+	    vm_name = self.session.xenapi.VM.get_name_label(self.vm_ref)
+	    snap_name = "%s-%s-%s" % (vm_name, vm[0:16],time.strftime("%Y%m%d-%H%M", time.localtime()))
+	    snap_name = snap_name.replace(' ', '-')
+	    
+	    # * Start a snapshot/checkpoint operation for the VM
+	    if backup_type == "snapshot":
+		snap_ref = self.session.xenapi.VM.snapshot(self.vm_ref, snap_name)
+	    elif backup_type == "checkpoint":
+		snap_ref = self.session.xenapi.VM.checkpoint(self.vm_ref, snap_name)
+	        
+	    # Set the snapshot name properly
+	    timeOfSnap = str(self.session.xenapi.VM.get_snapshot_time(snap_ref))
+	    
+	    # set the snap name to DDMMYYYY-HHMM, timeOfSnap is something like 20100902T14:58:36Z
+	    snap_name = "%s%s%s-%s%s" % (timeOfSnap[0:4], timeOfSnap[4:6], timeOfSnap[6:8], timeOfSnap[9:11], timeOfSnap[12:14])
+	    Print("The snapshot name generated is: %s" % snap_name)
+	    self.session.xenapi.VM.set_name_label(snap_ref, snap_name)
+	    
+	    # * Check the retention policy and delete the oldest snapshot if required
+	    snaps = self.session.xenapi.VM.get_snapshots(self.vm_ref)
+	    
+	    # set the oldest time to the current time to find the real oldest time
+	    oldest = self.session.xenapi.host.get_servertime(util.get_localhost_uuid(self.session))
+	    noOfSnaps = 0
+	    oldestSnap = ''
+	    
+	    for snap_ref in snaps:
+		if not self.session.xenapi.VM.get_is_snapshot_from_vmpp(snap_ref):
+		    continue
+		else:
+		    noOfSnaps += 1
+		
+		if oldest > self.session.xenapi.VM.get_snapshot_time(snap_ref):
+		    oldest = self.session.xenapi.VM.get_snapshot_time(snap_ref)
+		    oldestSnap = snap_ref
+	    
+	    # If the no of snaps is past the retention value (should just be past by 1, if not throw an exception)
+	    if noOfSnaps > int(self.session.xenapi.VMPP.get_backup_retention_value(self.vmpp_ref)):
+		if (noOfSnaps - int(self.session.xenapi.VMPP.get_backup_retention_value(self.vmpp_ref))) != 1:
+		    Print("WARNING: The difference between number of snapshots and the retention value is more than one, this is an inconsistent state. Please contact your pool operator.")
+		
+		Print("Snapshot retention value reached for VM: %s. Deleting the oldest snap: %s" % (self.vm_ref, oldestSnap))
+		destroy_snapshot(self.session, oldestSnap)		
+	    
+	except Exception, e:
+	    Print("single_backup failed with exception: %s" % str(e))
+	    self.retVal = str(e)
+	
+	Print("Leaving single_backup")
+	
+    def result(self):	
+	return (self.retVal, self.vm_ref)
+ 
+def backup_now_internal(session, vmpp_ref):
+    Print("In backup_now_internal")
+    try:
+	checkLicense(session)
+	vmToBackupResult = {}
+	retVal = True
+	error = ''
+	
+	# Get the backup schedule details for the policy from XAPI.	    
+	backup_schedule = session.xenapi.VMPP.get_backup_schedule(vmpp_ref)
+	backup_schedule['frequency'] = session.xenapi.VMPP.get_backup_frequency(vmpp_ref)
+	
+	# Get the time before backups
+	before = datetime.datetime.now()
+	
+	# First things first set the backup to running
+	session.xenapi.VMPP.set_is_backup_running(vmpp_ref, True)
+	
+	# Go through all the VMs assigned to the policy and create separate threads for each VM.	
+	vms = session.xenapi.VMPP.get_VMs(vmpp_ref)
+	
+	noOfIterations = 1
+	noOfVms = len(vms)
+	
+	noOfThreadsAvailable = findAvailableThreadsForBackup()
+	
+	
+	if noOfVms % noOfThreadsAvailable:
+	    noOfIterations = noOfVms/noOfThreadsAvailable + 1
+	else:
+	    noOfIterations = noOfVms/noOfThreadsAvailable
+	
+	entireListThreads = []
+	Print("No of VMs: %s" % noOfVms)
+	Print("Max number of threads for this run: %d" % noOfThreadsAvailable)
+	for iter in range(0,noOfIterations):
+	    listThreads = []
+	    Print("Iteration: %s" % iter)
+	    for vmindex in range(0,noOfThreadsAvailable):		
+		realIndex = iter * noOfThreadsAvailable + vmindex
+		if realIndex < noOfVms:
+		    # In each of these threads
+		    s = single_backup(session, vmpp_ref, vms[realIndex])
+		    listThreads.append(s)
+		    entireListThreads.append(s)
+		else:
+		    break
+	
+	    # Start all the threads simultaneously.
+	    for thread in listThreads:
+	        thread.start()
+
+	    # Wait till all the threads have finished.
+	    for thread in listThreads:
+	        thread.join()
+
+	# If the backup failed for one or more VMs generate an appropriately formatted error message to return to the caller.
+	for thread in entireListThreads:
+	    vmToBackupResult[thread.result()[1]] = thread.result()[0]
+	    if thread.result()[0] != str(True):
+		Print("The backup for VM %s failed with exception %s" % (thread.result()[1], thread.result()[0]))
+		retVal = False
+		
+	# Get the time after the backup
+	after = datetime.datetime.now()
+	
+	# Get the last expected run time according to the schedule
+	last_expected_run_time = get_last_expected_run_time(backup_schedule)
+	
+	Print("Backup phase started at: %s" % before)
+	Print("Backup phase ended at: %s" % after)
+	Print("Last expected run time was at: %s" % last_expected_run_time)
+	if before < last_expected_run_time and after > last_expected_run_time:
+	    CreateAlert(session, session.xenapi.VMPP.get_uuid(vmpp_ref), "warn", "SNAPSHOT",
+		CreateStructuredAlert(session, 'warn', "SNAPSHOT", {}, "VMPP_SNAPSHOT_MISSED_EVENT"),
+		CreateEmailBody(session, "SNAPSHOT", {}, 'VMPP_SNAPSHOT_MISSED_EVENT'), "VMPP_SNAPSHOT_MISSED_EVENT")
+		
+	Print("Result of this backup operation: %s" % vmToBackupResult)	
+	
+    except Exception, e:
+	Print("The backup phase for the protection policy %s failed with exception %s" % (vmpp_ref, str(e)))
+	error = str(e)
+	retVal = False
+	
+    try:
+	# Set the backup to not running
+	session.xenapi.VMPP.set_is_backup_running(vmpp_ref, False)
+	
+    except Exception, e:
+	Print("There was an exception cleaning up after the backup now operation.")
+	error = str(e)
+	retVal = False
+    
+    # Now set the backup last run time    
+    session.xenapi.VMPP.set_backup_last_run_time(vmpp_ref,xmlrpclib.DateTime(str(xmlrpclib.DateTime(time.mktime(datetime.datetime.utcnow().timetuple()))) + "Z"))
+	    
+    Print("Leaving backup_now_internal")
+    return (retVal, vmToBackupResult, error)
+
+class single_archive(Thread):
+    def __init__(self, session, vmpp_ref, vm_ref, local_mount_dir):
+	checkLicense(session)	    
+	Thread.__init__(self) # init the thread
+	self.session = session
+	self.vmpp_ref = vmpp_ref
+	self.vm_ref = vm_ref
+	self.local_mount_dir = local_mount_dir
+	self.retVal = str(True)
+	
+    def run(self): 
+	try:
+	    Print("In single_archive")
+	    # * Get the most recent snapshot for the archive
+	    snaps = self.session.xenapi.VM.get_snapshots(self.vm_ref)
+	    if len(snaps) == 0:
+		Print("Leaving single_archive")
+		return
+	    
+	    # set the oldest time to the current time to find the real oldest time
+	    newest = 0
+	    newestSnap = ''
+	    
+	    for snap_ref in snaps:
+		if not self.session.xenapi.VM.get_is_snapshot_from_vmpp(snap_ref):
+		    continue
+		else:		
+		    if newest < self.session.xenapi.VM.get_snapshot_time(snap_ref):
+		        newest = self.session.xenapi.VM.get_snapshot_time(snap_ref)
+		        newestSnap = snap_ref
+	    
+	    if newestSnap == '':
+		# Maybe there is no VMPP snapshot, so return
+		return 
+	    
+	    # Create the VM archive folder name
+	    vm_name = self.session.xenapi.VM.get_name_label(self.vm_ref)
+	    vm_name = SanitizeVMNameForWindows(vm_name)
+	    vm = self.session.xenapi.VM.get_uuid(self.vm_ref)
+	    folder_name = "%s-%s" % (vm_name, vm[0:16])
+	    folder_path = os.path.join(self.local_mount_dir, folder_name)
+	    
+	    # Check if the folder exists on the target location, else create it.
+	    if not os.path.exists(folder_path):
+		os.mkdir(folder_path)		
+	    
+	    # Create the archive file name. 
+	    snap_name = self.session.xenapi.VM.get_name_label(newestSnap)
+	    archive_name = os.path.join(folder_path,"%s.xva" % snap_name)	    
+	    
+	    # Now start an export with the local mount location passed in
+	    snap_vm = self.session.xenapi.VM.get_uuid(newestSnap)
+	    cmd = ['nice', '-n', '19', 'ionice', '-c', '3', 'xe', 'vm-export', 'vm=%s' % snap_vm, "filename=%s" % archive_name, "compress=true"]
+	    util.pread(cmd)
+	    
+	except Exception, e:
+	    Print("single_archive failed with exception: %s" % str(e))
+	    Print("Cleaning up the partially archived image at: %s" % archive_name)
+	    cleanuppath(archive_name)
+	    self.retVal = str(e)
+	
+    Print("Leaving single_archive")
+    
+    def result(self):
+	return (self.retVal, self.vm_ref)
+ 
+def archive_now_internal(session, vmpp_ref):
+    Print("In archive_now_internal")    
+    try:
+	checkLicense(session)
+	vmToArchiveResult = {}
+	retVal = True
+	mountDone = False
+	dirCreated = False
+	error = ''
+	
+	# check if the archive type is none, if yes just return
+	if session.xenapi.VMPP.get_archive_target_type(vmpp_ref) == "none":
+	    return (True, {}, error)
+	
+	# Get the archive schedule details for the policy from XAPI.	    
+	archive_schedule = session.xenapi.VMPP.get_archive_schedule(vmpp_ref)
+	archive_schedule['frequency'] = session.xenapi.VMPP.get_archive_frequency(vmpp_ref)
+	
+	# Get the time before backups
+	before = datetime.datetime.now()
+	
+	# First things first set the archive to running
+	session.xenapi.VMPP.set_is_archive_running(vmpp_ref, True)
+	
+	# Get archive target details from the VMPP object
+	archive_target_config = session.xenapi.VMPP.get_archive_target_config(vmpp_ref)	
+	archive_target_config['type'] = session.xenapi.VMPP.get_archive_target_type(vmpp_ref)	
+	
+	if archive_target_config['type'] == "cifs":	    
+	    password = session.xenapi.secret.get_value(session.xenapi.secret.get_by_uuid(archive_target_config['password']))
+	    archive_target_config['password'] = password
+	
+	# Generate local mount information
+	archive_target_config['local_mount_dir'] = os.path.join(TEMP_DIR, commands.getoutput('uuidgen'))
+	os.mkdir(archive_target_config['local_mount_dir'])
+	dirCreated = True
+	
+	ret = (mount_archive_target(session, archive_target_config))
+	if ret != str(True):
+	    Print("%s. Error: %s." % (errorcodeToErrorMap['VMPP_ARCHIVE_TARGET_MOUNT_FAILED'], ret))
+	    raise Exception('VMPP_ARCHIVE_TARGET_MOUNT_FAILED')
+	else:
+	    mountDone = True
+			
+	# Go through all the VMs assigned to the policy and create separate archive threads for each VM.	
+	vms = session.xenapi.VMPP.get_VMs(vmpp_ref)
+	
+	noOfIterations = 1
+	noOfVms = len(vms)
+	noOfThreadsAvailable = findAvailableThreadsForArchive()
+	
+	if noOfVms % noOfThreadsAvailable:
+	    noOfIterations = noOfVms/noOfThreadsAvailable + 1
+	else:
+	    noOfIterations = noOfVms/noOfThreadsAvailable
+	
+	entireListThreads = []
+	Print("No of VMs: %s" % noOfVms)
+	Print("No of iterations: %s" % noOfIterations)
+	for iter in range(0,noOfIterations):
+	    listThreads = []
+	    Print("Iteration: %s" % iter)
+	    for vmindex in range(0,noOfThreadsAvailable):		
+		realIndex = iter * noOfThreadsAvailable + vmindex
+		if realIndex < noOfVms:
+		    # In each of these threads
+		    s = single_archive(session, vmpp_ref, vms[realIndex], archive_target_config['local_mount_dir'])
+		    listThreads.append(s)
+		    entireListThreads.append(s)
+	
+	    # Start all the threads simultaneously.
+	    for thread in listThreads:
+	        thread.start()
+
+	    # Wait till all the threads have finished.
+	    for thread in listThreads:
+	        thread.join()
+	
+	# If the archive failed for one or more VMs generate an appropriately formatted error message to return to the caller.
+	for thread in entireListThreads:
+	    vmToArchiveResult[thread.result()[1]] = thread.result()[0]
+	    if thread.result()[0] != str(True):
+		Print("The archive for VM %s failed with exception %s" % (thread.result()[1], thread.result()[0]))
+		retVal = False
+		
+	if not unmount_archive_target(session, archive_target_config):
+	    raise Exception("Unmount failed for the directory: %s, please unmount manually." % archive_target_config['local_mount_dir'])	
+	
+	cleanuppath(archive_target_config['local_mount_dir'])
+	
+	if archive_schedule['frequency'] != "always_after_backup":
+	    # Get the time after the backup
+	    after = datetime.datetime.now()
+	
+	    # Get the last expected run time according to the schedule
+	    last_expected_run_time = get_last_expected_run_time(archive_schedule)
+	
+	    Print("Archive phase started at: %s" % before)
+	    Print("Archive phase ended at: %s" % after)
+	    Print("Last expected run time was at: %s" % last_expected_run_time)
+	    if before < last_expected_run_time and after > last_expected_run_time:
+	        CreateAlert(session, session.xenapi.VMPP.get_uuid(vmpp_ref), "warn", "ARCHIVE",
+		    CreateStructuredAlert(session, 'warn', "ARCHIVE", {}, "VMPP_ARCHIVE_MISSED_EVENT"),
+		    CreateEmailBody(session, "ARCHIVE", {}, 'VMPP_ARCHIVE_MISSED_EVENT'), "VMPP_ARCHIVE_MISSED_EVENT")
+	    
+	Print("Result of this archive operation: %s" % vmToArchiveResult)	
+	
+    except Exception, e:
+	if mountDone:
+	    if not unmount_archive_target(session, archive_target_config):
+		raise Exception("Unmount failed for the directory: %s, please unmount manually." % archive_target_config['local_mount_dir'])
+		
+	if dirCreated:
+	    cleanuppath(archive_target_config['local_mount_dir'])
+	    
+	Print("The archive phase for the protection policy %s failed with exception %s" % (vmpp_ref, str(e)))
+	error = str(e)
+	retVal = False
+    
+    try:
+	# Set the archive to not running
+	session.xenapi.VMPP.set_is_archive_running(vmpp_ref, False)
+	
+    except Exception, e:
+	Print("The cleanup phase for archive_now_internal for vmpp %s failed with the exception %s" % (vmpp_ref, str(e)))
+	error = str(e)
+	retVal = False
+    
+    # Now set the archive last run time
+    session.xenapi.VMPP.set_archive_last_run_time(vmpp_ref,xmlrpclib.DateTime(str(xmlrpclib.DateTime(time.mktime(datetime.datetime.utcnow().timetuple()))) + "Z"))
+	    
+    Print("Leaving archive_now_internal")    
+    return (retVal, vmToArchiveResult, error)
+
+def protect(session, args):
+    try:
+	Print("In protect")
+	checkLicense(session)	
+	session = get_API_session()
+	
+	# Get all VMPP objects from the system
+	vmpps = session.xenapi.VMPP.get_all()
+	vmpps = random.sample(vmpps, len(vmpps))
+	for vmpp in vmpps:
+	    if not session.xenapi.VMPP.get_is_policy_enabled(vmpp):
+		continue
+	    
+	    # Handle each object in a separate thread.
+	    s = single_vmpp_protect(session, vmpp)
+	    s.start()
+	
+	Print("Leaving protect")
+	return str(True)
+	    
+    except Exception, e:
+	Print("Exception in protect: %s" % str(e))
+	Print("Leaving protect")
+	return str(e)
+
+def IsAnotherVMPPArchiving(session, vmpp_ref):
+    try:
+	anotherVMPPArchiving = False
+	vmpps = session.xenapi.VMPP.get_all()
+	for vmpp in vmpps:
+	    if vmpp == vmpp_ref:
+	        continue
+	    vmpp_uuid = session.xenapi.VMPP.get_uuid(vmpp)
+	    archive_lock = get_archive_lock(vmpp_uuid)
+	    if not acquire_lock(archive_lock):
+	        anotherVMPPArchiving = True
+	        break
+	    else:
+	        release_lock(archive_lock)
+		
+    except Exception, e:
+	Print("Failed to find whether another VMPP apart from %s is archiving. Error: %s" % (vmpp_ref, str(e)))
+	
+    return anotherVMPPArchiving
+	
+	
+class single_vmpp_protect(Thread):
+    def __init__(self, session, vmpp_ref):
+	checkLicense(session)	    
+	Thread.__init__(self) # init the thread
+	self.session = session
+	self.vmpp_ref = vmpp_ref
+	self.vmpp_uuid = session.xenapi.VMPP.get_uuid(vmpp_ref)
+	
+    def run(self):
+	Print("In single_vmpp_protect")
+	retVal = False
+	backup = False
+	archive = False
+	args = {}
+	
+	try:
+	    # Get the last backup run time for the policy from XAPI.
+	    backup_last_run_time = self.session.xenapi.VMPP.get_backup_last_run_time(self.vmpp_ref)
+	    
+	    # Get the backup schedule details for the policy from XAPI.	    
+	    backup_schedule = self.session.xenapi.VMPP.get_backup_schedule(self.vmpp_ref)
+	    backup_schedule['frequency'] = self.session.xenapi.VMPP.get_backup_frequency(self.vmpp_ref)	    
+	    
+	    # Use the backup schedule, last backup run time and the current time to figure out if a backup should be executed now.	    
+	    backup = should_operation_be_run(backup_schedule, backup_last_run_time)
+
+	    # If any other VMPP is archiving at present, do not attempt archive		
+	    if IsAnotherVMPPArchiving(self.session, self.vmpp_ref):
+		archive = False
+	    else:		
+		# Get the archive frequency from the VMPP object
+		archive_frequency = self.session.xenapi.VMPP.get_archive_frequency(self.vmpp_ref)
+		
+		# If the archive type is "never", exit.
+		if archive_frequency != "never":
+		    # Get the last archive run time for the policy from XAPI.
+		    archive_last_run_time = self.session.xenapi.VMPP.get_archive_last_run_time(self.vmpp_ref)
+		    
+		    # Get the archive schedule details for the policy from XAPI.
+		    archive_schedule = self.session.xenapi.VMPP.get_archive_schedule(self.vmpp_ref)
+		    archive_schedule['frequency'] = archive_frequency
+		    if archive_frequency == "always_after_backup":		    
+			archive = backup
+		    elif should_operation_be_run(archive_schedule, archive_last_run_time):
+			archive = True		
+	    
+	    # Prepare args for protect_now
+	    args['vmpp_uuid'] = self.vmpp_uuid
+	    if backup:
+		args['backup'] = 'true'
+	    else:
+		args['backup'] = 'false'
+		
+	    if archive:
+		args['archive'] = 'true'
+	    else:
+		args['archive'] = 'false'
+		
+	    protect_now(self.session, args)
+		
+	except Exception, e:		
+	    Print("single_vmpp_protect failed with exception: %s" % str(e))
+	    self.errorMessage = str(e)
+	    
+	Print("Leaving single_vmpp_protect")
+
+def get_last_expected_run_time(schedule, inUTC = False):
+    last_expected_run_time = None
+    
+    try:
+	now = datetime.datetime.now()
+	
+	# check operation frequency
+	if schedule['frequency'] == 'hourly':
+	    # calculate the last expected run time, based on the current time.
+	    if now.minute > int(schedule['min']):
+		# current mins are more than schedule mins so no need to change the hour
+		last_expected_run_time = datetime.datetime(now.year, now.month, now.day, now.hour, int(schedule['min']),0,0)
+	    else:
+		last_expected_run_time = datetime.datetime(now.year, now.month, now.day, now.hour, int(schedule['min']),0,0) - datetime.timedelta(hours = 1)
+	elif schedule['frequency'] == 'daily':
+	    # calculate the last expected run time, based on the current date and time.
+	    if (now.hour > int(schedule['hour']) or ((now.hour == int(schedule['hour'])) and (now.minute > int(schedule['min'])))):
+		# current hours are more than schedule hours so no need to change the day
+		last_expected_run_time = datetime.datetime(now.year, now.month, now.day, int(schedule['hour']), int(schedule['min']),0,0)
+	    else:
+		last_expected_run_time = datetime.datetime(now.year, now.month, now.day, int(schedule['hour']), int(schedule['min']),0,0) - datetime.timedelta(days = 1)
+	elif schedule['frequency'] == 'weekly':
+	    # First create a map of the days in the schedule for ease of computation later
+	    dayMap = {}
+	    for day in schedule['days'].split(','):
+		dayMap[day] = '1'
+	    
+	    lastDayFound = False
+	    
+	    # calculate the last expected run time, based on the current date and time.
+	    # if current time is less than scheduled time
+	    if (now.hour < int(schedule['hour']) or ((now.hour == int(schedule['hour']) and now.minute < int(schedule['min'])))):
+		# go to the last day on the scheduled time list excluding today		
+		noOfDays = 1
+	    else:
+		# go to the last day on the scheduled time list including today
+		noOfDays = 0	    
+	    
+	    newDate = now	    
+	    while not lastDayFound and noOfDays < 7:
+		td = datetime.timedelta(days = noOfDays)
+		newDate = now - td
+		if dayMap.has_key(newDate.strftime("%A")):
+		    lastDayFound = True
+		else:
+		    noOfDays += 1
+	    
+	    if not lastDayFound:
+		raise Exception("Could not find the last expected execution time for the schedule: %s" % schedule)		
+		
+	    # generate a date with this day and the scheduled time
+	    last_expected_run_time = datetime.datetime(newDate.year, newDate.month, newDate.day, int(schedule['hour']), int(schedule['min']),0,0)
+	    
+    	# Now check if this needs to be converted into UTC time
+	if inUTC:
+	    last_expected_run_time = local_to_utc(last_expected_run_time.timetuple())
+	    
+    except Exception, e:
+        Print("There was an exception in finding out the last expected run time of a schedule. %s" % str(e))
+	    
+    return last_expected_run_time	
+	
+def should_operation_be_run(schedule, last_run_time):
+    try:    
+	# check if the operation is due because of the schedule:
+	if is_due_for_a_run(schedule):
+	    return True
+	else:
+	    # not due for run yet, if the last run time is the initial time then dont run now!
+	    if last_run_time == INITIAL_RUN_TIME:		
+		return False
+	
+	# if not, check if it should be run anyways as it wasnt run in the last timeslot for some reason
+	# Get the current time
+	now = datetime.datetime.utcnow()
+	
+	# if the last run time is in the future then run the operation		
+	if last_run_time > xmlrpclib.DateTime(time.mktime(now.timetuple())):
+	    Print("The last run time is in the future then run the operation, run the operation to be safe.")
+	    return True	
+	
+	last_expected_run_time = xmlrpclib.DateTime(get_last_expected_run_time(schedule, True))
+	
+	# Now check if the last run time was before the last expected run time
+	if last_run_time < last_expected_run_time:
+	    Print("The last expected run time was %s, however the operation was last run at %s, hence run it again." % (last_expected_run_time, last_run_time))
+	    return True
+	else:
+	    return False
+	
+    except Exception, e:
+	Print("Exception in should_operation_be_run: %s" % str(e))
+	return False
+
+# schedule is a map containing the following for example:
+# 'frequency': 'hourly'/'daily'/'weekly'
+# 'days': 'Monday, Friday, Saturday'
+# 'hour': '17'
+# 'min': '18'
+def is_due_for_a_run(schedule):
+    try:
+	# Find the current time
+	now = datetime.datetime.now()
+	
+	# Extract the relevant schedule information
+	day = now.strftime("%A")
+	hour = now.hour
+	min = now.minute
+	
+	# Now compare with the schedule passed in
+	if min != int(schedule['min']):
+	    return False
+	
+	if schedule['frequency'] == 'hourly':
+	    return True
+	
+	if hour != int(schedule['hour']):
+	    return False
+	
+	if schedule['frequency'] == 'daily':
+	    return True
+	
+	# If we have come to this point the frequency is definitely weekly however still putting in a check
+	# just in case we have monthly frequency in the later releases
+	dayMap = {}
+	for dayofweek in schedule['days'].split(','):
+	    dayMap[dayofweek] = '1'
+		
+	if schedule['frequency'] == 'weekly' and dayMap.has_key(day):
+	    return True
+	else:
+	    return False
+		
+    except Exception, e:
+	Print("Exception in is_due_for_a_run: %s" % str(e))
+	return False
+    
+    return False
+    
+def protect_now(session, args):
+    retVal = str(True)
+    try:
+	Print("In protect_now: %s" % args)
+	checkLicense(session)
+	session = get_API_session()
+	
+	backup = True
+	archive = True
+	backup_lock = None
+	archive_lock = None
+	if args.has_key('backup'):
+	    if args['backup'] == 'false':
+		backup = False
+		
+	if args.has_key('archive'):
+	    if args['archive'] == 'false':
+		archive = False
+	
+	vmpp_uuid = args['vmpp_uuid']
+	vmpp_ref = session.xenapi.VMPP.get_by_uuid(vmpp_uuid)
+	if not session.xenapi.VMPP.get_is_policy_enabled(vmpp_ref):
+	    Print("Policy not enabled. Leaving protect_now")
+	    return str(True)
+	    
+	if len(session.xenapi.VMPP.get_VMs(vmpp_ref)) == 0:
+	    Print("No VMs assigned to policy. Leaving protect_now")
+	    return str(True)
+	
+	# Now fork a child process at this time to do the real stuff
+	if os.fork():
+	    Print("Leaving protect_now")
+	    return str(True)
+	else:
+	    # This is the child.
+	    if backup:
+		backup_lock = get_backup_lock(vmpp_uuid)
+		if not acquire_lock(backup_lock):
+		    # Now check if this is a valid failure
+		    raise Exception("%s" % errorcodeToErrorMap["VMPP_SNAPSHOT_LOCK_FAILED"])		    
+		    #CreateAlert(session, vmpp_uuid, "error", "SNAPSHOT",
+			#    CreateStructuredAlert('warn', "SNAPSHOT", {}, "VMPP_SNAPSHOT_LOCK_FAILED"),
+			#    CreateEmailBody("SNAPSHOT", {}, 'VMPP_SNAPSHOT_LOCK_FAILED'), "VMPP_SNAPSHOT_LOCK_FAILED")
+		
+	    if archive and session.xenapi.VMPP.get_archive_frequency(vmpp_ref) != "never":
+		# check that no other VMPP is currently archiving, if it is raise an appropriate alert and return
+		if IsAnotherVMPPArchiving(session, vmpp_ref):
+		    # Do we want to generate an alert here, or just generally ignore this.
+		    Print("WARNING: Not archiving VMPP %s, as another VMPP is currently performing an archive operation." % session.xenapi.VMPP.get_name_label(vmpp_ref))
+		    CreateAlert(session, vmpp_uuid, "error", "ARCHIVE",
+			    CreateStructuredAlert(session, 'warn', "ARCHIVE", {}, "VMPP_ARCHIVE_LOCK_FAILED"),
+			    CreateEmailBody(session, "ARCHIVE", {}, 'VMPP_ARCHIVE_LOCK_FAILED'), "VMPP_ARCHIVE_LOCK_FAILED")
+		    archive = False
+		else:
+		    archive_lock = get_archive_lock(vmpp_uuid)
+		    if not acquire_lock(archive_lock):
+			# Now check if this is a valid failure
+			raise Exception("%s" % errorcodeToErrorMap["VMPP_ARCHIVE_LOCK_FAILED"])		    
+			#CreateAlert(session, vmpp_uuid, "error", "ARCHIVE",
+			#    CreateStructuredAlert(session, 'warn', "ARCHIVE", {}, "VMPP_ARCHIVE_LOCK_FAILED"),
+			#    CreateEmailBody(session, "ARCHIVE", {}, 'VMPP_ARCHIVE_LOCK_FAILED'), "VMPP_ARCHIVE_LOCK_FAILED")
+	    else:
+		archive = False
+	    
+	    ret = protect_now_internal(session, args, backup, archive)
+	    if ret != str(True):
+		raise Exception("Protect_now_internal failed with exception: %s" % ret)	    	
+	
+    except Exception, e:
+	Print("Exception in protect_now: %s" % str(e))	
+	Print("Leaving protect_now")
+	retVal = '%s.' % str(e)
+	
+    if backup_lock:
+	release_lock(backup_lock)
+	
+    if archive_lock:
+	release_lock(archive_lock)
+	
+    Print("Leaving protect_now")
+    return retVal
+        
+def protect_now_internal(session, args, backup = True, archive = True):
+    try:
+	Print("In protect_now_internal")
+	checkLicense(session)
+	
+	retValBackup = True
+	retValArchive = True
+	vmToBackupResult = {}
+	vmToArchiveResult = {}
+	errorBackup = ''
+	errorArchive = ''
+	vmpp_uuid = args['vmpp_uuid']
+	vmpp_ref = session.xenapi.VMPP.get_by_uuid(vmpp_uuid)
+	
+	if backup:
+	    (retValBackup, vmToBackupResult, errorBackup) =  backup_now_internal(session, vmpp_ref)
+	    if retValBackup:
+		CreateAlert(session, vmpp_uuid, "info", "SNAPSHOT",
+		    CreateStructuredAlert(session, 'info', "SNAPSHOT", {}, "VMPP_SNAPSHOT_SUCCEEDED"),
+		    '')		
+	    else:
+		# Generate backup schedule failure alerts here.
+		Print ("backup_now_internal failed with: %s" % vmToBackupResult)
+		CreateAlert(session, vmpp_uuid, "error", "SNAPSHOT",
+		    CreateStructuredAlert(session, 'error', "SNAPSHOT", vmToBackupResult),
+		    CreateEmailBody(session, "SNAPSHOT", vmToBackupResult), "VMPP_SNAPSHOT_FAILED")
+		Print("backup_now_internal failed with the following error details: %s and %s." % (vmToBackupResult, errorBackup))
+	
+	if archive and session.xenapi.VMPP.get_archive_target_type(vmpp_ref) != "none":
+	    (retValArchive, vmToArchiveResult, errorArchive) =  archive_now_internal(session, vmpp_ref)	
+	    if retValArchive:
+		CreateAlert(session, vmpp_uuid, "info", "ARCHIVE",
+		    CreateStructuredAlert(session, 'info', "ARCHIVE", {}, "VMPP_ARCHIVE_SUCCEEDED"),
+		    '')	    
+	    else:	    
+		# Generate archive schedule failure alerts here.
+		Print ("archive_now_internal failed with: %s" % vmToArchiveResult)
+		if vmToArchiveResult != {}:
+		    CreateAlert(session, vmpp_uuid, "error", "ARCHIVE",
+		        CreateStructuredAlert(session, 'error', "ARCHIVE", vmToArchiveResult),
+		        CreateEmailBody(session, "ARCHIVE", vmToArchiveResult), "VMPP_ARCHIVE_FAILED_0")
+		else:
+		    CreateAlert(session, vmpp_uuid, "error", "ARCHIVE",
+		        CreateStructuredAlert(session, 'warn', "ARCHIVE", {}, errorArchive),
+		        CreateEmailBody(session, "ARCHIVE", {}, errorArchive), "VMPP_ARCHIVE_FAILED_0")
+		
+		raise Exception("archive_now_internal failed with the following error details: %s" % errorArchive)
+	    
+    except Exception, e:
+	Print("protect_now_internal for vmpp %s failed with the exception %s" % (vmpp_uuid, str(e)))
+	Print("Leaving protect_now_internal")
+	return str(e)
+	
+    Print("Leaving protect_now_internal")
+    return str(True)
+
+def acquire_lock(l):
+    try:
+        return l.acquireNoblock()
+    except Exception, e:
+        Print("There was an exception getting lock. Exception: %s" % str(e))
+        return False
+
+def get_backup_lock(vmpp_uuid):
+    return lock.Lock("%s.bac" % vmpp_uuid, "vmpr")
+
+def get_archive_lock(vmpp_uuid):
+    return lock.Lock("%s.arc" % vmpp_uuid, "vmpr")
+    
+def release_lock(l):
+    try:
+	l.release()
+	return True
+	
+    except Exception, e:
+	Print("There was an exception releasing lock. Exception: %s" % str(e))
+	return False    
+    
+def test_archive_target(session, args):
+    Print("Entering test_archive_target.")
+    retVal = True    
+    
+    try:
+	checkLicense(session)
+	session = get_API_session()
+	
+	archive_target_type = args['type']
+	args['local_mount_dir'] = os.path.join(TEMP_DIR, commands.getoutput('uuidgen'))
+	os.mkdir(args['local_mount_dir'])
+	ret = (mount_archive_target(session, args))
+	if ret != str(True):
+	    print ("%s. Error: %s." % (errorcodeToErrorMap['VMPP_ARCHIVE_TARGET_MOUNT_FAILED'], ret))
+	    raise Exception("%s. Error: %s." % (errorcodeToErrorMap['VMPP_ARCHIVE_TARGET_MOUNT_FAILED'], ret))
+	    
+	# Try to create a file on the target to make sure it is writable
+	filename = os.path.join( args['local_mount_dir'], commands.getoutput('uuidgen'))
+	open(filename, 'w').close()
+	cleanuppath(filename)
+	
+	unmount_args = {}
+	unmount_args['local_mount_dir'] = args['local_mount_dir']
+	if not unmount_archive_target(session, unmount_args):
+	    raise Exception("Unmount failed for the directory: %s, please unmount manually." % unmount_args['local_mount_dir'])
+	
+	cleanuppath(unmount_args['local_mount_dir'])
+	    	    		
+    except Exception, e:	
+	Print("Test_archive_target failed with error: %s" % str(e))
+	cleanuppath(unmount_args['local_mount_dir'])
+	retVal = str(e)
+		
+    Print("Leaving test_archive_target.")
+    return str(retVal)
+
+def mount_archive_target(session, args):
+    Print("Entering mount_archive_target.")    
+    try:
+	checkLicense(session)
+	archive_target_type = args['type']
+	local_mount_dir = args['local_mount_dir']
+	
+	if archive_target_type == "cifs":
+	    location = util.to_plain_string(args['location'])
+	    username = util.to_plain_string(args['username'])
+	    password = util.to_plain_string(args['password'])
+	    	    
+	    mountcmd=["mount.cifs", location, local_mount_dir]
+	    
+	    credentials = os.path.join(TEMP_DIR, commands.getoutput('uuidgen'))
+	    appendCIFSPasswordOptions(mountcmd, username, password, credentials)
+	    try:
+		util.pread(mountcmd, True)
+	    except Exception, e:
+		cleanuppath(credentials)
+		raise Exception(str(e))
+	    cleanuppath(credentials)
+	    
+	elif archive_target_type == "nfs":
+	    location = util.to_plain_string(args['location'])
+	    mountcmd=["mount.nfs", location, local_mount_dir]
+	    try:
+		util.pread(mountcmd, True)
+	    except Exception, e:
+		raise Exception(str(e))
+	else:
+	    raise Exception("Invalid archive target type: %s." % archive_target_type)
+    except Exception, e:
+	Print("Failed to mount archive target, error: %s" % str(e))
+	Print("Leaving mount_archive_target.")
+	return str(e)
+    
+    Print("Leaving mount_archive_target.")
+    return str(True)
+    
+def unmount_archive_target(session, args):
+    Print("Entering unmount_archive_target.")    
+    try:
+	checkLicense(session)
+	local_mount_dir = args['local_mount_dir']	
+	unmountcmd=["umount", local_mount_dir]
+	    
+	try:
+	    util.pread(unmountcmd, True)	    
+	except Exception, e:
+	    raise Exception(str(e))	    
+	
+    except Exception, e:
+	Print("Failed to unmount archive target, error: %s" % str(e))
+	Print("Leaving unmount_archive_target.")
+	return str(e)
+    
+    Print("Leaving unmount_archive_target.")
+    return str(True)
+    
+def appendCIFSPasswordOptions(mountcmd, username, password, credentials):
+	# Open credentials file and truncate
+	f = open(credentials, 'w')
+	f.write("username=%s\npassword=%s\n" % (username,password))
+	f.close()
+	credentialsoptions = "credentials=%s" % credentials
+	mountcmd.extend(["-o", credentialsoptions])
+
+def cleanuppath(path):
+    if os.path.exists(path):
+	if os.path.isdir(path):
+	    os.rmdir(path)
+	else:
+	    os.unlink(path)
+
+def checkLicense(session):
+    # find the host
+    host_ref = util.get_localhost_uuid(session)
+    
+    # get the host record from xapi
+    host_record = session.xenapi.host.get_record(host_ref)
+    
+    # check the restrict_vmpr key in the license_params field.
+    if host_record['license_params']['restrict_vmpr'] == 'true':
+	raise Exception("%s." % errorcodeToErrorMap['VMPP_LICENSE_ERROR'])
+    elif host_record['license_params']['restrict_vmpr'] == 'false':
+	pass
+    else:
+	raise Exception("Invalid value for the restrict_vmpr field.")
+
+def archive_now(session, args):
+    Print("Entering archive_now.")
+    retVal = True
+    targetMounted = False
+    
+    try:
+	checkLicense(session)
+	session = get_API_session()
+	
+	snap_uuid = args['snapshot_uuid']
+	snap_ref = session.xenapi.VM.get_by_uuid(snap_uuid)
+	org_vm = session.xenapi.VM.get_snapshot_of(snap_ref)
+	vmpp_ref = session.xenapi.VM.get_protection_policy(org_vm)
+	archive_target_config = session.xenapi.VMPP.get_archive_target_config(vmpp_ref)
+	archive_target_config['type'] = session.xenapi.VMPP.get_archive_target_type(vmpp_ref)
+	
+        if archive_target_config['type'] == "cifs":
+            password = session.xenapi.secret.get_value(session.xenapi.secret.get_by_uuid(archive_target_config['password']))
+            archive_target_config['password'] = password
+
+	archive_target_config['local_mount_dir'] = os.path.join(TEMP_DIR, commands.getoutput('uuidgen'))
+	os.mkdir(archive_target_config['local_mount_dir'])
+	ret = (mount_archive_target(session, archive_target_config))
+	if ret != str(True):
+	    Print("%s. Error: %s." % (errorcodeToErrorMap['VMPP_ARCHIVE_TARGET_MOUNT_FAILED'], ret))
+	    raise Exception('VMPP_ARCHIVE_TARGET_MOUNT_FAILED')
+	else:
+	    targetMounted = True
+	    
+	# Create a new task
+	label = "task-vm-export-%s" % snap_uuid	
+	task_ref = session.xenapi.task.create(label, label)
+	task_uuid = session.xenapi.task.get_uuid(task_ref)
+	host_ref = util.get_localhost_uuid(session)
+	host_uuid = session.xenapi.host.get_uuid(host_ref)
+	snap_name = session.xenapi.VM.get_name_label(snap_ref)
+	archive_name = os.path.join(archive_target_config['local_mount_dir'],"%s.xva" % snap_name)
+	    
+	# If this file already exists send back a pre-defined error message for the same.
+	if os.path.exists(archive_name):
+	    raise Exception("VMPP_SNAPSHOT_ARCHIVE_ALREADY_EXISTS")
+	    
+	if os.fork():
+	    return str(task_ref)
+	else:
+	    cmd = [ 'nice', '-n', '19', 'ionice', '-c', '3', 'xe', 'vm-export', 	'vm=%s' % snap_uuid, 'filename=%s' % archive_name, 'task-uuid=%s' % task_uuid, "compress=true"]
+	    Print("Calling export command: %s" % cmd)
+	    util.pread(cmd)
+	    	    
+    except Exception, e:
+	Print("Archive_now - Mount target and task creation failed with exception: %s" % str(e))
+	if targetMounted:
+	    if not unmount_archive_target(session, archive_target_config):
+		Print("Unmount target %s failed, please unmount manually." % archive_target_config['local_mount_dir'] )
+	    else:
+		cleanuppath(archive_target_config['local_mount_dir'])
+	#retVal = str(e)
+	raise Exception(e)
+
+    Print("Leaving archive_now.") 
+    return str(retVal)
+
+def CreateEmailBody(session, operation, vmToErrorMap = {}, errorCode = '', additionalErrorInfo = ''):
+    # This will only be called for errors and warnings so we do not need an alert type
+    # First handle the case where a vm to error map is passed in.
+    failedVMs = 0
+    errorStr = ''
+    try:
+	if vmToErrorMap != {}:
+	    for vm in vmToErrorMap.keys():		
+		if vmToErrorMap[vm] != str(True):
+		    failedVMs += 1
+		    vm_uuid = session.xenapi.VM.get_uuid(vm)
+		    vm_name = session.xenapi.VM.get_name_label(vm)
+		    errorStr += "VM: %s UUID: %s Error:%s" % (vm_name, vm_uuid, vmToErrorMap[vm])
+		    errorStr += ',\n'
+	
+	    errorStr = errorStr.strip('\n')
+	    errorStr = errorStr.strip(',')
+	    
+	    return "%s failed on %d out of %d VMs with the following errors: \n\nDetails:\n%s" % (operation, failedVMs, len(vmToErrorMap.keys()), errorStr)        
+	
+	# Now handle if an error code is passed in
+	if errorCode != '':
+	    if additionalErrorInfo != '':
+		return "%s failed with error: %s. Additional error details: %s." % (operation, errorcodeToErrorMap[errorCode], errorcodeToErrorMap[additionalErrorInfo])
+	    else:
+		return "%s failed with error: %s." % (operation, errorcodeToErrorMap[errorCode])
+	    
+    except:
+	return ''
+	    
+def CreateStructuredAlert(session, alertType, operation, vmToErrorMap = {}, errorCode = ''):
+    try:
+	dataStr = "<XCData><time>%s</time><messagetype>%s</messagetype>" % (datetime.datetime.now(), alertType)
+	
+	if alertType == 'error':
+	    if vmToErrorMap != {}:
+		# Normal error with a vm to error map
+		for vm in vmToErrorMap.keys():
+		    if vmToErrorMap[vm] != str(True):			
+			vm_uuid = session.xenapi.VM.get_uuid(vm)
+			if operation == 'SNAPSHOT':
+			    error = vmToErrorMap[vm].split(',')[0]
+			    error = error.lstrip('[')
+			    error = error.lstrip('\'')
+			    error = error.rstrip('\'')
+			    dataStr += "<error><vm>%s</vm><errorcode>%s</errorcode></error>" % (vm_uuid, error)
+			elif operation == 'ARCHIVE':
+			    dataStr +=  "<error><vm>%s</vm><errorcode>%s</errorcode></error>" % (vm_uuid, 'VMPP_ARCHIVE_FAILED_0')
+			
+	if alertType == 'warn' or alertType == 'info':
+	    dataStr += '<message>%s</message>' % (errorCode)
+	
+	dataStr += "</XCData>"
+	
+	return dataStr
+    except:
+	return ''
+    
+def CreateAlert(session, vmpp_uuid, alertType, backupOrArchive, structuredAlert, emailBody = '', errorCode = ''):
+    try:
+	vmpp_ref = session.xenapi.VMPP.get_by_uuid(vmpp_uuid)
+	
+	# Now create the alert
+	if alertType == 'error':
+	    session.xenapi.VMPP.create_alert(vmpp_ref, errorCode, "5", emailBody, structuredAlert)
+	elif alertType == 'warn':
+	    session.xenapi.VMPP.create_alert(vmpp_ref, errorCode, "5", emailBody, structuredAlert)	    
+	elif alertType == 'info':
+	    session.xenapi.VMPP.create_alert(vmpp_ref, backupOrArchive, "4", emailBody, structuredAlert)
+	    
+    except Exception, e:
+	Print("Failed to create alerts for vmpp %s with alert level %s, and backup/archive %s. Error: %s" % (vmpp_uuid, alertType, backupOrArchive, str(e)))
+    
+if __name__ == "__main__":
+    Print("Entering VMPR")
+    XenAPIPlugin.dispatch({"protect": protect,
+			   "protect_now": protect_now,
+			   "test_archive_target": test_archive_target,
+			   "archive_now": archive_now
+			   })
+

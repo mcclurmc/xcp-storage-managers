@@ -1,0 +1,45 @@
+#!/usr/bin/python
+# Copyright (C) 2006-2007 XenSource Ltd.
+# Copyright (C) 2008-2009 Citrix Ltd.
+#
+# This program is free software; you can redistribute it and/or modify 
+# it under the terms of the GNU Lesser General Public License as published 
+# by the Free Software Foundation; version 2.1 only.
+#
+# This program is distributed in the hope that it will be useful, 
+# but WITHOUT ANY WARRANTY; without even the implied warranty of 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the 
+# GNU Lesser General Public License for more details.
+#
+# A script which triggers the VMPR automatic protection functionality.  
+import util
+import XenAPI
+
+POOL_CONF_FILE = "/etc/xensource/pool.conf"
+def Print(message):
+    util.VMPRlog(message)
+    
+def get_API_session():
+    # First acquire a valid session
+    session = XenAPI.xapi_local()
+    try:
+        session.xenapi.login_with_password('__dom0__vmpr','')
+    except Exception, e:
+	Print("Could not login to API session. Error: %s" % str(e))
+        raise Exception("Could not login to API session. Error: %s" % str(e))
+    return session
+    
+def protect():
+    # check if this is the master, if not exit
+    f = open(POOL_CONF_FILE,'r')
+    if f.read() != 'master':
+	return
+    
+    session = get_API_session()
+    # Find the local host uuid
+    host_ref = util.get_localhost_uuid(session)
+    text = session.xenapi.host.call_plugin( host_ref, "vmpr", "protect", {})            		    
+    
+# Test Cmdline args
+Print("In runvmpr")
+protect()

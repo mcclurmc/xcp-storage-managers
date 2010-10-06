@@ -1,0 +1,62 @@
+RIO SM Plugin scripts
+=====================
+
+The plugins in this directory are compatible with the
+Storage Repository API (see SR-APIv1.0.txt). The agent
+calls out to the external script and queries the relevant
+driver as identified by the local host database. In order
+to maintain synchronisation between the SR and the host
+database, the SR_get_params and VDI_get_params calls return
+an sexpression of the objects on disk and their status.
+
+Current implementations include:
+
+- LVM (LVMSR.py)
+- Local File Backed (FileSR.py)
+- NFS File backed (NFSSR.py)
+
+In order to differentiate between local and NFS based 
+storage, the device string must be in the format:
+
+/path/to/local/SR/directory   -> Local File Directory
+
+nfs@<IP_target>:/path/to/remote/directory@/path/to/local/mountpoint
+			      -> NFS backed directory
+
+The XE host must be configured to mount remote targets, i.e.
+the NFS client must be installed, and the host running portmap.
+Furthermore, the target must be configured to support a remote
+attach by the XE host.
+
+All SR drivers can be tested and verified independently using the
+sm frontend included in this directory. The 'sm' script verifies
+arguments, and calls out to the correct driver subtype. The agent
+should always call the drivers directly since we trust that 
+arguments are formulated correctly.
+
+Code Structure
+==============
+The code has been substantially revamped since the last version.
+The drivers now make significant use of OO features such as inheritance
+to make driver prototyping much easier. All argument processing and
+operation compliance are handled by the base driver code including
+sexpression generation and error handling. See SR.py for the base SR
+object class, and VDI.py for the base VDI object class.
+
+Todo:
+- Enable locking in the agent to call out to vdi_lock and vdi_unlock
+- Add the new NFS-safe lock tool into the file-based SRs
+- Transition the geneva netapp filer driver to the new interface
+in order to provide fast clone and snapshot features
+
+Test Verification
+=================
+Included in the SM subdirectory are tests that will evolve as the
+code changes and new drivers are added. The test functionality is
+the same as for Geneva, but with modified commandline calls for the
+new API. Any new driver support should be verified against the base
+test suite (test1.sh) for compliance and any custom tests included 
+in the test directory for automated regression checking.
+
+16th February, 2007
+<storage@xensource.com>

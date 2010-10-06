@@ -1,0 +1,26 @@
+#!/usr/bin/python
+#
+# For testing purposes
+
+import os
+import sys
+import XenAPIPlugin
+
+FIST_FILE_PATH = "/tmp/fist_"
+
+def setFistPoint(session, args):
+    fistPoint = args["fistPoint"]
+    active = args["active"]
+    if active == "False":
+        active = False
+    fn = FIST_FILE_PATH + fistPoint
+    if active:
+        open(fn, "w").close()
+    else:
+        if os.path.exists(fn):
+            os.unlink(fn)
+    return str(True)
+
+
+if __name__ == "__main__":
+    XenAPIPlugin.dispatch({"setFistPoint": setFistPoint})

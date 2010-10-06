@@ -1,0 +1,52 @@
+#!/usr/bin/python
+# Copyright (C) 2006-2007 XenSource Ltd.
+# Copyright (C) 2008-2009 Citrix Ltd.
+#
+# This program is free software; you can redistribute it and/or modify 
+# it under the terms of the GNU Lesser General Public License as published 
+# by the Free Software Foundation; version 2.1 only.
+#
+# This program is distributed in the hope that it will be useful, 
+# but WITHOUT ANY WARRANTY; without even the implied warranty of 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the 
+# GNU Lesser General Public License for more details.
+#
+# A plugin for inflating/deflating LVHD VDI's centrally on the master when 
+# using thin provisioning
+
+import sys
+import XenAPIPlugin
+sys.path.append("/opt/xensource/sm/")
+import util
+import vhdutil
+import lvhdutil
+from lvmcache import LVMCache
+from journaler import Journaler
+
+def attach(session, args):
+    srUuid = args["srUuid"]
+    vdiUuid = args["vdiUuid"]
+    vgName = "%s%s" % (lvhdutil.VG_PREFIX, srUuid)
+    lvmCache = LVMCache(vgName)
+    journaler = Journaler(lvmCache)
+    try:
+        lvhdutil.attachThin(journaler, srUuid, vdiUuid)
+        return str(True)
+    except:
+        util.logException("lvhd-thin:attach")
+    return str(False)
+
+def detach(session, args):
+    srUuid = args["srUuid"]
+    vdiUuid = args["vdiUuid"]
+    vgName = "%s%s" % (lvhdutil.VG_PREFIX, srUuid)
+    lvmCache = LVMCache(vgName)
+    try:
+        lvhdutil.detachThin(session, lvmCache, args["srUuid"], args["vdiUuid"])
+        return str(True)
+    except:
+        util.logException("lvhd-thin:detach")
+    return str(False)
+
+if __name__ == "__main__":
+    XenAPIPlugin.dispatch({"attach": attach, "detach": detach})
