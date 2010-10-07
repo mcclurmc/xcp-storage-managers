@@ -362,6 +362,11 @@ def activateNoRefcount(path, refresh):
     text = util.pread2(cmd)
     if not _checkActive(path):
         raise util.CommandException(-1, str(cmd), "LV not activated")
+    if refresh:
+        mapperDevice = path[5:].replace("-", "--").replace("/", "-")
+        cmd = [CMD_DMSETUP, "table", mapperDevice]
+        ret = util.pread(cmd)
+        util.SMlog("DM table for %s: %s" % (path, ret.strip()))
 
 def deactivateNoRefcount(path):
     # LVM has a bug where if an "lvs" command happens to run at the same time 

@@ -6,7 +6,7 @@ import os
 import sys
 import XenAPIPlugin
 sys.path.append("/opt/xensource/sm/")
-import blktap2, util
+import blktap2, util, lvutil
 from lock import Lock
 import xs_errors
 import XenAPI
@@ -100,7 +100,7 @@ class Tapdisk:
             realpath = os.readlink(self.phypath)
         except OSError, e:
             util.SMlog("Phypath %s does not exist" % self.phypath)
-            return            
+            return None
         util.SMlog("Realpath: %s" % realpath)
         if realpath.startswith("/dev/VG_XenStorage-") and \
                 not os.path.exists(realpath):
@@ -111,9 +111,11 @@ class Tapdisk:
                 util.SMlog("Testing path: %s" % p)
                 if os.path.exists(p):
                     _mkphylink(self.sr_uuid, self.vdi_uuid, p)
-                    self.realpath = p
+                    realpath = p
+                    self.realpath = realpath
                     if ty == "LV": self.vdi_type = "aio"
                     else: self.vdi_type = "vhd"
+        return realpath
         
     @locking("VDIUnavailable")
     def Pause(self):
@@ -137,11 +139,15 @@ class Tapdisk:
         if not os.path.exists(self.path):
             util.SMlog("No %s: nothing to unpause" % self.path)
             return str(True)
-        self._pathRefresh()
+        realpath = self._pathRefresh()
         self.major, self.minor = _getDevMajor_minor(self.path)    
         if self.major != blktap2.Tapdisk.major():
             util.SMlog("Non-tap major number: %d" % self.major)
             return str(False)
+
+        if realpath:
+            lvutil.activateNoRefcount(realpath, True)
+
         tapargs = {"minor":self.minor}
         util.SMlog("Calling tap unpause with minor %d" % self.minor)
         tapdisk = blktap2.Tapdisk.get(**tapargs)
