@@ -1940,6 +1940,7 @@ class LVHDSR(SR):
         util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
         self.xapi.forgetVDI(origParentUuid)
         parent.inflateFully()
+        self._updateSlavesOnResize(parent)
 
         util.fistpoint.activate("LVHDRT_coaleaf_before_remove_j", self.uuid)
         self.journaler.remove(VDI.JRN_LEAF, vdiUuid)
@@ -2060,7 +2061,7 @@ class LVHDSR(SR):
     def _updateSlavesOnRename(self, vdi, oldNameLV):
         slave = util.get_slave_attached_on(self.xapi.session, vdi.uuid)
         if not slave:
-            Util.log("VDI %s not attached on any slave" % vdi)
+            Util.log("Update-on-rename: VDI %s not attached on any slave" % vdi)
             return
 
         util.SMlog("Updating %s to %s on slave %s" % \
@@ -2070,6 +2071,20 @@ class LVHDSR(SR):
                 "lvName1": oldNameLV,
                 "action2": "refresh",
                 "lvName2": vdi.lvName}
+        text = self.xapi.session.xenapi.host.call_plugin( \
+                slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
+        util.SMlog("call-plugin returned: '%s'" % text)
+
+    def _updateSlavesOnResize(self, vdi):
+        slave = util.get_slave_attached_on(self.xapi.session, vdi.uuid)
+        if not slave:
+            Util.log("Update-on-resize: VDI %s not attached on any slave" % vdi)
+            return
+
+        util.SMlog("Updating %s size on slave %s" % (vdi.lvName, slave))
+        args = {"vgName" : self.vgName,
+                "action1": "refresh",
+                "lvName1": vdi.lvName}
         text = self.xapi.session.xenapi.host.call_plugin( \
                 slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
         util.SMlog("call-plugin returned: '%s'" % text)
