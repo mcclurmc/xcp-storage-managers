@@ -290,7 +290,7 @@ class ISCSISR(SR.SR):
                                                  opterr='during login')
                 
                     # Allow the devices to settle
-                    time.sleep(15)
+                    time.sleep(5)
                 
                 except util.CommandException, inst:
                     raise xs_errors.XenError('ISCSILogin', \

@@ -13,8 +13,7 @@ def get_luninfo(scsi_id):
         alist = links[0].split('/')[-1].split('-')[-1].split(':')
         luninfo['targetID'] = alist[0]
         luninfo['lunnum'] = alist[1]
-        return luninfo
-    raise xs_errors.XenError('InvalidDev')
+    return luninfo
 
 def query_pathdata(scsi_id, luninfo):
     pathlistcmd = ["/usr/sbin/mppUtil", "-P"]
@@ -66,13 +65,16 @@ def main():
         sys.exit(-1)
 
     mode=sys.argv[1]
+    scsi_id = sys.argv[2]
+    testlinks=glob.glob('/dev/disk/mpInuse/%s-*' % scsi_id)
+    if not (len(testlinks)):
+        return
     if mode == "luninfo":
-        scsi_id = sys.argv[2]
         luninfo =  get_luninfo(scsi_id)
-        print luninfo['lunnum']
+        if luninfo:
+            print luninfo['lunnum']
     else:
         if mode == "pathinfo":
-            scsi_id=sys.argv[2]
             if len(sys.argv) < 4:
                 usage()
                 sys.exit(-1)
