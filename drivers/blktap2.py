@@ -1291,11 +1291,7 @@ class VDI(object):
         # Activate the physical node
         self.target.activate(sr_uuid, vdi_uuid)
 
-        dev_path = None
-        if caching_params.get(self.CONF_KEY_MODE_ON_BOOT) == "reset":
-            self.reset_leaf()
-        if caching_params.get(self.CONF_KEY_ALLOW_CACHING) == "true":
-            dev_path = self.setup_cache(sr_uuid, vdi_uuid, caching_params)
+        dev_path = self.setup_cache(sr_uuid, vdi_uuid, caching_params)
         if not dev_path:
             # Maybe launch a tapdisk on the physical link
             if self.tap_wanted():
@@ -1337,8 +1333,7 @@ class VDI(object):
         else:
             if major == Tapdisk.major():
                 self._tap_deactivate(minor)
-                if caching_params.get(self.CONF_KEY_ALLOW_CACHING) == "true":
-                    self.remove_cache(sr_uuid, vdi_uuid, caching_params)
+                self.remove_cache(sr_uuid, vdi_uuid, caching_params)
 
         # Remove the backend link
         back_link.unlink()
@@ -1407,15 +1402,32 @@ class VDI(object):
         if params.get(self.CONF_KEY_MODE_ON_BOOT) == "reset":
             scratch_mode = True
             util.SMlog("Requested scratch mode")
+            self.reset_leaf()
 
         if not caching and not scratch_mode:
             return
 
-        local_sr_uuid = params.get(self.CONF_KEY_CACHE_SR)
-        if not local_sr_uuid:
-            util.SMlog("ERROR: Local cache SR not specified, not enabling")
-            return
+        session = XenAPI.xapi_local()
+        session.xenapi.login_with_password('root', '')
 
+        dev_path = None
+        if caching:
+            local_sr_uuid = params.get(self.CONF_KEY_CACHE_SR)
+            if not local_sr_uuid:
+                util.SMlog("ERROR: Local cache SR not specified, not enabling")
+                return
+            dev_path = self._setup_cache(session, sr_uuid, vdi_uuid,
+                    local_sr_uuid, scratch_mode)
+
+        self._updateCacheRecord(session, self.target.vdi.uuid,
+                params.get(self.CONF_KEY_MODE_ON_BOOT),
+                params.get(self.CONF_KEY_ALLOW_CACHING))
+
+        session.xenapi.session.logout()
+        return dev_path
+
+    def _setup_cache(self, session, sr_uuid, vdi_uuid, local_sr_uuid,
+            scratch_mode):
         import SR
         import EXTSR
         import NFSSR
@@ -1435,8 +1447,6 @@ class VDI(object):
         shared_target = NFSSR.NFSFileVDI(self.target.vdi.sr, parent_uuid)
 
         SR.registerSR(EXTSR.EXTSR)
-        session = XenAPI.xapi_local()
-        session.xenapi.login_with_password('root', '')
         local_sr = SR.SR.from_uuid(session, local_sr_uuid)
 
         lock = Lock(self.LOCK_CACHE_SETUP, parent_uuid)
@@ -1499,31 +1509,33 @@ class VDI(object):
         util.SMlog("Local read cache: %s, local leaf: %s" % \
                 (read_cache_path, local_leaf_path))
 
-        # Update the VDI.sm_config field
-        if scratch_mode:
-            str = "reset"
-        else:
-            str = "persist"
-        self._updateCacheRecord(session, self.target.vdi.uuid, str, "True")
-        session.xenapi.session.logout()
         return leaf_tapdisk.get_devpath()
 
     def remove_cache(self, sr_uuid, vdi_uuid, params):
+        caching = params.get(self.CONF_KEY_ALLOW_CACHING) == "true"
+        scratch_mode = params.get(self.CONF_KEY_MODE_ON_BOOT) == "reset"
+
+        local_sr_uuid = params.get(self.CONF_KEY_CACHE_SR)
+        if not local_sr_uuid:
+            util.SMlog("ERROR: Local cache SR not specified, ignore")
+            return
+
+        session = XenAPI.xapi_local()
+        session.xenapi.login_with_password('root', '')
+
+        if caching:
+            self._remove_cache(session, local_sr_uuid, scratch_mode)
+
+        self._updateCacheRecord(session, self.target.vdi.uuid, None, None)
+        session.xenapi.session.logout()
+
+    def _remove_cache(self, session, local_sr_uuid, scratch_mode):
         import SR
         import EXTSR
         import NFSSR
         import XenAPI
         from lock import Lock
         from FileSR import FileVDI
-
-        scratch_mode = False
-        if params.get(self.CONF_KEY_MODE_ON_BOOT) == "reset":
-            scratch_mode = True
-
-        local_sr_uuid = params.get(self.CONF_KEY_CACHE_SR)
-        if not local_sr_uuid:
-            util.SMlog("ERROR: Local cache SR not specified, ignore")
-            return
 
         parent_uuid = vhdutil.getParent(self.target.vdi.path,
                 FileVDI.extractUuid)
@@ -1538,8 +1550,6 @@ class VDI(object):
         shared_target = NFSSR.NFSFileVDI(self.target.vdi.sr, parent_uuid)
 
         SR.registerSR(EXTSR.EXTSR)
-        session = XenAPI.xapi_local()
-        session.xenapi.login_with_password('root', '')
         local_sr = SR.SR.from_uuid(session, local_sr_uuid)
 
         lock = Lock(self.LOCK_CACHE_SETUP, parent_uuid)
@@ -1556,10 +1566,6 @@ class VDI(object):
         # removed during the local SR's background GC run
 
         lock.release()
-
-        # Update the VDI.sm_config field
-        self._updateCacheRecord(session, self.target.vdi.uuid, None, None)
-        session.xenapi.session.logout()
 
 
 class UEventHandler(object):
