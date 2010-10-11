@@ -90,10 +90,61 @@ class HBASR(SR.SR):
 
     def _probe_hba(self):
         try:
-            cmd = [HBA_CLI, "xml"]
-            fc_xml = util.pread(cmd)
-            #strip junk until xml
-            return fc_xml[fc_xml.index("<HBAInfoList>"):len(fc_xml)]
+            # use sysfs tree to gather FC data
+
+            dom = xml.dom.minidom.Document()
+            hbalist = dom.createElement("HBAInfoList")
+            dom.appendChild(hbalist)
+
+            hostlist = util.listdir("/sys/class/fc_host")
+            for host in hostlist: 
+
+                hbainfo = dom.createElement("HBAInfo")
+                hbalist.appendChild(hbainfo)
+
+                cmd = ["cat", "/sys/class/fc_host/%s/symbolic_name" % host]
+                sname = util.pread(cmd)[:-1]
+                entry = dom.createElement("model")
+                hbainfo.appendChild(entry)
+                textnode = dom.createTextNode(sname)
+                entry.appendChild(textnode)
+
+                cmd = ["cat", "/sys/class/fc_host/%s/node_name" % host]
+                nname = util.pread(cmd)[:-1]
+                nname = util.make_WWN(nname)
+                entry = dom.createElement("nodeWWN")
+                hbainfo.appendChild(entry)
+                # adjust nodename to look like expected string
+                textnode = dom.createTextNode(nname)
+                entry.appendChild(textnode)
+
+                port = dom.createElement("port")
+                hbainfo.appendChild(port)
+
+                cmd = ["cat", "/sys/class/fc_host/%s/port_name" % host]
+                pname = util.pread(cmd)[:-1]
+                pname = util.make_WWN(pname)
+                entry = dom.createElement("portWWN")
+                port.appendChild(entry)
+                # adjust nodename to look like expected string
+                textnode = dom.createTextNode(pname)
+                entry.appendChild(textnode)
+
+                cmd = ["cat", "/sys/class/fc_host/%s/port_state" % host]
+                state = util.pread(cmd)[:-1]
+                entry = dom.createElement("state")
+                port.appendChild(entry)
+                # adjust nodename to look like expected string
+                textnode = dom.createTextNode(state)
+                entry.appendChild(textnode)
+
+                entry = dom.createElement("deviceName")
+                port.appendChild(entry)
+                # adjust nodename to look like expected string
+                textnode = dom.createTextNode("/sys/class/scsi_host/%s" % host)
+                entry.appendChild(textnode)
+
+            return dom.toprettyxml()
         except:
             raise xs_errors.XenError('CSLGXMLParse', \
                                      opterr='HBA probe failed')
@@ -215,7 +266,6 @@ class HBASR(SR.SR):
             textnode = dom.createTextNode(val)
             subentry.appendChild(textnode)
         return dom.toprettyxml()
-
 
 if __name__ == '__main__':
     SRCommand.run(HBASR, DRIVER_INFO)

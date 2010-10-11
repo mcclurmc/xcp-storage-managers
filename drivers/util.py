@@ -87,6 +87,17 @@ def to_plain_string(obj):
 def shellquote(arg):
     return '"%s"' % arg.replace('"', '\\"')
 
+def make_WWN(name):
+    hex_prefix = name.find("0x")
+    if (hex_prefix >=0):
+        name = name[name.find("0x")+2:len(name)]
+    # inject dashes for each nibble
+    if (len(name) == 16): #sanity check
+        name = name[0:2] + "-" + name[2:4] + "-" + name[4:6] + "-" + \
+               name[6:8] + "-" + name[8:10] + "-" + name[10:12] + "-" + \
+               name[12:14] + "-" + name[14:16]
+    return name
+
 def SMlog(str, logfile=LOGFILE):
     if SYSLOG_ON:
         syslog.openlog("SM")
