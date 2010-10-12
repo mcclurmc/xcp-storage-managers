@@ -1290,7 +1290,9 @@ class VDI(object):
             # attributes have changed (e.g. its size if it was inflated; or its 
             # path if it was leaf-coalesced onto a raw LV), so refresh the 
             # object completely
+            params = self.target.vdi.sr.srcmd.params
             target = sm.VDI.from_uuid(self.target.vdi.session, vdi_uuid)
+            target.sr.srcmd.params = params
             driver_info = target.sr.srcmd.driver_info
             self.target = self.TargetDriver(target, driver_info)
 
