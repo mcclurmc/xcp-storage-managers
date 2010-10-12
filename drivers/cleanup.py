@@ -317,7 +317,8 @@ class XAPI:
         except XenAPI.Failure:
             pass
 
-    def getConfigVDI(self, kind, vdi):
+    def getConfigVDI(self, vdi, key):
+        kind = vdi.CONFIG_TYPE[key]
         if kind == self.CONFIG_SM:
             cfg = self.session.xenapi.VDI.get_sm_config(vdi.getRef())
         elif kind == self.CONFIG_OTHER:
@@ -327,14 +328,23 @@ class XAPI:
         Util.log("Got %s for %s: %s" % (self.CONFIG_NAME[kind], vdi, repr(cfg)))
         return cfg
 
-    def setConfigVDI(self, kind, vdi, map):
+    def removeFromConfigVDI(self, vdi, key):
+        kind = vdi.CONFIG_TYPE[key]
         if kind == self.CONFIG_SM:
-            self.session.xenapi.VDI.set_sm_config(vdi.getRef(), map)
+            self.session.xenapi.VDI.remove_from_sm_config(vdi.getRef(), key)
         elif kind == self.CONFIG_OTHER:
-            self.session.xenapi.VDI.set_other_config(vdi.getRef(), map)
+            self.session.xenapi.VDI.remove_from_other_config(vdi.getRef(), key)
         else:
             assert(False)
-        Util.log("Set %s for %s: %s" % (self.CONFIG_NAME[kind], vdi, repr(map)))
+
+    def addToConfigVDI(self, vdi, key, val):
+        kind = vdi.CONFIG_TYPE[key]
+        if kind == self.CONFIG_SM:
+            self.session.xenapi.VDI.add_to_sm_config(vdi.getRef(), key, val)
+        elif kind == self.CONFIG_OTHER:
+            self.session.xenapi.VDI.add_to_other_config(vdi.getRef(), key, val)
+        else:
+            assert(False)
 
     def srUpdate(self):
         Util.log("Starting asynch srUpdate for SR %s" % self.srRecord["uuid"])
@@ -407,8 +417,6 @@ class VDI:
         self.parent     = None
         self.children   = []
         self._vdiRef    = None
-        self._config    = {}
-        self._configDirty = {}
         self._clearRef()
 
     def load(self):
@@ -424,43 +432,20 @@ class VDI:
         return self._vdiRef
 
     def getConfig(self, key, default = None):
-        kind = self.CONFIG_TYPE[key]
-        self._configLazyInit(kind)
-        val = self._config[kind].get(key)
-        # it is not safe to cache config fields
-        self._config[kind] = None
+        config = self.sr.xapi.getConfigVDI(self, key)
+        val = config.get(key)
         if val:
             return val
         return default
 
     def setConfig(self, key, val):
-        kind = self.CONFIG_TYPE[key]
-        self._configLazyInit(kind)
-        self._config[kind][key] = val
-        self._configDirty[kind] = True
+        self.sr.xapi.removeFromConfigVDI(self, key)
+        self.sr.xapi.addToConfigVDI(self, key, val)
+        Util.log("Set %s = %s for %s" % (key, val, self))
 
     def delConfig(self, key):
-        kind = self.CONFIG_TYPE[key]
-        self._configLazyInit(kind)
-        if self._config[kind].get(key):
-            del self._config[kind][key]
-            self._configDirty[kind] = True
-
-    def updateConfig(self):
-        for kind in self._config.keys():
-            if self._configDirty[kind]:
-                self.sr.xapi.setConfigVDI(kind, self, self._config[kind])
-                self._configDirty[kind] = False
-                # it is not safe to cache config fields
-                self._config[kind] = None
-
-    def setConfigUpdate(self, key, val):
-        self.setConfig(key, val)
-        self.updateConfig()
-
-    def delConfigUpdate(self, key):
-        self.delConfig(key)
-        self.updateConfig()
+        self.sr.xapi.removeFromConfigVDI(self, key)
+        Util.log("Removed %s from %s" % (key, self))
 
     def ensureUnpaused(self):
         if self.getConfig(self.DB_VDI_PAUSED) == "true":
@@ -572,7 +557,7 @@ class VDI:
 
     def updateBlockInfo(self):
         val = base64.b64encode(self._queryVHDBlocks())
-        self.setConfigUpdate(VDI.DB_VHD_BLOCKS, val)
+        self.setConfig(VDI.DB_VHD_BLOCKS, val)
 
     def rename(self, uuid):
         "Rename the VDI file"
@@ -614,13 +599,6 @@ class VDI:
 
     def _clearRef(self):
         self._vdiRef = None
-        for kind in [XAPI.CONFIG_SM, XAPI.CONFIG_OTHER]:
-            self._config[kind] = None
-            self._configDirty[kind] = False
-
-    def _configLazyInit(self, kind):
-        if self._config[kind] == None:
-            self._config[kind] = self.sr.xapi.getConfigVDI(kind, self)
 
     def _doCoalesce(self):
         """Coalesce self onto parent. Only perform the actual coalescing of
@@ -700,7 +678,7 @@ class VDI:
         self.parentUuid = parent.uuid
         parent.children.append(self)
         try:
-            self.setConfigUpdate(self.DB_VHD_PARENT, self.parentUuid)
+            self.setConfig(self.DB_VHD_PARENT, self.parentUuid)
             Util.log("Updated the vhd-parent field for child %s with %s" % \
                      (self.uuid, self.parentUuid))
         except:
@@ -764,7 +742,7 @@ class VDI:
         upper bound)"""
         # make sure we don't use stale BAT info from vdi_rec since the child 
         # was writable all this time
-        self.delConfigUpdate(VDI.DB_VHD_BLOCKS)
+        self.delConfig(VDI.DB_VHD_BLOCKS)
         blocksChild = self.getVHDBlocks()
         blocksParent = self.parent.getVHDBlocks()
         numBlocks = Util.countBits(blocksChild, blocksParent)
@@ -1043,7 +1021,7 @@ class LVHDVDI(VDI):
         self.parentUuid = parent.uuid
         parent.children.append(self)
         try:
-            self.setConfigUpdate(self.DB_VHD_PARENT, self.parentUuid)
+            self.setConfig(self.DB_VHD_PARENT, self.parentUuid)
             Util.log("Updated the vhd-parent field for child %s with %s" % \
                      (self.uuid, self.parentUuid))
         except:
@@ -1337,7 +1315,7 @@ class SR:
                         (candidate, freeSpace))
                 if spaceNeededLive <= freeSpace:
                     Util.log("...but enough space if skip snap-coalesce")
-                    candidate.setConfigUpdate(VDI.DB_LEAFCLSC, 
+                    candidate.setConfig(VDI.DB_LEAFCLSC, 
                             VDI.LEAFCLSC_OFFLINE)
 
         return None
@@ -1374,7 +1352,7 @@ class SR:
             finally:
                 vdi = self.getVDI(uuid)
                 if vdi:
-                    vdi.delConfigUpdate(vdi.DB_LEAFCLSC)
+                    vdi.delConfig(vdi.DB_LEAFCLSC)
         except (util.SMException, XenAPI.Failure), e:
             if isinstance(e, AbortException):
                 self.cleanup()
@@ -1562,7 +1540,7 @@ class SR:
                 return False
             if vdi.getSizeVHD() >= prevSizeVHD:
                 Util.log("Snapshot-coalesce did not help, abandoning attempts")
-                vdi.setConfigUpdate(vdi.DB_LEAFCLSC, vdi.LEAFCLSC_OFFLINE)
+                vdi.setConfig(vdi.DB_LEAFCLSC, vdi.LEAFCLSC_OFFLINE)
                 break
         return self._liveLeafCoalesce(vdi)
 
@@ -1619,7 +1597,8 @@ class SR:
                     raise
             finally:
                 vdi = self.getVDI(uuid)
-                vdi.ensureUnpaused()
+                if vdi:
+                    vdi.ensureUnpaused()
         finally:
             self.cleanup()
             self.unlock()
@@ -1913,7 +1892,6 @@ class LVHDSR(SR):
         if vdi.parent.raw:
             vdi.parent.setConfig(VDI.DB_VDI_TYPE, lvhdutil.VDI_TYPE_RAW)
         vdi.parent.delConfig(VDI.DB_VHD_BLOCKS)
-        vdi.parent.updateConfig()
         util.fistpoint.activate("LVHDRT_coaleaf_after_vdirec", self.uuid)
 
         # fix the refcounts: the remaining node should inherit the binary 
@@ -1991,7 +1969,6 @@ class LVHDSR(SR):
             Util.log("Updating the VDI record")
             child.setConfig(VDI.DB_VHD_PARENT, parentUuid)
             child.setConfig(VDI.DB_VDI_TYPE, lvhdutil.VDI_TYPE_VHD)
-            child.updateConfig()
             util.fistpoint.activate("LVHDRT_coaleaf_undo_after_rename2", self.uuid)
 
             # refcount (best effort - assume that it had succeeded if the 
@@ -2016,7 +1993,7 @@ class LVHDSR(SR):
         util.fistpoint.activate("LVHDRT_coaleaf_undo_end", self.uuid)
         Util.log("*** leaf-coalesce undo successful")
         if util.fistpoint.is_active("LVHDRT_coaleaf_stop_after_recovery"):
-            child.setConfigUpdate(VDI.DB_LEAFCLSC, VDI.LEAFCLSC_DISABLED)
+            child.setConfig(VDI.DB_LEAFCLSC, VDI.LEAFCLSC_DISABLED)
 
     def _finishInterruptedCoalesceLeaf(self, childUuid, parentUuid):
         Util.log("*** FINISH LEAF-COALESCE")

@@ -725,7 +725,7 @@ def _testSnapshotInsufficientSpace(sr):
     info = sm.getInfoSR(sr)
     totalSize = int(info["physical-size"])
     size = totalSize * 998 / 1000
-    vdi = _testCreateVDI(sr, size, False)
+    vdi = _testCreateVDI(sr, size, True)
     try:
         vdiClone = sm.snapshotVDI(vdi)
         if _getThinProvisionFlag(info):
