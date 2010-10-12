@@ -1110,7 +1110,19 @@ def archive_now(session, args):
 	host_ref = util.get_localhost_uuid(session)
 	host_uuid = session.xenapi.host.get_uuid(host_ref)
 	snap_name = session.xenapi.VM.get_name_label(snap_ref)
-	archive_name = os.path.join(archive_target_config['local_mount_dir'],"%s.xva" % snap_name)
+	
+	# Create the VM archive folder name if not present 
+	vm_name = session.xenapi.VM.get_name_label(org_vm)
+	vm_name = SanitizeVMNameForWindows(vm_name)
+	vm = session.xenapi.VM.get_uuid(org_vm)
+	folder_name = "%s-%s" % (vm_name, vm[0:16])
+	folder_path = os.path.join(archive_target_config['local_mount_dir'], folder_name)
+	    
+	# Check if the folder exists on the target location, else create it.
+	if not os.path.exists(folder_path):
+	    os.mkdir(folder_path)			    
+	
+	archive_name = os.path.join(folder_path,"%s.xva" % snap_name)
 	    
 	# If this file already exists send back a pre-defined error message for the same.
 	if os.path.exists(archive_name):
