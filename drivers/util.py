@@ -556,21 +556,23 @@ def match_domain_id(s):
     regex = re.compile("^CONTROL_DOMAIN_UUID")
     return regex.search(s, 0)
 
-def get_host_attached_on(session, vdi_uuid):
+def get_hosts_attached_on(session, vdi_uuid):
+    host_refs = []
     vdi_ref = session.xenapi.VDI.get_by_uuid(vdi_uuid)
     sm_config = session.xenapi.VDI.get_sm_config(vdi_ref)
-    return sm_config.get('host_ref')
+    for key in filter(lambda x: x.startswith('host_'), sm_config.keys()):
+        host_refs.append(key[len('host_'):])
+    return host_refs
 
-def is_master(session, host_ref):
+def get_master(session):
     pool = session.xenapi.pool.get_all()[0]
-    master = session.xenapi.pool.get_master(pool)
-    return host_ref == master
+    master_ref = session.xenapi.pool.get_master(pool)
+    return master_ref
 
-def get_slave_attached_on(session, vdi_uuid):
-    host_ref = get_host_attached_on(session, vdi_uuid)
-    if host_ref and not is_master(session, host_ref):
-        return host_ref
-    return None
+def get_slaves_attached_on(session, vdi_uuid):
+    host_refs = get_hosts_attached_on(session, vdi_uuid)
+    master_ref = get_master(session)
+    return filter(lambda x: x != master_ref, host_refs)
 
 def find_my_pbd(session, host_ref, sr_ref):
     try:

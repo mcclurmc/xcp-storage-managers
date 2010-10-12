@@ -2036,35 +2036,37 @@ class LVHDSR(SR):
                     raise
 
     def _updateSlavesOnRename(self, vdi, oldNameLV):
-        slave = util.get_slave_attached_on(self.xapi.session, vdi.uuid)
-        if not slave:
+        slaves = util.get_slaves_attached_on(self.xapi.session, vdi.uuid)
+        if not slaves:
             Util.log("Update-on-rename: VDI %s not attached on any slave" % vdi)
             return
 
-        util.SMlog("Updating %s to %s on slave %s" % \
-                (oldNameLV, vdi.lvName, slave))
         args = {"vgName" : self.vgName,
                 "action1": "deactivateNoRefcount",
                 "lvName1": oldNameLV,
                 "action2": "refresh",
                 "lvName2": vdi.lvName}
-        text = self.xapi.session.xenapi.host.call_plugin( \
-                slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
-        util.SMlog("call-plugin returned: '%s'" % text)
+        for slave in slaves:
+            util.SMlog("Updating %s to %s on slave %s" % \
+                    (oldNameLV, vdi.lvName, slave))
+            text = self.xapi.session.xenapi.host.call_plugin( \
+                    slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
+            util.SMlog("call-plugin returned: '%s'" % text)
 
     def _updateSlavesOnResize(self, vdi):
-        slave = util.get_slave_attached_on(self.xapi.session, vdi.uuid)
-        if not slave:
+        slaves = util.get_slaves_attached_on(self.xapi.session, vdi.uuid)
+        if not slaves:
             Util.log("Update-on-resize: VDI %s not attached on any slave" % vdi)
             return
 
-        util.SMlog("Updating %s size on slave %s" % (vdi.lvName, slave))
         args = {"vgName" : self.vgName,
                 "action1": "refresh",
                 "lvName1": vdi.lvName}
-        text = self.xapi.session.xenapi.host.call_plugin( \
-                slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
-        util.SMlog("call-plugin returned: '%s'" % text)
+        for slave in slaves:
+            util.SMlog("Updating %s size on slave %s" % (vdi.lvName, slave))
+            text = self.xapi.session.xenapi.host.call_plugin( \
+                    slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
+            util.SMlog("call-plugin returned: '%s'" % text)
 
 
 ################################################################################

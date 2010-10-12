@@ -679,13 +679,11 @@ class LVHDSR(SR.SR):
         delattr(self,"vdiInfo")
         delattr(self,"allVDIs")
 
-    def _updateSlavesOnClone(self, slave, origOldLV, origLV,
+    def _updateSlavesOnClone(self, hostRefs, origOldLV, origLV,
             baseUuid, baseLV):
         """We need to reactivate the original LV on each slave (note that the
         name for the original LV might change), as well as init the refcount
         for the base LV"""
-        util.SMlog("Updating %s, %s, %s on slave %s" % \
-                (origOldLV, origLV, baseLV, slave))
         args = {"vgName" : self.vgname,
                 "action1": "deactivateNoRefcount",
                 "lvName1": origOldLV,
@@ -695,9 +693,16 @@ class LVHDSR(SR.SR):
                 "ns3"    : lvhdutil.NS_PREFIX_LVM + self.uuid,
                 "lvName3": baseLV,
                 "uuid3"  : baseUuid}
-        text = self.session.xenapi.host.call_plugin( \
-                slave, self.PLUGIN_ON_SLAVE, "multi", args)
-        util.SMlog("call-plugin returned: '%s'" % text)
+
+        masterRef = util.get_master(self.session)
+        for hostRef in hostRefs:
+            if hostRef == masterRef:
+                continue
+            util.SMlog("Updating %s, %s, %s on slave %s" % \
+                    (origOldLV, origLV, baseLV, hostRef))
+            text = self.session.xenapi.host.call_plugin( \
+                    hostRef, self.PLUGIN_ON_SLAVE, "multi", args)
+            util.SMlog("call-plugin returned: '%s'" % text)
 
     def _cleanup(self, skipLockCleanup = False):
         """delete stale refcounter, flag, and lock files"""
@@ -1061,10 +1066,10 @@ class LVHDVDI(VDI.VDI):
         lvSizeOrig = thinpr
         lvSizeClon = thinpr
 
-        hostRef = None
+        hostRefs = []
         if self.sr.cmd == "vdi_snapshot":
-            hostRef = util.get_host_attached_on(self.session, self.uuid)
-            if hostRef:
+            hostRefs = util.get_hosts_attached_on(self.session, self.uuid)
+            if hostRefs:
                 lvSizeOrig = fullpr
         if not self.sr.thinpr:
             if not self.issnap:
@@ -1137,8 +1142,8 @@ class LVHDVDI(VDI.VDI):
             self.sr.lvmCache.setReadonly(self.lvname, True)
             util.fistpoint.activate("LVHDRT_clone_vdi_after_parent_ro", self.sr.uuid)
 
-            if hostRef and not util.is_master(self.session, hostRef):
-                self.sr._updateSlavesOnClone(hostRef, origOldLV,
+            if hostRefs:
+                self.sr._updateSlavesOnClone(hostRefs, origOldLV,
                         snapVDI.lvname, self.uuid, self.lvname)
 
         except (util.SMException, XenAPI.Failure), e:
