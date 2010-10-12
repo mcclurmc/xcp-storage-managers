@@ -1166,13 +1166,15 @@ class VDI(object):
     def tap_pause(cls, session, sr_uuid, vdi_uuid):
         util.SMlog("Pause request for %s" % vdi_uuid)
         vdi_ref = session.xenapi.VDI.get_by_uuid(vdi_uuid)
-        session.xenapi.VDI.add_to_sm_config(vdi_ref,'paused','true')
+        session.xenapi.VDI.add_to_sm_config(vdi_ref, 'paused', 'true')
         sm_config = session.xenapi.VDI.get_sm_config(vdi_ref)
-        if sm_config.has_key('host_ref'):
-            if not cls.call_pluginhandler(session, sm_config['host_ref'],
+        for key in filter(lambda x: x.startswith('host_'), sm_config.keys()):
+            host_ref = key[len('host_'):]
+            util.SMlog("Calling tap-pause on host %s" % host_ref)
+            if not cls.call_pluginhandler(session, host_ref,
                     sr_uuid, vdi_uuid, "pause"):
                 # Failed to pause node
-                session.xenapi.VDI.remove_from_sm_config(vdi_ref,'paused')
+                session.xenapi.VDI.remove_from_sm_config(vdi_ref, 'paused')
                 return False
         return True
 
@@ -1180,10 +1182,12 @@ class VDI(object):
     def tap_unpause(cls, session, sr_uuid, vdi_uuid):
         util.SMlog("Unpause request for %s" % vdi_uuid)
         vdi_ref = session.xenapi.VDI.get_by_uuid(vdi_uuid)
-        session.xenapi.VDI.remove_from_sm_config(vdi_ref,'paused')
+        session.xenapi.VDI.remove_from_sm_config(vdi_ref, 'paused')
         sm_config = session.xenapi.VDI.get_sm_config(vdi_ref)
-        if sm_config.has_key('host_ref'):
-            if not cls.call_pluginhandler(session, sm_config['host_ref'],
+        for key in filter(lambda x: x.startswith('host_'), sm_config.keys()):
+            host_ref = key[len('host_'):]
+            util.SMlog("Calling tap-unpause on host %s" % host_ref)
+            if not cls.call_pluginhandler(session, host_ref,
                     sr_uuid, vdi_uuid, "unpause"):
                 # Failed to unpause node
                 return False
@@ -1191,10 +1195,13 @@ class VDI(object):
 
     @classmethod
     def tap_refresh(cls, session, sr_uuid, vdi_uuid):
+        util.SMlog("Refresh request for %s" % vdi_uuid)
         vdi_ref = session.xenapi.VDI.get_by_uuid(vdi_uuid)
         sm_config = session.xenapi.VDI.get_sm_config(vdi_ref)
-        if sm_config.has_key('host_ref'):
-            if not cls.call_pluginhandler(session, sm_config['host_ref'],
+        for key in filter(lambda x: x.startswith('host_'), sm_config.keys()):
+            host_ref = key[len('host_'):]
+            util.SMlog("Calling tap-refresh on host %s" % host_ref)
+            if not cls.call_pluginhandler(session, host_ref,
                     sr_uuid, vdi_uuid, "refresh"):
                 # Failed to unpause node
                 return False
@@ -1213,21 +1220,23 @@ class VDI(object):
 
 
     def _add_tag(self, vdi_uuid):
-        vdi_ref = self._session.xenapi.VDI.get_by_uuid(vdi_uuid)
         util.SMlog("Adding tag to: %s" % vdi_uuid)
+        vdi_ref = self._session.xenapi.VDI.get_by_uuid(vdi_uuid)
         host_ref = self._session.xenapi.host.get_by_uuid(util.get_this_host())
         sm_config = self._session.xenapi.VDI.get_sm_config(vdi_ref)
         if sm_config.has_key('paused'):
             util.SMlog("Paused or host_ref key found [%s]" % sm_config)
             return False
-        if sm_config.has_key('host_ref'):
-            # Stale host_ref key must be removed
-            self._session.xenapi.VDI.remove_from_sm_config(vdi_ref,'host_ref')
-        self._session.xenapi.VDI.add_to_sm_config(vdi_ref,'host_ref',host_ref)
+        host_key = "host_%s" % host_ref
+        if sm_config.has_key(host_key):
+            util.SMlog("WARNING: host key %s already there!" % host_key)
+        else:
+            self._session.xenapi.VDI.add_to_sm_config(vdi_ref, host_key,
+                    'active')
         sm_config = self._session.xenapi.VDI.get_sm_config(vdi_ref)
         if sm_config.has_key('paused'):
-            util.SMlog("Found paused key, returning False")
-            self._session.xenapi.VDI.remove_from_sm_config(vdi_ref,'host_ref')
+            util.SMlog("Found paused key, aborting")
+            self._session.xenapi.VDI.remove_from_sm_config(vdi_ref, host_key)
             return False
         util.SMlog("Activate lock succeeded")
         return True
@@ -1242,9 +1251,13 @@ class VDI(object):
 
     def _remove_tag(self, vdi_uuid):
         vdi_ref = self._session.xenapi.VDI.get_by_uuid(vdi_uuid)
+        host_ref = self._session.xenapi.host.get_by_uuid(util.get_this_host())
         sm_config = self._session.xenapi.VDI.get_sm_config(vdi_ref)
-        if sm_config.has_key('host_ref'):
-            self._session.xenapi.VDI.remove_from_sm_config(vdi_ref, 'host_ref')
+        host_key = "host_%s" % host_ref
+        if sm_config.has_key(host_key):
+            self._session.xenapi.VDI.remove_from_sm_config(vdi_ref, host_key)
+        else:
+            util.SMlog("WARNING: host key %s not found!" % host_key)
 
     def attach(self, sr_uuid, vdi_uuid):
         """Return/dev/sm/backend symlink path"""
