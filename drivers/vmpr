@@ -81,15 +81,7 @@ def SanitizeVMNameForWindows(name):
 		
         # Windows also seems not to like filenames ending '.'
         if newname.endswith('.'):
-	    temp = ''
-	    index = 0
-	    for c in newname:
-		if index==(len(p)-1):
-		    p1 += '_'
-		else:
-		    p1 += c
-		index += 1
-	    newname = temp
+	    newname = newname[:-1]
 		
 	return newname
     
