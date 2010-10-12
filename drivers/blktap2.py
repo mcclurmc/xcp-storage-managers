@@ -2049,7 +2049,8 @@ class BlkbackEventHandler(UEventHandler):
     def __add(self):
         vbd = self.get_vbd()
 
-        self._manage_vbd()
+        # Manage blkback transitions
+        # self._manage_vbd()
 
         vbd.signal_hotplug()
 
