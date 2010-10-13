@@ -1004,7 +1004,8 @@ class LVHDVDI(VDI):
         finally:
             self.parent._loadInfoSizeVHD()
             self.parent.deflate()
-            self.sr.lvmCache.setReadonly(self.lvName, True)
+            self.sr.lvmCache.setReadonly(self.parent.lvName, True)
+        self.sr._updateSlavesOnResize(self.parent)
 
     def _setParent(self, parent):
         self._activate()
@@ -1710,10 +1711,10 @@ class FileSR(SR):
         fullPath = os.path.join(self.path, uuid + self.CACHE_FILE_EXT)
         tapdisk = blktap2.Tapdisk.find_by_path(fullPath)
         if tapdisk:
-            util.SMlog("Shutting down tapdisk for %s" % fullPath)
+            Util.log("Shutting down tapdisk for %s" % fullPath)
             tapdisk.shutdown()
 
-        util.SMlog("Deleting file %s" % fullPath)
+        Util.log("Deleting file %s" % fullPath)
         os.unlink(fullPath)
 
     def _isCacheFileName(self, name):
@@ -1990,6 +1991,7 @@ class LVHDSR(SR):
             parent._setHidden(True)
         if not parent.lvReadonly:
             self.lvmCache.setReadonly(parent.lvName, True)
+        self._updateSlavesOnUndoLeafCoalesce(parent, child)
         util.fistpoint.activate("LVHDRT_coaleaf_undo_end", self.uuid)
         Util.log("*** leaf-coalesce undo successful")
         if util.fistpoint.is_active("LVHDRT_coaleaf_stop_after_recovery"):
@@ -2006,6 +2008,7 @@ class LVHDSR(SR):
             self.xapi.forgetVDI(parentUuid)
         except XenAPI.Failure:
             pass
+        self._updateSlavesOnResize(vdi)
         util.fistpoint.activate("LVHDRT_coaleaf_finish_end", self.uuid)
         Util.log("*** finished leaf-coalesce successfully")
 
@@ -2035,6 +2038,31 @@ class LVHDSR(SR):
                 if hostRef in onlineHosts:
                     raise
 
+    def _updateSlavesOnUndoLeafCoalesce(self, parent, child):
+        slaves = util.get_slaves_attached_on(self.xapi.session, child.uuid)
+        if not slaves:
+            Util.log("Update-on-leaf-undo: VDI %s not attached on any slave" % \
+                    child)
+            return
+
+        tmpName = lvhdutil.LV_PREFIX[lvhdutil.VDI_TYPE_VHD] + \
+                self.TMP_RENAME_PREFIX + child.uuid
+        args = {"vgName" : self.vgName,
+                "action1": "deactivateNoRefcount",
+                "lvName1": tmpName,
+                "action2": "deactivateNoRefcount",
+                "lvName2": child.lvName,
+                "action3": "refresh",
+                "lvName3": child.lvName,
+                "action4": "refresh",
+                "lvName4": parent.lvName}
+        for slave in slaves:
+            Util.log("Updating %s, %s, %s on slave %s" % \
+                    (tmpName, child.lvName, parent.lvName, slave))
+            text = self.xapi.session.xenapi.host.call_plugin( \
+                    slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
+            Util.log("call-plugin returned: '%s'" % text)
+
     def _updateSlavesOnRename(self, vdi, oldNameLV):
         slaves = util.get_slaves_attached_on(self.xapi.session, vdi.uuid)
         if not slaves:
@@ -2047,26 +2075,15 @@ class LVHDSR(SR):
                 "action2": "refresh",
                 "lvName2": vdi.lvName}
         for slave in slaves:
-            util.SMlog("Updating %s to %s on slave %s" % \
+            Util.log("Updating %s to %s on slave %s" % \
                     (oldNameLV, vdi.lvName, slave))
             text = self.xapi.session.xenapi.host.call_plugin( \
                     slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
-            util.SMlog("call-plugin returned: '%s'" % text)
+            Util.log("call-plugin returned: '%s'" % text)
 
     def _updateSlavesOnResize(self, vdi):
-        slaves = util.get_slaves_attached_on(self.xapi.session, vdi.uuid)
-        if not slaves:
-            Util.log("Update-on-resize: VDI %s not attached on any slave" % vdi)
-            return
-
-        args = {"vgName" : self.vgName,
-                "action1": "refresh",
-                "lvName1": vdi.lvName}
-        for slave in slaves:
-            util.SMlog("Updating %s size on slave %s" % (vdi.lvName, slave))
-            text = self.xapi.session.xenapi.host.call_plugin( \
-                    slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
-            util.SMlog("call-plugin returned: '%s'" % text)
+        lvhdutil.lvRefreshOnSlaves(self.xapi.session, self.vgName,
+                vdi.lvName, vdi.uuid)
 
 
 ################################################################################

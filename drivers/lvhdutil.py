@@ -282,6 +282,20 @@ def getAllVHDJournals(lvmCache):
         journals.append((jName, lvName))
     return journals
 
+def lvRefreshOnSlaves(session, vgName, lvName, vdiUuid):
+    slaves = util.get_slaves_attached_on(session, vdiUuid)
+    if not slaves:
+        util.SMlog("LV-refresh: VDI %s not attached on any slave" % vdiUuid)
+        return
+
+    args = {"vgName" : vgName,
+            "action1": "refresh",
+            "lvName1": lvName}
+    for slave in slaves:
+        util.SMlog("Refreshing %s on slave %s" % (lvName, slave))
+        text = session.xenapi.host.call_plugin(slave, "on-slave", "multi", args)
+        util.SMlog("call-plugin returned: '%s'" % text)
+
 def setInnerNodeRefcounts(lvmCache, srUuid):
     """[Re]calculate and set the refcounts for inner VHD nodes based on
     refcounts of the leaf nodes. We can infer inner node refcounts on slaves

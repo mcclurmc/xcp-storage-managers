@@ -537,6 +537,7 @@ class LVHDSR(SR.SR):
         if self.lvActivator.get(baseUuid, False):
             self.lvActivator.replace(baseUuid, origUuid, origLV, False)
         RefCounter.set(origUuid, origRefcountNormal, origRefcountBinary, ns)
+        lvhdutil.lvRefreshOnSlaves(self.session, self.vgname, origLV, origUuid)
         util.SMlog("*** INTERRUPTED CLONE OP: rollback success")
 
     def _completeCloneOp(self, vdis, origUuid, baseUuid, clonUuid):
@@ -644,6 +645,8 @@ class LVHDSR(SR.SR):
                 lvhdutil.deflate(self.lvmCache, vdi.lvname, int(val))
                 if vdi.readonly:
                     self.lvmCache.setReadonly(vdi.lvname, True)                
+                lvhdutil.lvRefreshOnSlaves(self.session, self.vgname,
+                        vdi.lvname, uuid)
             self.journaler.remove(lvhdutil.JRN_INFLATE, uuid)
         delattr(self,"vdiInfo")
         delattr(self,"allVDIs")
@@ -672,10 +675,10 @@ class LVHDSR(SR.SR):
             vhdInfo = vhdutil.getVHDInfo(vdi.path, lvhdutil.extractUuid, False)
             NewSize = lvhdutil.calcSizeVHDLV(vhdInfo.sizeVirt)
             if NewSize < fullSize:
-                lvhdutil.deflate(self.lvmCache, vdi.lvname, int(NewSize))            
-            
+                lvhdutil.deflate(self.lvmCache, vdi.lvname, int(NewSize))
+            lvhdutil.lvRefreshOnSlaves(self.session, self.vgname,
+                    vdi.lvname, uuid)
             self.lvmCache.remove(jlvName)
-            # VDI will remain inflated
         delattr(self,"vdiInfo")
         delattr(self,"allVDIs")
 
@@ -1410,6 +1413,8 @@ class LVHDVDI(VDI.VDI):
                     master, self.sr.THIN_PLUGIN, fn, \
                     {"srUuid": self.sr.uuid, "vdiUuid": self.uuid})
             util.SMlog("call-plugin returned: '%s'" % text)
+            # refresh to pick up the size change on this slave
+            self.sr.lvmCache.activateNoRefcount(self.lvname, True)
 
         self.utilisation = self.sr.lvmCache.getSize(self.lvname)
         if origUtilisation != self.utilisation:
