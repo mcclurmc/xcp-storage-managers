@@ -145,6 +145,7 @@ class LVHDoHBASR(LVHDSR.LVHDSR):
             self.mpathmodule.refresh(self.SCSIid,0)
 
         try:
+            self._pathrefresh(LVHDoHBASR)
             result = LVHDSR.LVHDSR.probe(self)
             if self.mpath == "true":
                 self.mpathmodule.reset(self.SCSIid,True)

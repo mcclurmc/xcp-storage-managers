@@ -328,6 +328,7 @@ class LVHDoISCSISR(LVHDSR.LVHDSR):
         if not self.iscsi._attach_LUN_bySCSIid(self.SCSIid):
             util.SMlog("Unable to detect LUN")
             raise xs_errors.XenError('InvalidDev')
+        self._pathrefresh(LVHDoISCSISR)
         out = LVHDSR.LVHDSR.probe(self)
         self.iscsi.detach(self.uuid)
         return out
