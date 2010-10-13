@@ -60,6 +60,7 @@ class NFSSR(FileSR.FileSR):
 
 
     def load(self, sr_uuid):
+        self.ops_exclusive = FileSR.OPS_EXCLUSIVE
         self.lock = Lock(vhdutil.LOCK_TYPE_SR, self.uuid)
         self.sr_vditype = SR.DEFAULT_TAP
         if not self.dconf.has_key('server'):
