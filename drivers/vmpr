@@ -79,10 +79,6 @@ def SanitizeVMNameForWindows(name):
 	    if newname == forbidden or newname.startswith(forbidden):
 	        newname = "_" + newname;
 		
-        # Windows also seems not to like filenames ending '.'
-        if newname.endswith('.'):
-	    newname = newname[:-1]
-		
 	return newname
     
     except Exception, e:
