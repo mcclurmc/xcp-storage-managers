@@ -1,0 +1,12 @@
+#
+# $Id$
+#
+# /etc/multipath-vas.rules
+# udev rules for vas on xcp
+#
+
+SUBSYSTEM!="block", GOTO="end_mpath"
+KERNEL=="sd[a-z]*", ACTION=="add", PROGRAM=="/sbin/modprobe dm-multipath", PROGRAM=="/bin/bash -c '/sbin/lsmod | /bin/grep ^dm_multipath'", PROGRAM=="/bin/logger SD ADD %k %M %m", RUN+="/sbin/multipath -v0 %M:%m"
+KERNEL=="sd[a-z]*", GOTO=="end_mpath"
+KERNEL=="dm-[0-9]*", PROGRAM=="/bin/logger MPATH WAIT %k %M %m", PROGRAM=="/sbin/mpath_wait %M %m"
+LABEL="end_mpath"

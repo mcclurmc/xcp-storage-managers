@@ -12,6 +12,7 @@ SM_DRIVERS += LVHD
 SM_DRIVERS += LVHDoISCSI
 SM_DRIVERS += LVHDoHBA
 SM_DRIVERS += SHM
+SM_DRIVERS += VAS
 
 SM_LIBS := SR
 SM_LIBS += SRCommand
@@ -47,6 +48,7 @@ SM_LIBS += mpp_mpathutil
 SM_LIBS += mpp_luncheck
 SM_LIBS += updatempppathd
 SM_LIBS += lcache
+SM_LIBS += uuid
 
 SM_XML := XE_SR_ERRORCODES
 
@@ -57,6 +59,7 @@ MASTER_SCRIPT_DEST := /etc/xensource/master.d/
 PLUGIN_SCRIPT_DEST := /etc/xapi.d/plugins/
 LIBEXEC := /opt/xensource/libexec/
 CRON_DEST := /etc/cron.d/
+VASMPATHCONF_DEST := /etc/
 
 SM_TESTS := $(MY_OUTPUT_DIR)/storage-manager-tests.tar
 
@@ -136,6 +139,9 @@ $(SM_STAMP):
 	install -m 755 -o root -g root $(REPO)/drivers/runvmpr $(SM_STAGING)$(SM_DEST)
 	install -m 755 -o root -g root $(REPO)/drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
 	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats
+	mkdir -p $(SM_STAGING)$(VASMPATHCONF_DEST)
+	install -m 644 -o root -g root $(REPO)/scripts/multipath-vas.conf $(SM_STAGING)$(VASMPATHCONF_DEST)
+	install -m 644 -o root -g root $(REPO)/scripts/multipath-vas.rules $(SM_STAGING)$(VASMPATHCONF_DEST)
 	@touch $@
 
 $(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP)
