@@ -91,13 +91,15 @@ class ParentCachingTap(CachingTap):
         """VDI total stats, including leaf hits/miss counts."""
 
         rd_hits, rd_miss = self.vdi_stats()
+        wr_rdir = 0
 
         for leaf in self.leaves:
-            l_rd_hits, l_rd_miss = leaf.vdi_stats()
+            l_rd_hits, l_rd_miss, l_wr_rdir = leaf.vdi_stats()
             rd_hits += l_rd_hits
             rd_miss += l_rd_miss
+            wr_rdir += l_wr_rdir
 
-        return rd_hits, rd_miss
+        return rd_hits, rd_miss, wr_rdir
 
     def __str__(self):
         return "%s(%s, minor=%s)" % \
@@ -120,10 +122,11 @@ class LeafCachingTap(CachingTap):
         rd_Ac = images[0]['hits'][0]
         rd_A  = images[1]['hits'][0]
 
-        rd_hits = rd_Ac
-        rd_miss = rd_A
+        rd_hits  = rd_Ac
+        rd_miss  = rd_A
+        wr_rdir = self.stats['FIXME_enospc_redirect_count']
 
-        return rd_hits, rd_miss
+        return rd_hits, rd_miss, wr_rdir
 
     def __str__(self):
         return "%s(%s, minor=%s)" % \
@@ -276,17 +279,18 @@ class CacheFileSR(object):
 
         parents = self.fast_scan_topology()
 
-        rd_hits, rd_miss = 0, 0
+        rd_hits, rd_miss, wr_rdir = 0, 0, 0
 
         for parent in parents:
-            p_rd_hits, p_rd_miss = parent.vdi_stats_total()
+            p_rd_hits, p_rd_miss, p_wr_rdir = parent.vdi_stats_total()
             rd_hits += p_rd_hits
             rd_miss += p_rd_miss
+            wr_rdir += p_wr_rdir
 
-        return rd_hits, rd_miss
+        return rd_hits, rd_miss, wr_rdir
 
     def xapi_vdi_stats(self):
-        rd_hits, rd_miss = self.vdi_stats_total()
+        rd_hits, rd_miss, wr_rdir = self.vdi_stats_total()
 
         return {
             'TOTAL_CACHE_HITS':
@@ -294,7 +298,7 @@ class CacheFileSR(object):
             'TOTAL_CACHE_MISSES':
                 rd_miss << SECTOR_SHIFT,
             'TOTAL_CACHE_ENOSPACE_REDIRECTS':
-                0,
+                wr_rdir << SECTOR_SHIFT,
             }
 
     def xapi_stats(self):
