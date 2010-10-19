@@ -117,6 +117,9 @@ class LVHDoHBASR(LVHDSR.LVHDSR):
         if not os.path.exists(self.dconf['device']):
             # Force a rescan on the bus
             self.hbasr._init_hbadict()
+            # Must re-initialise the multipath node
+            if self.mpath == "true":
+                self.mpathmodule.refresh(self.SCSIid,0)
         LVHDSR.LVHDSR.attach(self, sr_uuid)
         self._setMultipathableFlag(SCSIid=self.SCSIid)
 
