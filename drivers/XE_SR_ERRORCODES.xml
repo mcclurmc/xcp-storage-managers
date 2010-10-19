@@ -650,6 +650,11 @@
                 <value>174</value>
         </code>
         <code>
+                <name>EQLInvalidVolMetaData</name>
+                <description>Volume metadata stored in the 'Description' field is invalid, this field contains encoded data and is not user editable</description>
+                <value>175</value>
+        </code>
+        <code>
                 <name>LVMProvisionAttach</name>
                 <description>Volume Group out of space. The SR is over-provisioned, and out of space. Unable to grow the underlying volume to accomodate the virtual size of the disk.</description>
                 <value>180</value>
