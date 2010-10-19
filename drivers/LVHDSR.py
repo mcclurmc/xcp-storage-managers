@@ -537,7 +537,12 @@ class LVHDSR(SR.SR):
         if self.lvActivator.get(baseUuid, False):
             self.lvActivator.replace(baseUuid, origUuid, origLV, False)
         RefCounter.set(origUuid, origRefcountNormal, origRefcountBinary, ns)
-        lvhdutil.lvRefreshOnSlaves(self.session, self.vgname, origLV, origUuid)
+
+        # update LVM metadata on slaves 
+        slaves = util.get_slaves_attached_on(self.session, [origUuid])
+        lvhdutil.lvRefreshOnSlaves(self.session, self.vgname, origLV, origUuid,
+                slaves)
+
         util.SMlog("*** INTERRUPTED CLONE OP: rollback success")
 
     def _completeCloneOp(self, vdis, origUuid, baseUuid, clonUuid):
@@ -645,7 +650,7 @@ class LVHDSR(SR.SR):
                 lvhdutil.deflate(self.lvmCache, vdi.lvname, int(val))
                 if vdi.readonly:
                     self.lvmCache.setReadonly(vdi.lvname, True)                
-                lvhdutil.lvRefreshOnSlaves(self.session, self.vgname,
+                lvhdutil.lvRefreshOnAllSlaves(self.session, self.vgname,
                         vdi.lvname, uuid)
             self.journaler.remove(lvhdutil.JRN_INFLATE, uuid)
         delattr(self,"vdiInfo")
@@ -676,7 +681,7 @@ class LVHDSR(SR.SR):
             NewSize = lvhdutil.calcSizeVHDLV(vhdInfo.sizeVirt)
             if NewSize < fullSize:
                 lvhdutil.deflate(self.lvmCache, vdi.lvname, int(NewSize))
-            lvhdutil.lvRefreshOnSlaves(self.session, self.vgname,
+            lvhdutil.lvRefreshOnAllSlaves(self.session, self.vgname,
                     vdi.lvname, uuid)
             self.lvmCache.remove(jlvName)
         delattr(self,"vdiInfo")
@@ -1071,7 +1076,7 @@ class LVHDVDI(VDI.VDI):
 
         hostRefs = []
         if self.sr.cmd == "vdi_snapshot":
-            hostRefs = util.get_hosts_attached_on(self.session, self.uuid)
+            hostRefs = util.get_hosts_attached_on(self.session, [self.uuid])
             if hostRefs:
                 lvSizeOrig = fullpr
         if not self.sr.thinpr:
@@ -1178,7 +1183,8 @@ class LVHDVDI(VDI.VDI):
         snapVDI.utilisation = snapSizeLV
         snapVDI.sm_config = dict()
         for key, val in self.sm_config.iteritems():
-            if key not in ["type", "vdi_type", "vhd-parent", "paused"]:
+            if key not in ["type", "vdi_type", "vhd-parent", "paused"] and \
+                    not key.startswith("host_"):
                 snapVDI.sm_config[key] = val
         snapVDI.sm_config["vdi_type"] = lvhdutil.VDI_TYPE_VHD
         snapVDI.sm_config["vhd-parent"] = snapParent
@@ -1222,6 +1228,13 @@ class LVHDVDI(VDI.VDI):
             ns = lvhdutil.NS_PREFIX_LVM + self.sr.uuid
             (cnt, bcnt) = RefCounter.check(snapVDI.uuid, ns)
             RefCounter.set(self.uuid, bcnt + 1, 0, ns)
+
+        # the "paused" and "host_*" sm-config keys are special and must stay on 
+        # the leaf without being inherited by anyone else
+        for key in filter(lambda x: x == "paused" or x.startswith("host_"),
+                self.sm_config.keys()):
+            snapVDI.sm_config[key] = self.sm_config[key]
+            del self.sm_config[key]
 
         # Introduce any new VDI records & update the existing one
         if snapVDI2:

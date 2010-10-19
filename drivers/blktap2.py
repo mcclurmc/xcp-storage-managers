@@ -1256,6 +1256,7 @@ class VDI(object):
         host_key = "host_%s" % host_ref
         if sm_config.has_key(host_key):
             self._session.xenapi.VDI.remove_from_sm_config(vdi_ref, host_key)
+            util.SMlog("Removed host key %s for %s" % (host_key, vdi_uuid))
         else:
             util.SMlog("WARNING: host key %s not found!" % host_key)
 

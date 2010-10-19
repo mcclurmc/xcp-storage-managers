@@ -556,21 +556,41 @@ def match_domain_id(s):
     regex = re.compile("^CONTROL_DOMAIN_UUID")
     return regex.search(s, 0)
 
-def get_hosts_attached_on(session, vdi_uuid):
-    host_refs = []
-    vdi_ref = session.xenapi.VDI.get_by_uuid(vdi_uuid)
-    sm_config = session.xenapi.VDI.get_sm_config(vdi_ref)
-    for key in filter(lambda x: x.startswith('host_'), sm_config.keys()):
-        host_refs.append(key[len('host_'):])
-    return host_refs
+def get_hosts_attached_on(session, vdi_uuids):
+    host_refs = {}
+    for vdi_uuid in vdi_uuids:
+        try:
+            vdi_ref = session.xenapi.VDI.get_by_uuid(vdi_uuid)
+        except XenAPI.Failure:
+            SMlog("VDI %s not in db, ignoring" % vdi_uuid)
+            continue
+        sm_config = session.xenapi.VDI.get_sm_config(vdi_ref)
+        for key in filter(lambda x: x.startswith('host_'), sm_config.keys()):
+            host_refs[key[len('host_'):]] = True
+    return host_refs.keys()
 
 def get_master(session):
     pool = session.xenapi.pool.get_all()[0]
     master_ref = session.xenapi.pool.get_master(pool)
     return master_ref
 
-def get_slaves_attached_on(session, vdi_uuid):
-    host_refs = get_hosts_attached_on(session, vdi_uuid)
+def get_slaves_attached_on(session, vdi_uuids):
+    host_refs = get_hosts_attached_on(session, vdi_uuids)
+    master_ref = get_master(session)
+    return filter(lambda x: x != master_ref, host_refs)
+
+def get_online_hosts(session):
+    online_hosts = []
+    hosts = session.xenapi.host.get_all_records()
+    for host_ref, host_rec in hosts.iteritems():
+        metricsRef = host_rec["metrics"]
+        metrics = session.xenapi.host_metrics.get_record(metricsRef)
+        if metrics["live"]:
+            online_hosts.append(host_ref)
+    return online_hosts
+
+def get_all_slaves(session):
+    host_refs = get_online_hosts(session)
     master_ref = get_master(session)
     return filter(lambda x: x != master_ref, host_refs)
 

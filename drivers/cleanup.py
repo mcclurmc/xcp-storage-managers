@@ -278,14 +278,7 @@ class XAPI:
         return attachedPBDs
 
     def getOnlineHosts(self):
-        onlineHosts = []
-        hosts = self.session.xenapi.host.get_all_records()
-        for hostRef, hostRecord in hosts.iteritems():
-            metricsRef = hostRecord["metrics"]
-            metrics = self.session.xenapi.host_metrics.get_record(metricsRef)
-            if metrics["live"]:
-                onlineHosts.append(hostRef)
-        return onlineHosts
+        return util.get_online_hosts(self.session)
 
     def ensureInactive(self, hostRef, args):
         text = self.session.xenapi.host.call_plugin( \
@@ -554,6 +547,16 @@ class VDI:
                 maxChildHeight = childHeight
 
         return maxChildHeight + 1
+
+    def getAllLeaves(self):
+        "Get all leaf nodes in the subtree rooted at self"
+        if len(self.children) == 0:
+            return [self]
+
+        leaves = []
+        for child in self.children:
+            leaves.extend(child.getAllLeaves())
+        return leaves
 
     def updateBlockInfo(self):
         val = base64.b64encode(self._queryVHDBlocks())
@@ -1797,11 +1800,19 @@ class LVHDSR(SR):
         return False
 
     def updateBlockInfo(self):
+        numUpdated = 0
         for vdi in self.vdis.values():
             if vdi.scanError or vdi.raw or len(vdi.children) == 0:
                 continue
             if not vdi.getConfig(vdi.DB_VHD_BLOCKS):
                 vdi.updateBlockInfo()
+                numUpdated += 1
+        if numUpdated:
+            # deactivate the LVs back sooner rather than later. If we don't 
+            # now, by the time this thread gets to deactivations, another one 
+            # might have leaf-coalesced a node and deleted it, making the child 
+            # inherit the refcount value and preventing the correct decrement
+            self.cleanup()
 
     def scan(self, force = False):
         vdis = self._scan(force)
@@ -2039,7 +2050,7 @@ class LVHDSR(SR):
                     raise
 
     def _updateSlavesOnUndoLeafCoalesce(self, parent, child):
-        slaves = util.get_slaves_attached_on(self.xapi.session, child.uuid)
+        slaves = util.get_slaves_attached_on(self.xapi.session, [child.uuid])
         if not slaves:
             Util.log("Update-on-leaf-undo: VDI %s not attached on any slave" % \
                     child)
@@ -2064,7 +2075,7 @@ class LVHDSR(SR):
             Util.log("call-plugin returned: '%s'" % text)
 
     def _updateSlavesOnRename(self, vdi, oldNameLV):
-        slaves = util.get_slaves_attached_on(self.xapi.session, vdi.uuid)
+        slaves = util.get_slaves_attached_on(self.xapi.session, [vdi.uuid])
         if not slaves:
             Util.log("Update-on-rename: VDI %s not attached on any slave" % vdi)
             return
@@ -2082,8 +2093,13 @@ class LVHDSR(SR):
             Util.log("call-plugin returned: '%s'" % text)
 
     def _updateSlavesOnResize(self, vdi):
+        uuids = map(lambda x: x.uuid, vdi.getAllLeaves())
+        slaves = util.get_slaves_attached_on(self.xapi.session, uuids)
+        if not slaves:
+            util.SMlog("Update-on-resize: %s not attached on any slave" % vdi)
+            return
         lvhdutil.lvRefreshOnSlaves(self.xapi.session, self.vgName,
-                vdi.lvName, vdi.uuid)
+                vdi.lvName, vdi.uuid, slaves)
 
 
 ################################################################################
