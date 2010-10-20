@@ -684,7 +684,7 @@ def get_last_expected_run_time(schedule, inUTC = False):
 		noOfDays = 0	    
 	    
 	    newDate = now	    
-	    while not lastDayFound and noOfDays < 7:
+	    while not lastDayFound and noOfDays < 8:
 		td = datetime.timedelta(days = noOfDays)
 		newDate = now - td
 		if dayMap.has_key(newDate.strftime("%A")):
