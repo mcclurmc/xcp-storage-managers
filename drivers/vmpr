@@ -349,7 +349,7 @@ class single_archive(Thread):
 	    # * Get the most recent snapshot for the archive
 	    snaps = self.session.xenapi.VM.get_snapshots(self.vm_ref)
 	    if len(snaps) == 0:
-		Print("Leaving single_archive")
+		Print("No snapshots available for archiving VM %s, leaving single_archive." % self.vm_ref)
 		return
 	    
 	    # set the oldest time to the current time to find the real oldest time
@@ -394,7 +394,7 @@ class single_archive(Thread):
 	    cleanuppath(archive_name)
 	    self.retVal = str(e)
 	
-    Print("Leaving single_archive")
+        Print("Leaving single_archive")
     
     def result(self):
 	return (self.retVal, self.vm_ref)
