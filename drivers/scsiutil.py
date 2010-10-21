@@ -301,9 +301,9 @@ def update_XS_SCSIdata(session, vdi_ref, vdi_uuid, data):
         except:
             pass
 
-def rescan(ids, scanstring='- - -'):
+def rescan(ids, fullrescan=True):
     for id in ids:
-        refresh_HostID(id, scanstring)
+        refresh_HostID(id, fullrescan)
 
 def _genArrayIdentifier(dev):
     try:
@@ -358,7 +358,7 @@ def _dosgscan():
             sgs.append([device,host,channel,sid,lun])
     return sgs
 
-def refresh_HostID(HostID, scanstring):
+def refresh_HostID(HostID, fullrescan):
     LUNs = glob.glob('/sys/class/scsi_disk/%s*' % HostID)
     li = []
     for l in LUNs:
@@ -366,21 +366,24 @@ def refresh_HostID(HostID, scanstring):
         if chan not in li:
             li.append(chan)
 
-    fullrescan = True
-    if len(li) and scanstring == "- - -":
-        fullrescan = False
+    if len(li) and not fullrescan:
         for c in li:
             if not refresh_scsi_channel(c):
                 fullrescan = True
 
     if fullrescan:
-        util.SMlog("Rescanning HostID %s with %s" % (HostID, scanstring))
+        util.SMlog("Full rescan of HostID %s" % HostID)
         path = '/sys/class/scsi_host/host%s/scan' % HostID
         if os.path.exists(path):
             try:
+                scanstring = "- - -"
                 f=open(path, 'w')
                 f.write('%s\n' % scanstring)
                 f.close()
+                if len(li):
+                    # Channels already exist, allow some time for
+                    # undiscovered LUNs/channels to appear
+                    time.sleep(2)
             except:
                 pass
         # Host Bus scan issued, now try to detect channels
