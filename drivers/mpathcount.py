@@ -23,15 +23,40 @@ import glob
 supported = ['iscsi','lvmoiscsi','hba','lvmohba','netapp','cslg']
 
 LOCK_TYPE_HOST = "host"
-LOCK_NS = "mpathcount"
+LOCK_NS1 = "mpathcount1"
+LOCK_NS2 = "mpathcount2"
 
 MP_INUSEDIR = "/dev/disk/mpInuse"
 mpp_path_update = False
+match_bySCSIid = False
 
 util.daemon()
-mpathcountlock = lock.Lock(LOCK_TYPE_HOST, LOCK_NS)
+if len(sys.argv) == 3:
+    match_bySCSIid = True
+    SCSIid = sys.argv[1]
+    mpp_path_update = True
+    mpp_entry = sys.argv[2]
+
+# We use flocks to ensure that only one process 
+# executes at any one time, however we must make
+# sure that any subsequent changes are always 
+# correctly updated, so we allow an outstanding
+# process to queue behind the running one.
+mpathcountlock = lock.Lock(LOCK_TYPE_HOST, LOCK_NS1)
+mpathcountqueue = lock.Lock(LOCK_TYPE_HOST, LOCK_NS2)
 util.SMlog("MPATH: Trying to acquire the lock")
-mpathcountlock.acquire()
+if mpp_path_update:
+    mpathcountlock.acquire()
+elif not mpathcountlock.acquireNoblock():
+    if not mpathcountqueue.acquireNoblock():
+        # There is already a pending update
+        # so safe to exit
+        sys.exit(0)
+    # We acquired the pending queue lock
+    # so now wait on the main lock
+    mpathcountlock.acquire()
+    mpathcountqueue.release()
+
 util.SMlog("MPATH: I get the lock")
 
 cached_DM_maj = None
@@ -170,17 +195,6 @@ try:
         assert(hconf['multipathhandle'] == 'dmp')
 except:
     mpc_exit(session,0)
-
-match_bySCSIid = False
-if len(sys.argv) == 2:
-    match_bySCSIid = True
-    SCSIid = sys.argv[1]
-
-if len(sys.argv) == 3:
-    match_bySCSIid = True
-    SCSIid = sys.argv[1]
-    mpp_path_update = True
-    mpp_entry = sys.argv[2]
 
 # Check root disk if multipathed
 try:
