@@ -540,8 +540,8 @@ class LVHDSR(SR.SR):
 
         # update LVM metadata on slaves 
         slaves = util.get_slaves_attached_on(self.session, [origUuid])
-        lvhdutil.lvRefreshOnSlaves(self.session, self.vgname, origLV, origUuid,
-                slaves)
+        lvhdutil.lvRefreshOnSlaves(self.session, self.uuid, self.vgname,
+                origLV, origUuid, slaves)
 
         util.SMlog("*** INTERRUPTED CLONE OP: rollback success")
 
@@ -650,8 +650,8 @@ class LVHDSR(SR.SR):
                 lvhdutil.deflate(self.lvmCache, vdi.lvname, int(val))
                 if vdi.readonly:
                     self.lvmCache.setReadonly(vdi.lvname, True)                
-                lvhdutil.lvRefreshOnAllSlaves(self.session, self.vgname,
-                        vdi.lvname, uuid)
+                lvhdutil.lvRefreshOnAllSlaves(self.session, self.uuid,
+                        self.vgname, vdi.lvname, uuid)
             self.journaler.remove(lvhdutil.JRN_INFLATE, uuid)
         delattr(self,"vdiInfo")
         delattr(self,"allVDIs")
@@ -681,8 +681,8 @@ class LVHDSR(SR.SR):
             NewSize = lvhdutil.calcSizeVHDLV(vhdInfo.sizeVirt)
             if NewSize < fullSize:
                 lvhdutil.deflate(self.lvmCache, vdi.lvname, int(NewSize))
-            lvhdutil.lvRefreshOnAllSlaves(self.session, self.vgname,
-                    vdi.lvname, uuid)
+            lvhdutil.lvRefreshOnAllSlaves(self.session, self.uuid,
+                    self.vgname, vdi.lvname, uuid)
             self.lvmCache.remove(jlvName)
         delattr(self,"vdiInfo")
         delattr(self,"allVDIs")

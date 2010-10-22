@@ -2098,7 +2098,7 @@ class LVHDSR(SR):
         if not slaves:
             util.SMlog("Update-on-resize: %s not attached on any slave" % vdi)
             return
-        lvhdutil.lvRefreshOnSlaves(self.xapi.session, self.vgName,
+        lvhdutil.lvRefreshOnSlaves(self.xapi.session, self.uuid, self.vgName,
                 vdi.lvName, vdi.uuid, slaves)
 
 
