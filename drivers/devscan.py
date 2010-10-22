@@ -35,7 +35,9 @@ MODULE_INFO = {
     'lpfc': 'Emulex Device Driver for Fibre Channel HBAs',
     'mptfc': 'LSI Logic Fusion MPT Fibre Channel Driver',
     'mptsas': 'LSI Logic Fusion MPT SAS Adapter Driver',
+    'mpt2sas': 'LSI Logic Fusion MPT 6GB SAS Adapter Driver',
     'megaraid_sas': 'MegaRAID driver for SAS based RAID controllers',
+    'palo' : 'Cisco Palo FCoE Adapter driver',
     'xsvhba': 'Xsigo Systems Virtual HBA Driver',
     'mpp': 'RDAC Multipath Handler, manages DELL devices from other adapters'
     }
@@ -65,17 +67,27 @@ def gen_brocadt():
         host.append(val.split('/')[-1])
     return host
 
+def gen_palo():
+    host = []
+    arr = glob.glob('/sys/bus/pci/drivers/fnic/*/host*')
+    for val in arr:
+        host.append(val.split('/')[-1])
+    return host
+
 def adapters(filterstr="any"):
     dict = {}
     devs = {}
     adt = {}
     QL = gen_QLadt()
     BC = gen_brocadt()
+    CS = gen_palo()
     for a in os.listdir(SYSFS_PATH1):
         if a in QL:
             proc = "qlogic"
         elif a in BC:
             proc = "brocade"
+        elif a in CS:
+            proc = "palo"
         else:
             proc = match_hbadevs(a, filterstr)
             if not proc:
