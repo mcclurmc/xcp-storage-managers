@@ -1221,9 +1221,13 @@ class VDI(object):
 
     def _add_tag(self, vdi_uuid):
         util.SMlog("Adding tag to: %s" % vdi_uuid)
+        writable = ('args' not in self.target.vdi.sr.srcmd.params) or \
+                (self.target.vdi.sr.srcmd.params['args'][0] == "true")
         vdi_ref = self._session.xenapi.VDI.get_by_uuid(vdi_uuid)
         host_ref = self._session.xenapi.host.get_by_uuid(util.get_this_host())
         sm_config = self._session.xenapi.VDI.get_sm_config(vdi_ref)
+        if sm_config.get("writable") == "true":
+            raise util.SMException("VDI %s already attached RW" % vdi_uuid)
         if sm_config.has_key('paused'):
             util.SMlog("Paused or host_ref key found [%s]" % sm_config)
             return False
@@ -1233,10 +1237,16 @@ class VDI(object):
         else:
             self._session.xenapi.VDI.add_to_sm_config(vdi_ref, host_key,
                     'active')
+            if writable:
+                self._session.xenapi.VDI.add_to_sm_config(vdi_ref, "writable",
+                        'true')
         sm_config = self._session.xenapi.VDI.get_sm_config(vdi_ref)
         if sm_config.has_key('paused'):
             util.SMlog("Found paused key, aborting")
             self._session.xenapi.VDI.remove_from_sm_config(vdi_ref, host_key)
+            if writable:
+                self._session.xenapi.VDI.remove_from_sm_config(vdi_ref,
+                        "writable")
             return False
         util.SMlog("Activate lock succeeded")
         return True
@@ -1259,6 +1269,8 @@ class VDI(object):
             util.SMlog("Removed host key %s for %s" % (host_key, vdi_uuid))
         else:
             util.SMlog("WARNING: host key %s not found!" % host_key)
+        if sm_config.has_key("writable"):
+            self._session.xenapi.VDI.remove_from_sm_config(vdi_ref, "writable")
 
     def attach(self, sr_uuid, vdi_uuid):
         """Return/dev/sm/backend symlink path"""

@@ -339,6 +339,9 @@ class XAPI:
         else:
             assert(False)
 
+    def isSnapshot(self, vdi):
+        return self.session.xenapi.VDI.get_is_a_snapshot(vdi.getRef())
+
     def srUpdate(self):
         Util.log("Starting asynch srUpdate for SR %s" % self.srRecord["uuid"])
         abortFlag = IPCFlag(self.srRecord["uuid"])
@@ -377,6 +380,7 @@ class VDI:
     DB_VDI_TYPE = "vdi_type"
     DB_VHD_BLOCKS = "vhd-blocks"
     DB_VDI_PAUSED = "paused"
+    DB_VDI_WRITABLE = "writable"
     DB_LEAFCLSC = "leaf-coalesce" # config key
     LEAFCLSC_DISABLED = "false"  # set by user; means do not leaf-coalesce
     LEAFCLSC_FORCE = "force"     # set by user; means skip snap-coalesce
@@ -384,11 +388,12 @@ class VDI:
                                  # no space to snap-coalesce or unable to keep 
                                  # up with VDI
     CONFIG_TYPE = {
-            DB_VHD_PARENT: XAPI.CONFIG_SM,
-            DB_VDI_TYPE:   XAPI.CONFIG_SM,
-            DB_VHD_BLOCKS: XAPI.CONFIG_SM,
-            DB_VDI_PAUSED: XAPI.CONFIG_SM,
-            DB_LEAFCLSC:   XAPI.CONFIG_OTHER }
+            DB_VHD_PARENT:   XAPI.CONFIG_SM,
+            DB_VDI_TYPE:     XAPI.CONFIG_SM,
+            DB_VHD_BLOCKS:   XAPI.CONFIG_SM,
+            DB_VDI_PAUSED:   XAPI.CONFIG_SM,
+            DB_VDI_WRITABLE: XAPI.CONFIG_SM,
+            DB_LEAFCLSC:     XAPI.CONFIG_OTHER }
 
     LIVE_LEAF_COALESCE_MAX_SIZE = 100 * 1024 * 1024 # bytes
     LIVE_LEAF_COALESCE_TIMEOUT = 10 # seconds
@@ -470,6 +475,9 @@ class VDI:
                 raise
         finally:
             self.sr.unlock()
+
+    def isSnapshot(self):
+        return self.sr.xapi.isSnapshot(self)
 
     def getVHDBlocks(self):
         val = self.getConfig(VDI.DB_VHD_BLOCKS)
@@ -1929,7 +1937,11 @@ class LVHDSR(SR):
         self.deleteVDI(vdi)
         util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
         self.xapi.forgetVDI(origParentUuid)
-        parent.inflateFully()
+        if not parent.isSnapshot() or \
+                parent.getConfig(parent.DB_VDI_WRITABLE) == "true":
+            parent.inflateFully()
+        else:
+            parent.deflate()
         self._updateSlavesOnResize(parent)
 
         util.fistpoint.activate("LVHDRT_coaleaf_before_remove_j", self.uuid)

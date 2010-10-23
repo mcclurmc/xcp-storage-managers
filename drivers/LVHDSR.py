@@ -1183,8 +1183,8 @@ class LVHDVDI(VDI.VDI):
         snapVDI.utilisation = snapSizeLV
         snapVDI.sm_config = dict()
         for key, val in self.sm_config.iteritems():
-            if key not in ["type", "vdi_type", "vhd-parent", "paused"] and \
-                    not key.startswith("host_"):
+            if key not in ["type", "vdi_type", "vhd-parent", "paused",
+                    "writable"] and not key.startswith("host_"):
                 snapVDI.sm_config[key] = val
         snapVDI.sm_config["vdi_type"] = lvhdutil.VDI_TYPE_VHD
         snapVDI.sm_config["vhd-parent"] = snapParent
@@ -1229,10 +1229,10 @@ class LVHDVDI(VDI.VDI):
             (cnt, bcnt) = RefCounter.check(snapVDI.uuid, ns)
             RefCounter.set(self.uuid, bcnt + 1, 0, ns)
 
-        # the "paused" and "host_*" sm-config keys are special and must stay on 
-        # the leaf without being inherited by anyone else
-        for key in filter(lambda x: x == "paused" or x.startswith("host_"),
-                self.sm_config.keys()):
+        # the "paused", "writable", and "host_*" sm-config keys are special and 
+        # must stay on the leaf without being inherited by anyone else
+        for key in filter(lambda x: x == "paused" or x == "writable" \
+                or x.startswith("host_"), self.sm_config.keys()):
             snapVDI.sm_config[key] = self.sm_config[key]
             del self.sm_config[key]
 
