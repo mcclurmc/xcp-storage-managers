@@ -655,6 +655,11 @@
                 <value>175</value>
         </code>
         <code>
+                <name>EQLInvalidEOFRecv</name>
+                <description>Invalid EOF response received for a CLI command</description>
+                <value>176</value>
+        </code>
+        <code>
                 <name>LVMProvisionAttach</name>
                 <description>Volume Group out of space. The SR is over-provisioned, and out of space. Unable to grow the underlying volume to accomodate the virtual size of the disk.</description>
                 <value>180</value>
