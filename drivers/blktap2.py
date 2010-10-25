@@ -1422,6 +1422,9 @@ class VDI(object):
         vhdutil.killData(self.target.vdi.path)
 
     def setup_cache(self, sr_uuid, vdi_uuid, params):
+        if not self.target.has_cap("SR_CACHING") and \
+                not self.target.has_cap("VDI_RESET_ON_BOOT"):
+            return
         caching = False
         scratch_mode = False
         if params.get(self.CONF_KEY_ALLOW_CACHING) == "true":
@@ -1540,11 +1543,15 @@ class VDI(object):
         return leaf_tapdisk.get_devpath()
 
     def remove_cache(self, sr_uuid, vdi_uuid, params):
+        if not self.target.has_cap("SR_CACHING") and \
+                not self.target.has_cap("VDI_RESET_ON_BOOT"):
+            return
+
         caching = params.get(self.CONF_KEY_ALLOW_CACHING) == "true"
         scratch_mode = params.get(self.CONF_KEY_MODE_ON_BOOT) == "reset"
 
         local_sr_uuid = params.get(self.CONF_KEY_CACHE_SR)
-        if not local_sr_uuid:
+        if caching and not local_sr_uuid:
             util.SMlog("ERROR: Local cache SR not specified, ignore")
             return
 

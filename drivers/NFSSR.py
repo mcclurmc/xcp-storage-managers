@@ -24,7 +24,7 @@ import vhdutil
 from lock import Lock
 import cleanup
 
-CAPABILITIES = ["SR_PROBE","SR_UPDATE", \
+CAPABILITIES = ["SR_PROBE","SR_UPDATE", "SR_CACHING", \
                 "VDI_CREATE","VDI_DELETE","VDI_ATTACH","VDI_DETACH", \
                 "VDI_UPDATE", "VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE", \
                 "VDI_RESIZE_ONLINE", "VDI_RESET_ON_BOOT"]
