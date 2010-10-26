@@ -128,6 +128,7 @@ class Util:
     def runAbortable(func, ret, ns, abortTest, pollInterval, timeOut):
         """execute func in a separate thread and kill it if abortTest signals
         so"""
+        abortSignaled = abortTest() # check now before we clear resultFlag
         resultFlag = IPCFlag(ns)
         resultFlag.clearAll()
         pid = os.fork()
@@ -141,7 +142,7 @@ class Util:
                 if resultFlag.test("failure"):
                     resultFlag.clear("failure")
                     raise util.SMException("Child process exited with error")
-                if abortTest():
+                if abortTest() or abortSignaled:
                     os.killpg(pid, signal.SIGKILL)
                     raise AbortException("Aborting due to signal")
                 if timeOut and time.time() - startTime > timeOut:
