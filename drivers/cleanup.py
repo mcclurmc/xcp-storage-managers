@@ -1611,6 +1611,11 @@ class SR:
                 vdi = self.getVDI(uuid)
                 if vdi:
                     vdi.ensureUnpaused()
+                vdiOld = self.getVDI(self.TMP_RENAME_PREFIX + uuid)
+                if vdiOld:
+                    util.fistpoint.activate("LVHDRT_coaleaf_before_delete", self.uuid)
+                    self.deleteVDI(vdiOld)
+                    util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
         finally:
             self.cleanup()
             self.unlock()
@@ -1933,9 +1938,15 @@ class LVHDSR(SR):
         vdi._setHidden(True)
         vdi.parent.children = []
         vdi.parent = None
-        util.fistpoint.activate("LVHDRT_coaleaf_before_delete", self.uuid)
-        self.deleteVDI(vdi)
-        util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
+
+        extraSpace = lvhdutil.calcSizeVHDLV(parent.sizeVirt) - parent.sizeLV
+        freeSpace = self.getFreeSpace()
+        if freeSpace < extraSpace:
+            # don't delete unless we need the space: deletion is time-consuming 
+            # because it requires contacting the slaves, and we're paused here
+            util.fistpoint.activate("LVHDRT_coaleaf_before_delete", self.uuid)
+            self.deleteVDI(vdi)
+            util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
         self.xapi.forgetVDI(origParentUuid)
         if not parent.isSnapshot() or \
                 parent.getConfig(parent.DB_VDI_WRITABLE) == "true":
