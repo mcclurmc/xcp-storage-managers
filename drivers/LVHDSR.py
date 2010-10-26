@@ -702,7 +702,7 @@ class LVHDSR(SR.SR):
                 "lvName3": baseLV,
                 "uuid3"  : baseUuid}
 
-        masterRef = util.get_master(self.session)
+        masterRef = util.get_this_host_ref(self.session)
         for hostRef in hostRefs:
             if hostRef == masterRef:
                 continue

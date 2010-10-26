@@ -569,14 +569,15 @@ def get_hosts_attached_on(session, vdi_uuids):
             host_refs[key[len('host_'):]] = True
     return host_refs.keys()
 
-def get_master(session):
-    pool = session.xenapi.pool.get_all()[0]
-    master_ref = session.xenapi.pool.get_master(pool)
-    return master_ref
+def get_this_host_ref(session):
+    host_uuid = get_this_host()
+    host_ref = session.xenapi.host.get_by_uuid(host_uuid)
+    return host_ref
 
 def get_slaves_attached_on(session, vdi_uuids):
+    "assume this host is the SR master"
     host_refs = get_hosts_attached_on(session, vdi_uuids)
-    master_ref = get_master(session)
+    master_ref = get_this_host_ref(session)
     return filter(lambda x: x != master_ref, host_refs)
 
 def get_online_hosts(session):
@@ -590,8 +591,9 @@ def get_online_hosts(session):
     return online_hosts
 
 def get_all_slaves(session):
+    "assume this host is the SR master"
     host_refs = get_online_hosts(session)
-    master_ref = get_master(session)
+    master_ref = get_this_host_ref(session)
     return filter(lambda x: x != master_ref, host_refs)
 
 def find_my_pbd(session, host_ref, sr_ref):
