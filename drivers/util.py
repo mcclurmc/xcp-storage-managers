@@ -984,7 +984,7 @@ def _exit(name):
 
 class FistPoint:
     def __init__(self, points):
-        SMlog("Fist points loaded")
+        #SMlog("Fist points loaded")
         self.points = points
 
     def is_active(self, name):
