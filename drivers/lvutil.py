@@ -414,19 +414,32 @@ def _checkActive(path):
         return True
 
     util.SMlog("_checkActive: %s does not exist!" % path)
-    util.SMlog("_checkActive: symlink exists: %s" % os.path.lexists(path))
+    symlinkExists = os.path.lexists(path)
+    util.SMlog("_checkActive: symlink exists: %s" % symlinkExists)
 
+    mapperDeviceExists = False
     mapperDevice = path[5:].replace("-", "--").replace("/", "-")
     cmd = [CMD_DMSETUP, "status", mapperDevice]
     try:
         ret = util.pread2(cmd)
+        mapperDeviceExists = True
         util.SMlog("_checkActive: %s: %s" % (mapperDevice, ret))
     except util.CommandException:
         util.SMlog("_checkActive: device %s does not exist" % mapperDevice)
 
     mapperPath = "/dev/mapper/" + mapperDevice
+    mapperPathExists = util.pathexists(mapperPath)
     util.SMlog("_checkActive: path %s exists: %s" % \
-            (mapperPath, util.pathexists(mapperPath)))
+            (mapperPath, mapperPathExists))
+
+    if mapperDeviceExists and mapperPathExists and not symlinkExists:
+        # we can fix this situation manually here
+        os.symlink(mapperPath, path)
+        if util.pathexists(path):
+            util.SMlog("_checkActive: created the symlink manually")
+            return True
+        else:
+            util.SMlog("ERROR: failed to symlink!")
 
     return False
 
