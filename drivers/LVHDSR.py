@@ -983,7 +983,7 @@ class LVHDVDI(VDI.VDI):
         self.sr._updateStats(self.sr.uuid, self.size - oldSize)
         return VDI.VDI.get_params(self)
 
-    def snapshot_paused(self, sr_uuid, vdi_uuid):
+    def snapshot(self, sr_uuid, vdi_uuid):
         # logically, "snapshot" should mean SNAPSHOT_SINGLE and "clone" should 
         # mean "SNAPSHOT_DOUBLE", but in practice we have to do SNAPSHOT_DOUBLE 
         # in both cases, unless driver_params overrides it

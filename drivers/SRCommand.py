@@ -157,8 +157,7 @@ class SRCommand:
             return target.detach(self.params['sr_uuid'], self.vdi_uuid)
 
         elif self.cmd == 'vdi_snapshot':
-            target = blktap2.VDI(self.vdi_uuid, target, self.driver_info)
-            return target.snapshot(self.params['sr_uuid'], self.vdi_uuid)                    
+            return target.snapshot(self.params['sr_uuid'], self.vdi_uuid)
 
         elif self.cmd == 'vdi_clone':
             return target.clone(self.params['sr_uuid'], self.vdi_uuid)            

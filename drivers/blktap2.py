@@ -965,12 +965,6 @@ class VDI(object):
             if self.has_cap("VDI_DEACTIVATE"):
                 self.vdi.deactivate(sr_uuid, vdi_uuid)
 
-        def snapshot(self, sr_uuid, vdi_uuid, vdi):
-            if vdi.tap_wanted():
-                util.SMlog("Snapshot-paused")
-                return self.vdi.snapshot_paused(sr_uuid, vdi_uuid)
-            return self.vdi.snapshot(sr_uuid, vdi_uuid)
-        
         #def resize(self, sr_uuid, vdi_uuid, size):
         #    return self.vdi.resize(sr_uuid, vdi_uuid, size)
 
@@ -1387,13 +1381,6 @@ class VDI(object):
             self._remove_tag(vdi_uuid)
 
         return True
-
-    def snapshot(self, sr_uuid, vdi_uuid):
-        # we cannot pause the vdi here because snapshot() takes the SR lock and 
-        # pausing requires taking the VDI lock, and the lock-acquire order is 
-        # SR, then VDI (to avoid deadlocks); therefore, the VDI is paused by 
-        # the driver once it acquired the SR lock
-        return self.target.snapshot(sr_uuid, vdi_uuid, self)
 
     def _resetPhylink(self, sr_uuid, vdi_uuid, path):
         self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(path)

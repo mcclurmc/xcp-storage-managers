@@ -500,7 +500,7 @@ class FileVDI(VDI.VDI):
         self.sr._update(self.sr.uuid, self.size - old_size)
         return VDI.VDI.get_params(self)
 
-    def snapshot_paused(self, sr_uuid, vdi_uuid):
+    def snapshot(self, sr_uuid, vdi_uuid):
         if not blktap2.VDI.tap_pause(self.session, sr_uuid, vdi_uuid):
             raise util.SMException("failed to pause VDI %s" % vdi_uuid)
         try:
