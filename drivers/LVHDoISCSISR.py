@@ -192,7 +192,8 @@ class LVHDoISCSISR(LVHDSR.LVHDSR):
                 luns=util.pread2(["/usr/bin/sg_luns","-q",sgdev]).split('\n')
                 nluns=len(luns)-1 # remove the line relating to the final \n
                 # check if the LUNs are MPP-RDAC Luns
-                scsi_id = scsiutil.getSCSIid(sgdev[0])
+                scsi_id = scsiutil.getSCSIid(sgdev)
+                mpp_lun = False
                 if (mpp_luncheck.is_RdacLun(scsi_id)):
                     mpp_lun = True
                     link=glob.glob('/dev/disk/by-scsibus/%s-*' % scsi_id)
