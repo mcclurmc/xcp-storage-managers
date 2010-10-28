@@ -1309,24 +1309,30 @@ class VDI(object):
             driver_info = target.sr.srcmd.driver_info
             self.target = self.TargetDriver(target, driver_info)
 
-        # Attach the physical node
-        phy_path = self.target.attach(sr_uuid, vdi_uuid)
-        phy_path = xmlrpclib.loads(phy_path)[0][0]
+        try:
+            # Attach the physical node
+            phy_path = self.target.attach(sr_uuid, vdi_uuid)
+            phy_path = xmlrpclib.loads(phy_path)[0][0]
 
-        # Save it to phy/
-        self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(phy_path)
+            # Save it to phy/
+            self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(phy_path)
 
-        # Activate the physical node
-        self.target.activate(sr_uuid, vdi_uuid)
+            # Activate the physical node
+            self.target.activate(sr_uuid, vdi_uuid)
 
-        dev_path = self.setup_cache(sr_uuid, vdi_uuid, caching_params)
-        if not dev_path:
-            # Maybe launch a tapdisk on the physical link
+            dev_path = self.setup_cache(sr_uuid, vdi_uuid, caching_params)
+            if not dev_path:
+                # Maybe launch a tapdisk on the physical link
+                if self.tap_wanted():
+                    vdi_type = self.target.get_vdi_type()
+                    dev_path = self._tap_activate(phy_path, vdi_type, sr_uuid)
+                else:
+                    dev_path = phy_path # Just reuse phy
+        except:
+            util.SMlog("Exception in activate/attach")
             if self.tap_wanted():
-                vdi_type = self.target.get_vdi_type()
-                dev_path = self._tap_activate(phy_path, vdi_type, sr_uuid)
-            else:
-                dev_path = phy_path # Just reuse phy
+                self._remove_tag(vdi_uuid)
+            raise
 
         # Link result to backend/
         self.BackendLink.from_uuid(sr_uuid, vdi_uuid).mklink(dev_path)
