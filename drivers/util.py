@@ -596,6 +596,12 @@ def get_all_slaves(session):
     master_ref = get_this_host_ref(session)
     return filter(lambda x: x != master_ref, host_refs)
 
+def is_attached_rw(sm_config):
+    for key, val in sm_config.iteritems():
+        if key.startswith("host_") and val == "RW":
+            return True
+    return False
+
 def find_my_pbd(session, host_ref, sr_ref):
     try:
         pbds = session.xenapi.PBD.get_all_records()

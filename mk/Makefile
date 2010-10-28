@@ -49,6 +49,7 @@ SM_LIBS += mpp_luncheck
 SM_LIBS += updatempppathd
 SM_LIBS += lcache
 SM_LIBS += uuid
+SM_LIBS += resetvdis
 
 SM_XML := XE_SR_ERRORCODES
 

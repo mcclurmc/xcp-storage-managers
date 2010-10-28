@@ -256,6 +256,14 @@ class XAPI:
                 return True
         return False
 
+    def poolOK(self):
+        host_recs = self.session.xenapi.host.get_all_records()
+        for host_ref, host_rec in host_recs.iteritems():
+            if not host_rec["enabled"]:
+                Util.log("Host %s not enabled" % host_rec["uuid"])
+                return False
+        return True
+
     def isMaster(self):
         if self.srRecord["shared"]:
             pool = self.session.xenapi.pool.get_all_records().values()[0]
@@ -381,7 +389,6 @@ class VDI:
     DB_VDI_TYPE = "vdi_type"
     DB_VHD_BLOCKS = "vhd-blocks"
     DB_VDI_PAUSED = "paused"
-    DB_VDI_WRITABLE = "writable"
     DB_LEAFCLSC = "leaf-coalesce" # config key
     LEAFCLSC_DISABLED = "false"  # set by user; means do not leaf-coalesce
     LEAFCLSC_FORCE = "force"     # set by user; means skip snap-coalesce
@@ -393,7 +400,6 @@ class VDI:
             DB_VDI_TYPE:     XAPI.CONFIG_SM,
             DB_VHD_BLOCKS:   XAPI.CONFIG_SM,
             DB_VDI_PAUSED:   XAPI.CONFIG_SM,
-            DB_VDI_WRITABLE: XAPI.CONFIG_SM,
             DB_LEAFCLSC:     XAPI.CONFIG_OTHER }
 
     LIVE_LEAF_COALESCE_MAX_SIZE = 100 * 1024 * 1024 # bytes
@@ -479,6 +485,10 @@ class VDI:
 
     def isSnapshot(self):
         return self.sr.xapi.isSnapshot(self)
+
+    def isAttachedRW(self):
+        return util.is_attached_rw(
+                self.sr.xapi.session.xenapi.VDI.get_sm_config(self.getRef()))
 
     def getVHDBlocks(self):
         val = self.getConfig(VDI.DB_VHD_BLOCKS)
@@ -1949,8 +1959,7 @@ class LVHDSR(SR):
             self.deleteVDI(vdi)
             util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
         self.xapi.forgetVDI(origParentUuid)
-        if not parent.isSnapshot() or \
-                parent.getConfig(parent.DB_VDI_WRITABLE) == "true":
+        if not parent.isSnapshot() or parent.isAttachedRW():
             parent.inflateFully()
         else:
             parent.deflate()
@@ -2168,6 +2177,9 @@ def normalizeType(type):
 def _gcLoop(sr, dryRun):
     failedCandidates = []
     while True:
+        if not sr.xapi.poolOK():
+            Util.log("Pool is not ready, exiting")
+            break
         if not sr.xapi.isPluggedHere():
             Util.log("SR no longer attached, exiting")
             break

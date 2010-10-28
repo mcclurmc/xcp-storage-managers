@@ -20,6 +20,7 @@ import xs_errors
 import xmlrpclib
 import SR, VDI, util
 import blktap2
+import resetvdis
 
 NEEDS_VDI_OBJECT = [
         "vdi_update", "vdi_create", "vdi_delete", "vdi_snapshot", "vdi_clone",
@@ -200,8 +201,14 @@ class SRCommand:
             return xmlrpclib.dumps((txt,), "", True)
 
         elif self.cmd == 'sr_attach':
-            # Schedule a scan only when attaching on the SRmaster
-            if sr.dconf.has_key("SRmaster") and self.dconf["SRmaster"] == "true":
+            is_master = False
+            if sr.dconf.get("SRmaster") == "true":
+                is_master = True
+
+            resetvdis.reset(sr.session, self.params['sr_uuid'], is_master)
+
+            if is_master:
+                # Schedule a scan only when attaching on the SRmaster
                 util.set_dirty(sr.session, self.params["sr_ref"])
 
             return sr.attach(self.params['sr_uuid'])
@@ -238,5 +245,3 @@ def run(driver, driver_info):
     except SR.SRException, inst:
         print inst.toxml()
         sys.exit(0)
-
-        
