@@ -632,7 +632,7 @@ class Tapdisk(object):
         def parse(cls, arg):
 
             try:
-                _type, path = arg.split(":")
+                _type, path = arg.split(":", 1)
             except ValueError:
                 raise cls.InvalidArgument(arg)
 
