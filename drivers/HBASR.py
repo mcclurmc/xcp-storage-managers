@@ -118,7 +118,7 @@ class HBASR(SR.SR):
                 textnode = dom.createTextNode(nname)
                 entry.appendChild(textnode)
 
-                port = dom.createElement("port")
+                port = dom.createElement("Port")
                 hbainfo.appendChild(port)
 
                 cmd = ["cat", "/sys/class/fc_host/%s/port_name" % host]
