@@ -82,7 +82,7 @@ class HBASR(SR.SR):
                     devnames = port.getElementsByTagName("deviceName")
                     portval = str(portwwns[0].firstChild.nodeValue)
                     devpath = str(devnames[0].firstChild.nodeValue).split('/')[-1]
-                    adt[devpath] = portval
+                    adt[devpath] = portval.split()
         except:
             raise xs_errors.XenError('CSLGXMLParse', \
                                      opterr='HBA scanning failed')
