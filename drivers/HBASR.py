@@ -144,7 +144,7 @@ class HBASR(SR.SR):
                 textnode = dom.createTextNode("/sys/class/scsi_host/%s" % host)
                 entry.appendChild(textnode)
 
-            return dom.toprettyxml()
+            return dom.toxml()
         except:
             raise xs_errors.XenError('CSLGXMLParse', \
                                      opterr='HBA probe failed')
