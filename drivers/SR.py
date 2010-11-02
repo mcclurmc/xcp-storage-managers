@@ -476,7 +476,7 @@ class ScanRecord:
         self.__xenapi_locations = {}
         self.__xenapi_records = util.list_VDI_records_in_sr(sr)
         for vdi in self.__xenapi_records.keys():
-            self.__xenapi_locations[self.__xenapi_records[vdi]['location']] = vdi
+            self.__xenapi_locations[util.to_plain_string(self.__xenapi_records[vdi]['location'])] = vdi
         self.__sm_records = {}
         for vdi in sr.vdis.values():
             # We initialise the sm_config field with the values from the database

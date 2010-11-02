@@ -290,7 +290,7 @@ class VDI(object):
         
     def in_sync_with_xenapi_record(self, x):
         """Returns true if this VDI is in sync with the supplied XenAPI record"""
-        if self.location <> x['location']:
+        if self.location <> util.to_plain_string(x['location']):
             util.SMlog("location %s <> %s" % (self.location, x['location']))
             return False
         if self.read_only <> x['read_only']:

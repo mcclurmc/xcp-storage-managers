@@ -128,7 +128,7 @@ class ISOSR(SR.SR):
         here what its filename should be."""
 
         if 'vdi_location' in self.srcmd.params:
-            filename = self.srcmd.params['vdi_location']
+            filename = util.to_plain_string(self.srcmd.params['vdi_location'])
         else:
             # Get the filename from sm-config['path'], or use the UUID
             # if the path param doesn't exist.
@@ -152,7 +152,7 @@ class ISOSR(SR.SR):
 
         # Construct the path we're going to mount under:
         if self.dconf.has_key("legacy_mode"):
-            self.mountpoint = self.dconf['location']
+            self.mountpoint = util.to_plain_string(self.dconf['location'])
         else:
             # Verify the target address
             self._checkTargetStr(self.dconf['location'])
@@ -160,7 +160,7 @@ class ISOSR(SR.SR):
             
         # Add on the iso_path value if there is one
         if self.dconf.has_key("iso_path"):
-            iso_path = self.dconf['iso_path']
+            iso_path = util.to_plain_string(self.dconf['iso_path'])
             if iso_path.startswith("/"):
                 iso_path=iso_path[1:]
             self.path = os.path.join(self.mountpoint, iso_path)
