@@ -18,7 +18,7 @@ import lock
 from vhdutil import LOCK_TYPE_SR
 from cleanup import LOCK_TYPE_RUNNING
 
-def reset(session, sr_uuid, is_sr_master):
+def reset(session, host_uuid, sr_uuid, is_sr_master):
     gc_lock = lock.Lock(LOCK_TYPE_RUNNING, sr_uuid)
     sr_lock = lock.Lock(LOCK_TYPE_SR, sr_uuid)
     gc_lock.acquire()
@@ -26,7 +26,6 @@ def reset(session, sr_uuid, is_sr_master):
 
     sr_ref = session.xenapi.SR.get_by_uuid(sr_uuid)
 
-    host_uuid = util.get_this_host()
     host_ref = session.xenapi.host.get_by_uuid(host_uuid)
     host_key = "host_%s" % host_ref
 
@@ -53,16 +52,17 @@ if __name__ == '__main__':
     import sys
     import XenAPI
     
-    if len(sys.argv) not in [2, 3]:
-        print "Params: <SR UUID> [master]"
+    if len(sys.argv) not in [3, 4]:
+        print "Params: <HOST UUID> <SR UUID> [master]"
         print "*WARNING!* CALLING ON AN ATTACHED SR MAY CAUSE DATA CORRUPTION!"
         sys.exit(1)
 
     session = XenAPI.xapi_local()
     session.xenapi.login_with_password('root', '')
-    sr_uuid = sys.argv[1]
+    host_uuid = sys.argv[1]
+    sr_uuid = sys.argv[2]
     is_master = False
-    if len(sys.argv) == 3 and sys.argv[2] == "master":
+    if len(sys.argv) == 4 and sys.argv[3] == "master":
         is_master = True
 
-    reset(session, sr_uuid, is_master)
+    reset(session, host_uuid, sr_uuid, is_master)
