@@ -280,13 +280,32 @@ class VDI(object):
     def _db_forget(self):
         self.sr.forget_vdi(self.uuid)
 
+    def _db_update_sm_config(self, ref, sm_config):
+        current_sm_config = self.sr.session.xenapi.VDI.get_sm_config(ref)
+        for key, val in sm_config.iteritems():
+            if key.startswith("host_") or key == "paused":
+                continue
+            if sm_config.get(key) != current_sm_config.get(key):
+                util.SMlog("_db_update_sm_config: %s sm-config:%s %s->%s" % \
+                        (self.uuid, key, current_sm_config.get(key), val))
+                self.sr.session.xenapi.VDI.remove_from_sm_config(ref, key)
+                self.sr.session.xenapi.VDI.add_to_sm_config(ref, key, val)
+
+        for key in current_sm_config.keys():
+            if key.startswith("host_") or key == "paused":
+                continue
+            if not sm_config.get(key):
+                util.SMlog("_db_update_sm_config: %s del sm-config:%s" % \
+                        (self.uuid, key))
+                self.sr.session.xenapi.VDI.remove_from_sm_config(ref, key)
+
     def _db_update(self):
         vdi = self.sr.session.xenapi.VDI.get_by_uuid(self.uuid)
         self.sr.session.xenapi.VDI.set_virtual_size(vdi, str(self.size))
         self.sr.session.xenapi.VDI.set_physical_utilisation(vdi, str(self.utilisation))
         self.sr.session.xenapi.VDI.set_read_only(vdi, self.read_only)
         sm_config = util.default(self, "sm_config", lambda: {})
-        self.sr.session.xenapi.VDI.set_sm_config(vdi, sm_config)
+        self._db_update_sm_config(vdi, sm_config)
         
     def in_sync_with_xenapi_record(self, x):
         """Returns true if this VDI is in sync with the supplied XenAPI record"""
