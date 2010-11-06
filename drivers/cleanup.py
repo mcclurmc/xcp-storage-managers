@@ -1204,17 +1204,17 @@ class SR:
     KEY_OFFLINE_COALESCE_NEEDED = "leaf_coalesce_need_offline"
     KEY_OFFLINE_COALESCE_OVERRIDE = "leaf_coalesce_offline_override"
 
-    def getInstance(uuid, xapiSession):
+    def getInstance(uuid, xapiSession, createLock = True):
         xapi = XAPI(xapiSession, uuid)
         type = normalizeType(xapi.srRecord["type"])
         if type == SR.TYPE_FILE:
-            return FileSR(uuid, xapi)
+            return FileSR(uuid, xapi, createLock)
         elif type == SR.TYPE_LVHD:
-            return LVHDSR(uuid, xapi)
+            return LVHDSR(uuid, xapi, createLock)
         raise util.SMException("SR type %s not recognized" % type)
     getInstance = staticmethod(getInstance)
 
-    def __init__(self, uuid, xapi):
+    def __init__(self, uuid, xapi, createLock):
         self.logFilter = self.LogFilter(self)
         self.uuid = uuid
         self.path = ""
@@ -1224,7 +1224,11 @@ class SR:
         self.journaler = None
         self.xapi = xapi
         self._locked = 0
-        self._srLock = lock.Lock(vhdutil.LOCK_TYPE_SR, self.uuid)
+        self._srLock = None
+        if createLock:
+            self._srLock = lock.Lock(vhdutil.LOCK_TYPE_SR, self.uuid)
+        else:
+            Util.log("Requested no SR locking")
         self.name = unicode(self.xapi.srRecord["name_label"]).encode("utf-8", "replace")
         self._failedCoalesceTargets = []
 
@@ -1462,6 +1466,9 @@ class SR:
         """Acquire the SR lock. Nested acquire()'s are ok. Check for Abort
         signal to avoid deadlocking (trying to acquire the SR lock while the
         lock is held by a process that is trying to abort us)"""
+        if not self._srLock:
+            return
+
         self._locked += 1
         if self._locked > 1:
             return
@@ -1476,6 +1483,8 @@ class SR:
         raise util.SMException("Unable to acquire the SR lock")
 
     def unlock(self):
+        if not self._srLock:
+            return
         assert(self._locked > 0)
         self._locked -= 1
         if self._locked == 0:
@@ -1670,8 +1679,8 @@ class FileSR(SR):
     TYPE = SR.TYPE_FILE
     CACHE_FILE_EXT = ".vhdcache"
 
-    def __init__(self, uuid, xapi):
-        SR.__init__(self, uuid, xapi)
+    def __init__(self, uuid, xapi, createLock):
+        SR.__init__(self, uuid, xapi, createLock)
         self.path = "/var/run/sr-mount/%s" % self.uuid
         self.journaler = fjournaler.Journaler(self.path)
 
@@ -1793,8 +1802,8 @@ class LVHDSR(SR):
     TYPE = SR.TYPE_LVHD
     SUBTYPES = ["lvhdoiscsi", "lvhdohba"]
 
-    def __init__(self, uuid, xapi):
-        SR.__init__(self, uuid, xapi)
+    def __init__(self, uuid, xapi, createLock):
+        SR.__init__(self, uuid, xapi, createLock)
         self.vgName = "%s%s" % (lvhdutil.VG_PREFIX, self.uuid)
         self.path = os.path.join(lvhdutil.VG_LOCATION, self.vgName)
         self.lvmCache = lvmcache.LVMCache(self.vgName)
@@ -2324,8 +2333,9 @@ def gc(session, srUuid, inBackground, dryRun = False):
     else:
         _gc(session, srUuid, dryRun)
 
-def gc_force(session, srUuid, force = False, dryRun = False):
-    """Garbage collect all deleted VDIs in SR "srUuid".
+def gc_force(session, srUuid, force = False, dryRun = False, lockSR = False):
+    """Garbage collect all deleted VDIs in SR "srUuid". The caller must ensure
+    the SR lock is held.
     The following algorithm is used:
     1. If we are already GC'ing or coalescing a VDI pair, abort GC/coalesce
     2. Scan the SR
@@ -2334,7 +2344,7 @@ def gc_force(session, srUuid, force = False, dryRun = False):
     """
     Util.log("=== SR %s: gc_force ===" % srUuid)
     init(srUuid)
-    sr = SR.getInstance(srUuid, session)
+    sr = SR.getInstance(srUuid, session, lockSR)
     if not lockRunning.acquireNoblock():
         _abort(srUuid)
     else:
@@ -2441,7 +2451,7 @@ def main():
     if action == "gc":
         gc(None, uuid, background, dryRun)
     elif action == "gc_force":
-        gc_force(None, uuid, force, dryRun)
+        gc_force(None, uuid, force, dryRun, True)
     elif action == "abort":
         abort(uuid)
     elif action == "query":
