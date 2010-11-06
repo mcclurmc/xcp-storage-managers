@@ -396,6 +396,7 @@ class VDI:
     DB_VDI_TYPE = "vdi_type"
     DB_VHD_BLOCKS = "vhd-blocks"
     DB_VDI_PAUSED = "paused"
+    DB_GC = "gc"
     DB_LEAFCLSC = "leaf-coalesce" # config key
     LEAFCLSC_DISABLED = "false"  # set by user; means do not leaf-coalesce
     LEAFCLSC_FORCE = "force"     # set by user; means skip snap-coalesce
@@ -407,6 +408,7 @@ class VDI:
             DB_VDI_TYPE:     XAPI.CONFIG_SM,
             DB_VHD_BLOCKS:   XAPI.CONFIG_SM,
             DB_VDI_PAUSED:   XAPI.CONFIG_SM,
+            DB_GC:           XAPI.CONFIG_OTHER,
             DB_LEAFCLSC:     XAPI.CONFIG_OTHER }
 
     LIVE_LEAF_COALESCE_MAX_SIZE = 20 * 1024 * 1024 # bytes
@@ -1259,6 +1261,15 @@ class SR:
 
         if not self.xapi.isMaster():
             raise util.SMException("This host is NOT master, will not run")
+
+    def gcEnabled(self, refresh = True):
+        if refresh:
+            self.xapi.srRecord = \
+                    self.xapi.session.xenapi.SR.get_record(self.xapi._srRef)
+        if self.xapi.srRecord["other_config"].get(VDI.DB_GC) == "false":
+            Util.log("GC is disabled for this SR, abort")
+            return False
+        return True
 
     def scan(self, force = False):
         """Scan the SR and load VDI info for each VDI. If called repeatedly,
@@ -2360,6 +2371,8 @@ def _gcLoop(sr, dryRun):
             Util.log("Another instance already running, exiting")
             break
         try:
+            if not sr.gcEnabled():
+                break
             sr.cleanupCoalesceJournals()
             sr.scanLocked()
             sr.updateBlockInfo()
@@ -2390,6 +2403,8 @@ def _gcLoop(sr, dryRun):
 def _gc(session, srUuid, dryRun):
     init(srUuid)
     sr = SR.getInstance(srUuid, session)
+    if not sr.gcEnabled(False):
+        return
 
     sr.cleanupCache()
     try:
