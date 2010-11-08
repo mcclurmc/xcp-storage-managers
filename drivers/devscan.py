@@ -101,7 +101,8 @@ def adapters(filterstr="any"):
             emulex = True
             paths.append(SYSFS_PATH3)
         else:
-            for p in [os.path.join(SYSFS_PATH1,a,"device","session*"),os.path.join(SYSFS_PATH1,a,"device")]:
+            for p in [os.path.join(SYSFS_PATH1,a,"device","session*"),os.path.join(SYSFS_PATH1,a,"device"),\
+                          os.path.join(SYSFS_PATH2,"%s:*"%id)]:
                 paths += glob.glob(p)
         if not len(paths):
             continue
@@ -160,6 +161,15 @@ def adapters(filterstr="any"):
                         entry['host'] = id
                         entry['target'] = lun
                         devs[key] = entry
+            if path.startswith(SYSFS_PATH2):
+                key = os.path.basename(\
+                    glob.glob(os.path.join(path,"device","block:*"))[0]).split(':')[1]
+                if devs.has_key(key):
+                    continue
+                hbtl = os.path.basename(path)
+                (h,b,t,l) = hbtl.split(':')
+                entry = {'procname':proc, 'host':id, 'target':l}
+                devs[key] = entry
 
     dict['devs'] = devs
     dict['adt'] = adt
