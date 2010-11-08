@@ -550,7 +550,7 @@ class ScanRecord:
         """Delete XenAPI record for old disks"""
         for location in self.gone:
             vdi = self.get_xenapi_vdi(location)
-            util.SMlog("Forgetting VDI with location=%s uuid=%s" % (vdi['location'], vdi['uuid']))
+            util.SMlog("Forgetting VDI with location=%s uuid=%s" % (util.to_plain_string(vdi['location']), vdi['uuid']))
             self.sr.forget_vdi(vdi['uuid'])
 
     def synchronise_existing(self):
