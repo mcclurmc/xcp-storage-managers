@@ -464,8 +464,9 @@ def refresh_scsi_channel(channel):
     # c) Probe for any LUNs that are not present in the system
     for l in li:
         newhbtl = ['',h[0],h[1],h[2],str(l)]
+        newhbtlstr = "%s:%s:%s:%s" % (h[0],h[1],h[2],str(l))
         util.SMlog("Probing new HBTL: %s" % newhbtl)
         scsi_dev_ctrl(newhbtl,"add")
-        util.wait_for_path('/dev/disk/by-scsibus/*-%s' % hbtl, DEV_WAIT)
+        util.wait_for_path('/dev/disk/by-scsibus/*-%s' % newhbtlstr, DEV_WAIT)
 
     return True
