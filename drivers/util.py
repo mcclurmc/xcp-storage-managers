@@ -137,7 +137,8 @@ def is_string(value):
 # cmdlist is a list of either single strings or pairs of strings. For
 # each pair, the first component is passed to exec while the second is
 # written to the logs.
-def pread(cmdlist, close_stdin = False, scramble=None, expect_rc=0):
+def pread(cmdlist, close_stdin = False, scramble = None, expect_rc = 0,
+        quiet = False):
     cmdlist_for_exec = []
     cmdlist_for_log = []
     for item in cmdlist:
@@ -154,18 +155,22 @@ def pread(cmdlist, close_stdin = False, scramble=None, expect_rc=0):
             cmdlist_for_exec.append(item[0])
             cmdlist_for_log.append(item[1])
 
-    SMlog(cmdlist_for_log)
+    if not quiet:
+        SMlog(cmdlist_for_log)
     (rc,stdout,stderr) = doexec(cmdlist_for_exec)
     if rc != expect_rc:
         SMlog("FAILED: (rc %d) stdout: '%s', stderr: '%s'" % \
                 (rc, stdout, stderr))
+        if quiet:
+            SMlog("Command was: %s" % cmdlist_for_log)
         raise CommandException(rc, str(cmdlist), stderr.strip())
-    SMlog("SUCCESS")
+    if not quiet:
+        SMlog("SUCCESS")
     return stdout
 
 #Read STDOUT from cmdlist and discard STDERR output
-def pread2(cmdlist):
-    return pread(cmdlist)
+def pread2(cmdlist, quiet = False):
+    return pread(cmdlist, quiet = quiet)
 
 #Read STDOUT from cmdlist, feeding 'text' to STDIN
 def pread3(cmdlist, text):
@@ -178,10 +183,10 @@ def pread3(cmdlist, text):
     SMlog("SUCCESS")
     return stdout
 
-def listdir(path):
+def listdir(path, quiet = False):
     cmd = ["ls", path, "-1", "--color=never"]
     try:
-        text = pread2(cmd)[:-1]
+        text = pread2(cmd, quiet = quiet)[:-1]
         if len(text) == 0:
             return []
         return text.split('\n')

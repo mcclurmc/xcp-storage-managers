@@ -89,7 +89,7 @@ class ISOSR(SR.SR):
             return
 
         regex = re.compile("\.iso$|\.img$", re.I)
-        for name in filter(regex.search, util.listdir(self.path)):
+        for name in filter(regex.search, util.listdir(self.path, quiet = True)):
             self.vdis[name] = ISOVDI(self, name)
             # Set the VDI UUID if the filename is of the correct form.
             # Otherwise, one will be generated later in VDI._db_introduce.
@@ -169,7 +169,7 @@ class ISOSR(SR.SR):
 
         # Some info we need:
         self.sr_vditype = 'file'
-        self.credentials = os.path.join("/tmp",util.gen_uuid())
+        self.credentials = None
  
     def attach(self, sr_uuid):
         """Std. attach"""
@@ -191,6 +191,7 @@ class ISOSR(SR.SR):
         mountcmd=[]
         location = util.to_plain_string(self.dconf['location'])
 
+        self.credentials = os.path.join("/tmp", util.gen_uuid())
         if self.dconf.has_key('type'):
             if self.dconf['type']=='cifs':
                 # CIFS specific stuff
@@ -243,7 +244,7 @@ class ISOSR(SR.SR):
             mountcmd.extend(["-o", credentials])
 
     def _cleanupcredentials(self):
-        if os.path.exists(self.credentials):
+        if self.credentials and os.path.exists(self.credentials):
             os.unlink(self.credentials)
 
     def detach(self, sr_uuid):

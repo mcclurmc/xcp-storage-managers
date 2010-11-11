@@ -28,6 +28,12 @@ NEEDS_VDI_OBJECT = [
         "vdi_activate", "vdi_deactivate", "vdi_attach_from_config",
         "vdi_generate_config" ]
 
+# don't log the commands that spam the log file too much
+NO_LOGGING = {
+        "iso": ["sr_scan"],
+        "nfs_iso": ["sr_scan"]
+}
+
 EXCEPTION_TYPE = {
         "sr_scan"           : "SRScan",
         "vdi_init"          : "VDILoad",
@@ -129,7 +135,10 @@ class SRCommand:
             sr.cleanup()
 
     def _run(self, sr, target):
-        util.SMlog("%s %s" % (self.cmd, repr(self.params)))
+        dconf_type = sr.dconf.get("type")
+        if not dconf_type or not NO_LOGGING.get(dconf_type) or \
+                not self.cmd in NO_LOGGING[dconf_type]:
+            util.SMlog("%s %s" % (self.cmd, repr(self.params)))
         caching_params = dict((k, self.params.get(k)) for k in \
                 [blktap2.VDI.CONF_KEY_ALLOW_CACHING,
                  blktap2.VDI.CONF_KEY_MODE_ON_BOOT,
