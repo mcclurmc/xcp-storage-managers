@@ -127,6 +127,7 @@ class LVHDSR(SR.SR):
 
     def load(self, sr_uuid):
         self.ops_exclusive = OPS_EXCLUSIVE
+        self.sm_pausing = True
         if not self.dconf.has_key('device') or not self.dconf['device']:
             raise xs_errors.XenError('ConfigDeviceMissing',)
         self.root = self.dconf['device']

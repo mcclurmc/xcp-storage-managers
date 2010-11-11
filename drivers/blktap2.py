@@ -1263,6 +1263,8 @@ class VDI(object):
 
     def attach(self, sr_uuid, vdi_uuid):
         """Return/dev/sm/backend symlink path"""
+        if not self.target.vdi.sr.sm_pausing:
+            self._attach(sr_uuid, vdi_uuid)
 
         # Return backend/ link
         back_path = self.BackendLink.from_uuid(sr_uuid, vdi_uuid).path()
@@ -1300,23 +1302,11 @@ class VDI(object):
 
         try:
             # Attach the physical node
-            phy_path = self.target.attach(sr_uuid, vdi_uuid)
-            phy_path = xmlrpclib.loads(phy_path)[0][0]
-
-            # Save it to phy/
-            self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(phy_path)
+            if self.target.vdi.sr.sm_pausing:
+                self._attach(sr_uuid, vdi_uuid)
 
             # Activate the physical node
-            self.target.activate(sr_uuid, vdi_uuid)
-
-            dev_path = self.setup_cache(sr_uuid, vdi_uuid, caching_params)
-            if not dev_path:
-                # Maybe launch a tapdisk on the physical link
-                if self.tap_wanted():
-                    vdi_type = self.target.get_vdi_type()
-                    dev_path = self._tap_activate(phy_path, vdi_type, sr_uuid)
-                else:
-                    dev_path = phy_path # Just reuse phy
+            dev_path = self._activate(sr_uuid, vdi_uuid, caching_params)
         except:
             util.SMlog("Exception in activate/attach")
             if self.tap_wanted():
@@ -1326,6 +1316,27 @@ class VDI(object):
         # Link result to backend/
         self.BackendLink.from_uuid(sr_uuid, vdi_uuid).mklink(dev_path)
         return True
+
+    def _activate(self, sr_uuid, vdi_uuid, caching_params):
+        self.target.activate(sr_uuid, vdi_uuid)
+
+        dev_path = self.setup_cache(sr_uuid, vdi_uuid, caching_params)
+        if not dev_path:
+            phy_path = self.PhyLink.from_uuid(sr_uuid, vdi_uuid).readlink()
+            # Maybe launch a tapdisk on the physical link
+            if self.tap_wanted():
+                vdi_type = self.target.get_vdi_type()
+                dev_path = self._tap_activate(phy_path, vdi_type, sr_uuid)
+            else:
+                dev_path = phy_path # Just reuse phy
+
+        return dev_path
+
+    def _attach(self, sr_uuid, vdi_uuid):
+        phy_path = self.target.attach(sr_uuid, vdi_uuid)
+        phy_path = xmlrpclib.loads(phy_path)[0][0]
+        # Save it to phy/
+        self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(phy_path)
 
     def deactivate(self, sr_uuid, vdi_uuid, caching_params):
         util.SMlog("blktap2.deactivate")
@@ -1341,11 +1352,30 @@ class VDI(object):
     @locking("VDIUnavailable")
     def _deactivate_locked(self, sr_uuid, vdi_uuid, caching_params):
         """Wraps target.deactivate and removes a tapdisk"""
-        import VDI as sm
 
         #util.SMlog("VDI.deactivate %s" % vdi_uuid)
         if self.tap_wanted() and not self._check_tag(vdi_uuid):
             return False
+
+        self._deactivate(sr_uuid, vdi_uuid, caching_params)
+        if self.target.vdi.sr.sm_pausing:
+            self._detach(sr_uuid, vdi_uuid)
+        if self.tap_wanted():
+            self._remove_tag(vdi_uuid)
+
+        return True
+
+    def _resetPhylink(self, sr_uuid, vdi_uuid, path):
+        self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(path)
+
+    def detach(self, sr_uuid, vdi_uuid):
+        if not self.target.vdi.sr.sm_pausing:
+            self._detach(sr_uuid, vdi_uuid)
+        else:
+            pass # nothing to do
+    
+    def _deactivate(self, sr_uuid, vdi_uuid, caching_params):
+        import VDI as sm
 
         # Shutdown tapdisk
         back_link = self.BackendLink.from_uuid(sr_uuid, vdi_uuid)
@@ -1372,22 +1402,12 @@ class VDI(object):
             self.target = self.TargetDriver(target, driver_info)
 
         self.target.deactivate(sr_uuid, vdi_uuid)
+
+    def _detach(self, sr_uuid, vdi_uuid):
         self.target.detach(sr_uuid, vdi_uuid)
 
         # Remove phy/
         self.PhyLink.from_uuid(sr_uuid, vdi_uuid).unlink()
-
-        if self.tap_wanted():
-            self._remove_tag(vdi_uuid)
-
-        return True
-
-    def _resetPhylink(self, sr_uuid, vdi_uuid, path):
-        self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(path)
-
-    def detach(self, sr_uuid, vdi_uuid):
-        """Noop, all handled in deactivate"""
-        return
 
     def _updateCacheRecord(self, session, vdi_uuid, on_boot, caching):
         # Remove existing VDI.sm_config fields

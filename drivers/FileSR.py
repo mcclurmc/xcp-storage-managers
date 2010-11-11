@@ -64,6 +64,7 @@ class FileSR(SR.SR):
 
     def load(self, sr_uuid):
         self.ops_exclusive = OPS_EXCLUSIVE
+        self.sm_pausing = True
         self.lock = Lock(vhdutil.LOCK_TYPE_SR, self.uuid)
         self.sr_vditype = SR.DEFAULT_TAP
         if not self.dconf.has_key('location') or  not self.dconf['location']:
