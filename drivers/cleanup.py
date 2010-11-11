@@ -741,7 +741,7 @@ class VDI:
                     finally:
                         self.sr.unpauseVDIs(vdiList)
                 finally:
-                    self.sr.release()
+                    self.sr.unlock()
             else:
                 self._setSizeVirt(size)
 
