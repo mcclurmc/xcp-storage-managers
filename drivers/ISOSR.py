@@ -41,6 +41,20 @@ DRIVER_INFO = {
 
 TYPE = "iso"
 
+def is_image_utf8_compatible(s):
+    regex = re.compile("\.iso$|\.img$", re.I)
+    if regex.search(s) == None:
+	return False
+
+    # Check for extended characters
+    if type(s) == str:
+        try:
+            s.decode('utf-8')
+	except UnicodeDecodeError, e:
+            util.SMlog("WARNING: This string is not UTF-8 compatible.")
+            return False
+    return True 
+
 class ISOSR(SR.SR):
     """Local file storage repository"""
 
@@ -88,8 +102,7 @@ class ISOSR(SR.SR):
         if self.vdis:
             return
 
-        regex = re.compile("\.iso$|\.img$", re.I)
-        for name in filter(regex.search, util.listdir(self.path, quiet = True)):
+        for name in filter(is_image_utf8_compatible, util.listdir(self.path, quiet = True)):
             self.vdis[name] = ISOVDI(self, name)
             # Set the VDI UUID if the filename is of the correct form.
             # Otherwise, one will be generated later in VDI._db_introduce.

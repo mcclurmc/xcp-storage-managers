@@ -1334,7 +1334,7 @@ class VDI(object):
 
     def _attach(self, sr_uuid, vdi_uuid):
         phy_path = self.target.attach(sr_uuid, vdi_uuid)
-        phy_path = xmlrpclib.loads(phy_path)[0][0]
+        phy_path = util.to_plain_string(xmlrpclib.loads(phy_path)[0][0])
         # Save it to phy/
         self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(phy_path)
 
