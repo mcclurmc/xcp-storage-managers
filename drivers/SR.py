@@ -123,7 +123,6 @@ class SR(object):
         self.sched = 'noop'
         self._mpathinit()
         self.direct = False
-        self.sm_pausing = False # whether to do attach+activate as an atomic op
         self.ops_exclusive = []
 
         self.load(sr_uuid)

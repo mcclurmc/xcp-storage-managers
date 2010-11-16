@@ -305,8 +305,13 @@ def sr_get_driver_info(driver_info):
     # add the capabilities (xmlrpc array)
     # enforcing activate/deactivate for blktap2
     caps = driver_info['capabilities']
-    for cap in ("VDI_ACTIVATE", "VDI_DEACTIVATE"):
-        if not cap in caps: caps.append(cap)
+    if "ATOMIC_PAUSE" in caps:
+        for cap in ("VDI_ACTIVATE", "VDI_DEACTIVATE"):
+            if not cap in caps:
+                caps.append(cap)
+    elif "VDI_ACTIVATE" in caps or "VDI_DEACTIVATE" in caps:
+        SMlog("Warning: vdi_[de]activate present for %s" % driver_info["name"])
+
     results['capabilities'] = caps
     # add in the configuration options
     options = []

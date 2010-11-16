@@ -26,7 +26,8 @@ from lock import Lock
 geneology = {}
 CAPABILITIES = ["SR_PROBE","SR_UPDATE", \
                 "VDI_CREATE","VDI_DELETE","VDI_ATTACH","VDI_DETACH", \
-                "VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE","VDI_RESIZE_ONLINE"]
+                "VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE","VDI_RESIZE_ONLINE",
+                "ATOMIC_PAUSE"]
 
 CONFIGURATION = [ [ 'path', 'path where images are stored (required)' ] ]
                   
@@ -64,7 +65,6 @@ class FileSR(SR.SR):
 
     def load(self, sr_uuid):
         self.ops_exclusive = OPS_EXCLUSIVE
-        self.sm_pausing = True
         self.lock = Lock(vhdutil.LOCK_TYPE_SR, self.uuid)
         self.sr_vditype = SR.DEFAULT_TAP
         if not self.dconf.has_key('location') or  not self.dconf['location']:

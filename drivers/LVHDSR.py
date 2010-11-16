@@ -42,7 +42,7 @@ import XenAPI
 geneology = {}
 CAPABILITIES = ["SR_PROBE","SR_UPDATE",
         "VDI_CREATE","VDI_DELETE","VDI_ATTACH", "VDI_DETACH",
-        "VDI_CLONE", "VDI_SNAPSHOT", "VDI_RESIZE"]
+        "VDI_CLONE", "VDI_SNAPSHOT", "VDI_RESIZE", "ATOMIC_PAUSE"]
 
 CONFIGURATION = [ ['device', 'local device path (required) (e.g. /dev/sda3)'] ]
 
@@ -127,7 +127,6 @@ class LVHDSR(SR.SR):
 
     def load(self, sr_uuid):
         self.ops_exclusive = OPS_EXCLUSIVE
-        self.sm_pausing = True
         if not self.dconf.has_key('device') or not self.dconf['device']:
             raise xs_errors.XenError('ConfigDeviceMissing',)
         self.root = self.dconf['device']

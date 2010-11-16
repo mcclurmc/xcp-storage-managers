@@ -26,7 +26,7 @@ import cleanup
 CAPABILITIES = ["SR_PROBE","SR_UPDATE", "SR_SUPPORTS_LOCAL_CACHING", \
                 "VDI_CREATE","VDI_DELETE","VDI_ATTACH","VDI_DETACH", \
                 "VDI_UPDATE","VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE", \
-                "VDI_RESET_ON_BOOT","VDI_RESIZE_ONLINE"]
+                "VDI_RESET_ON_BOOT","VDI_RESIZE_ONLINE", "ATOMIC_PAUSE"]
 
 CONFIGURATION = [ [ 'device', 'local device path (required) (e.g. /dev/sda3)' ] ]
                   
@@ -51,7 +51,6 @@ class EXTSR(FileSR.FileSR):
 
     def load(self, sr_uuid):
         self.ops_exclusive = FileSR.OPS_EXCLUSIVE
-        self.sm_pausing = True
         self.lock = Lock(vhdutil.LOCK_TYPE_SR, self.uuid)
         self.sr_vditype = SR.DEFAULT_TAP
         if not self.dconf.has_key('device') or not self.dconf['device']:

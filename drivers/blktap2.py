@@ -1263,8 +1263,11 @@ class VDI(object):
 
     def attach(self, sr_uuid, vdi_uuid):
         """Return/dev/sm/backend symlink path"""
-        if not self.target.vdi.sr.sm_pausing:
+        if not self.target.has_cap("ATOMIC_PAUSE"):
+            util.SMlog("Attach & activate")
             self._attach(sr_uuid, vdi_uuid)
+            dev_path = self._activate(sr_uuid, vdi_uuid, {})
+            self.BackendLink.from_uuid(sr_uuid, vdi_uuid).mklink(dev_path)
 
         # Return backend/ link
         back_path = self.BackendLink.from_uuid(sr_uuid, vdi_uuid).path()
@@ -1302,7 +1305,7 @@ class VDI(object):
 
         try:
             # Attach the physical node
-            if self.target.vdi.sr.sm_pausing:
+            if self.target.has_cap("ATOMIC_PAUSE"):
                 self._attach(sr_uuid, vdi_uuid)
 
             # Activate the physical node
@@ -1358,7 +1361,7 @@ class VDI(object):
             return False
 
         self._deactivate(sr_uuid, vdi_uuid, caching_params)
-        if self.target.vdi.sr.sm_pausing:
+        if self.target.has_cap("ATOMIC_PAUSE"):
             self._detach(sr_uuid, vdi_uuid)
         if self.tap_wanted():
             self._remove_tag(vdi_uuid)
@@ -1369,7 +1372,9 @@ class VDI(object):
         self.PhyLink.from_uuid(sr_uuid, vdi_uuid).mklink(path)
 
     def detach(self, sr_uuid, vdi_uuid):
-        if not self.target.vdi.sr.sm_pausing:
+        if not self.target.has_cap("ATOMIC_PAUSE"):
+            util.SMlog("Deactivate & detach")
+            self._deactivate(sr_uuid, vdi_uuid, {})
             self._detach(sr_uuid, vdi_uuid)
         else:
             pass # nothing to do
@@ -1379,6 +1384,10 @@ class VDI(object):
 
         # Shutdown tapdisk
         back_link = self.BackendLink.from_uuid(sr_uuid, vdi_uuid)
+        if not util.pathexists(back_link.path()):
+            util.SMlog("Backend path %s does not exist" % back_link.path())
+            return
+
         try:
             major, minor = back_link.rdev()
         except self.DeviceNode.NotABlockDevice:
