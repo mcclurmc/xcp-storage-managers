@@ -38,6 +38,7 @@ MODULE_INFO = {
     'mpt2sas': 'LSI Logic Fusion MPT 6GB SAS Adapter Driver',
     'megaraid_sas': 'MegaRAID driver for SAS based RAID controllers',
     'palo' : 'Cisco Palo FCoE Adapter driver',
+    'ethdrv' : 'Coraid ATA over Ethernet driver',
     'xsvhba': 'Xsigo Systems Virtual HBA Driver',
     'mpp': 'RDAC Multipath Handler, manages DELL devices from other adapters'
     }
