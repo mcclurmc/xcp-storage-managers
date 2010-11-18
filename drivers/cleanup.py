@@ -402,7 +402,7 @@ class VDI:
             DB_VDI_PAUSED:   XAPI.CONFIG_SM,
             DB_LEAFCLSC:     XAPI.CONFIG_OTHER }
 
-    LIVE_LEAF_COALESCE_MAX_SIZE = 100 * 1024 * 1024 # bytes
+    LIVE_LEAF_COALESCE_MAX_SIZE = 20 * 1024 * 1024 # bytes
     LIVE_LEAF_COALESCE_TIMEOUT = 10 # seconds
 
     JRN_RELINK = "relink" # journal entry type for relinking children
