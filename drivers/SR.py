@@ -124,6 +124,7 @@ class SR(object):
         self._mpathinit()
         self.direct = False
         self.ops_exclusive = []
+        self.driver_config = {}
 
         self.load(sr_uuid)
 

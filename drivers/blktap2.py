@@ -1263,9 +1263,9 @@ class VDI(object):
         else:
             util.SMlog("WARNING: host key %s not found!" % host_key)
 
-    def attach(self, sr_uuid, vdi_uuid):
+    def attach(self, sr_uuid, vdi_uuid, activate = False):
         """Return/dev/sm/backend symlink path"""
-        if not self.target.has_cap("ATOMIC_PAUSE"):
+        if not self.target.has_cap("ATOMIC_PAUSE") or activate:
             util.SMlog("Attach & activate")
             self._attach(sr_uuid, vdi_uuid)
             dev_path = self._activate(sr_uuid, vdi_uuid, {})
