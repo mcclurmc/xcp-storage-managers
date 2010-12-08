@@ -166,14 +166,15 @@ class TapCtl(object):
         cls.__next_mkcmd = __next_mkcmd
 
     @classmethod
-    def _call(cls, args):
+    def _call(cls, args, quiet = False):
         """
         Spawn a tap-ctl process. Return a TapCtl invocation.
         Raises a TapCtl.CommandFailure if subprocess creation failed.
         """
         cmd = cls._mkcmd(args)
 
-        util.SMlog(cmd)
+        if not quiet:
+            util.SMlog(cmd)
         try:
             p = subprocess.Popen(cmd,
                                  stdout=subprocess.PIPE,
@@ -187,13 +188,14 @@ class TapCtl(object):
         output = map(str.rstrip, self._p.stderr)
         return "; ".join(output)
 
-    def _wait(self):
+    def _wait(self, quiet = False):
         """
         Reap the child tap-ctl process of this invocation.
         Raises a TapCtl.CommandFailure on non-zero exit status.
         """
         status = self._p.wait()
-        util.SMlog(" = %d" % status)
+        if not quiet:
+            util.SMlog(" = %d" % status)
 
         if status == 0: return
 
@@ -208,15 +210,15 @@ class TapCtl(object):
         raise self.CommandFailure(self.cmd, **info)
 
     @classmethod
-    def _pread(cls, args):
+    def _pread(cls, args, quiet = False):
         """
         Spawn a tap-ctl invocation and read a single line.
         """
-        tapctl = cls._call(args)
+        tapctl = cls._call(args, quiet)
 
         output = tapctl.stdout.readline().rstrip()
 
-        tapctl._wait()
+        tapctl._wait(quiet)
         return output
 
     @staticmethod
@@ -232,7 +234,7 @@ class TapCtl(object):
         args += cls._maybe("-t", _type)
         args += cls._maybe("-f", path)
 
-        tapctl = cls._call(args)
+        tapctl = cls._call(args, True)
 
         for line in tapctl.stdout:
 
@@ -252,7 +254,7 @@ class TapCtl(object):
 
             yield row
 
-        tapctl._wait()
+        tapctl._wait(True)
 
     @classmethod
     @retried(backoff=.5, limit=10)
@@ -337,7 +339,7 @@ class TapCtl(object):
     @classmethod
     def stats(cls, pid, minor):
         args = [ "stats", "-p", pid, "-m", minor ]
-        return cls._pread(args)
+        return cls._pread(args, quiet = True)
 
     @classmethod
     def major(cls):
