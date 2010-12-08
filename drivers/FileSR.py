@@ -349,8 +349,8 @@ class FileVDI(VDI.VDI):
                     raise xs_errors.XenError('VDIType', 
                             opterr='Invalid VDI type %s' % vdi_type)
                 self.vdi_type = self.VDI_TYPE[vdi_type]
-                self.path = os.path.join(self.sr.path, "%s.%s" % \
-                        (vdi_uuid, vdi_type))
+            self.path = os.path.join(self.sr.path, "%s%s" % \
+                    (vdi_uuid, vhdutil.FILE_EXTN[self.vdi_type]))
         else:
             vhd_path = os.path.join(self.sr.path, "%s.%s" % \
                     (vdi_uuid, self.PARAM_VHD))
