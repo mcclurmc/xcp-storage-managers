@@ -67,7 +67,7 @@ class FileSR(SR.SR):
     def load(self, sr_uuid):
         self.ops_exclusive = OPS_EXCLUSIVE
         self.lock = Lock(vhdutil.LOCK_TYPE_SR, self.uuid)
-        self.sr_vditype = lvhdutil.VDI_TYPE_VHD
+        self.sr_vditype = vhdutil.VDI_TYPE_VHD
         if not self.dconf.has_key('location') or  not self.dconf['location']:
             raise xs_errors.XenError('ConfigLocationMissing')
         self.path = self.dconf['location']
@@ -214,7 +214,7 @@ class FileSR(SR.SR):
         if self.vdis:
             return
 
-        pattern = os.path.join(self.path, "*.%s" % FileVDI.FILE_EXTN_VHD)
+        pattern = os.path.join(self.path, "*%s" % vhdutil.FILE_EXTN_VHD)
         try:
             self.vhds = vhdutil.getAllVHDs(pattern, FileVDI.extractUuid)
         except util.CommandException, inst:
@@ -228,9 +228,9 @@ class FileSR(SR.SR):
         # raw VDIs
         files = util.ioretry(lambda: util.listdir(self.path))
         for fn in files:
-            if not fn.endswith(FileVDI.FILE_EXTN_RAW):
+            if not fn.endswith(vhdutil.FILE_EXTN_RAW):
                 continue
-            uuid = fn[:-(len(FileVDI.FILE_EXTN_RAW) + 1)]
+            uuid = fn[:-(len(vhdutil.FILE_EXTN_RAW))]
             self.vdis[uuid] = self.vdi(uuid, True)
 
         # Mark parent VDIs as Read-only and generate virtual allocation
@@ -330,22 +330,18 @@ class FileVDI(VDI.VDI):
     PARAM_VHD = "vhd"
     PARAM_RAW = "raw"
     VDI_TYPE = {
-            PARAM_VHD : lvhdutil.VDI_TYPE_VHD,
-            PARAM_RAW : lvhdutil.VDI_TYPE_RAW
+            PARAM_VHD : vhdutil.VDI_TYPE_VHD,
+            PARAM_RAW : vhdutil.VDI_TYPE_RAW
     }
 
-    FILE_EXTN_VHD = "vhd"
-    FILE_EXTN_RAW = "raw"
-    FILE_EXTN = {
-            lvhdutil.VDI_TYPE_VHD: FILE_EXTN_VHD,
-            lvhdutil.VDI_TYPE_RAW: FILE_EXTN_RAW
-    }
+    SNAPSHOT_SINGLE = 1 # true snapshot: 1 leaf, 1 read-only parent
+    SNAPSHOT_DOUBLE = 2 # regular snapshot/clone that creates 2 leaves
 
     def load(self, vdi_uuid):
         self.lock = self.sr.lock
 
         if self.sr.srcmd.cmd == "vdi_create":
-            self.vdi_type = lvhdutil.VDI_TYPE_VHD
+            self.vdi_type = vhdutil.VDI_TYPE_VHD
             if self.sr.srcmd.params.has_key("vdi_sm_config") and \
                     self.sr.srcmd.params["vdi_sm_config"].has_key("type"):
                 vdi_type = self.sr.srcmd.params["vdi_sm_config"]["type"]
@@ -359,12 +355,12 @@ class FileVDI(VDI.VDI):
             vhd_path = os.path.join(self.sr.path, "%s.%s" % \
                     (vdi_uuid, self.PARAM_VHD))
             if util.ioretry(lambda: util.pathexists(vhd_path)):
-                self.vdi_type = lvhdutil.VDI_TYPE_VHD
+                self.vdi_type = vhdutil.VDI_TYPE_VHD
                 self.path = vhd_path
             else:
                 raw_path = os.path.join(self.sr.path, "%s.%s" % \
                         (vdi_uuid, self.PARAM_RAW))
-                self.vdi_type = lvhdutil.VDI_TYPE_RAW
+                self.vdi_type = vhdutil.VDI_TYPE_RAW
                 self.path = raw_path
                 self.hidden = False
                 if not util.ioretry(lambda: util.pathexists(self.path)):
@@ -373,7 +369,7 @@ class FileVDI(VDI.VDI):
                     raise xs_errors.XenError('VDIUnavailable',
                             opterr="%s not found" % self.path)
 
-        if self.vdi_type == lvhdutil.VDI_TYPE_VHD and \
+        if self.vdi_type == vhdutil.VDI_TYPE_VHD and \
                 self.sr.__dict__.get("vhds") and self.sr.vhds.get(vdi_uuid):
             # VHD info already preloaded: use it instead of querying directly
             vhdInfo = self.sr.vhds[vdi_uuid]
@@ -408,7 +404,7 @@ class FileVDI(VDI.VDI):
                     raise xs_errors.XenError('VDIType', \
                           opterr='Invalid VDI type %s' % self.vdi_type)
 
-            if self.vdi_type == lvhdutil.VDI_TYPE_RAW:
+            if self.vdi_type == vhdutil.VDI_TYPE_RAW:
                 self.exists = True
                 self.size = self.utilisation
                 self.sm_config_override = {'type':self.PARAM_RAW}
@@ -440,7 +436,7 @@ class FileVDI(VDI.VDI):
             raise xs_errors.XenError('VDIExists')
 
         overhead = 0
-        if self.vdi_type == lvhdutil.VDI_TYPE_VHD:
+        if self.vdi_type == vhdutil.VDI_TYPE_VHD:
             overhead = vhdutil.calcOverheadFull(long(size))
 
         # Test the amount of actual disk space
@@ -451,7 +447,7 @@ class FileVDI(VDI.VDI):
             if (sr_size - reserved) < (long(size) + overhead):
                 raise xs_errors.XenError('SRNoSpace')
 
-        if self.vdi_type == lvhdutil.VDI_TYPE_VHD:
+        if self.vdi_type == vhdutil.VDI_TYPE_VHD:
             try:
                 mb = 1024L * 1024L
                 size_mb = util.roundup(VHD_SIZE_INC, long(size)) / mb
@@ -474,7 +470,7 @@ class FileVDI(VDI.VDI):
 
         st = util.ioretry(lambda: os.stat(self.path))
         self.utilisation = long(st.st_size)
-        if self.vdi_type == lvhdutil.VDI_TYPE_RAW:
+        if self.vdi_type == vhdutil.VDI_TYPE_RAW:
             self.sm_config = {"type": self.PARAM_RAW}
 
         self._db_introduce()
@@ -488,7 +484,7 @@ class FileVDI(VDI.VDI):
         if self.attached:
             raise xs_errors.XenError('VDIInUse')
 
-        if self.vdi_type == lvhdutil.VDI_TYPE_VHD:
+        if self.vdi_type == vhdutil.VDI_TYPE_VHD:
             try:
                 util.ioretry(lambda: self._mark_hidden(self.path))
             except util.CommandException, inst:
@@ -535,7 +531,7 @@ class FileVDI(VDI.VDI):
             raise xs_errors.XenError('VDIUnavailable', \
                   opterr='VDI %s unavailable %s' % (vdi_uuid, self.path))
 
-        if self.vdi_type != lvhdutil.VDI_TYPE_VHD:
+        if self.vdi_type != vhdutil.VDI_TYPE_VHD:
             raise xs_errors.XenError('Unimplemented')
 
         if self.hidden:
@@ -576,28 +572,40 @@ class FileVDI(VDI.VDI):
         return VDI.VDI.get_params(self)
 
     def snapshot(self, sr_uuid, vdi_uuid):
-        if self.vdi_type != lvhdutil.VDI_TYPE_VHD:
+        if self.vdi_type != vhdutil.VDI_TYPE_VHD:
             raise xs_errors.XenError('Unimplemented')
+
+        snap_type = self.SNAPSHOT_DOUBLE
+        if self.sr.srcmd.params['driver_params'].get("type") and \
+                self.sr.srcmd.params['driver_params']["type"] == "single":
+            snap_type = self.SNAPSHOT_SINGLE
 
         if not blktap2.VDI.tap_pause(self.session, sr_uuid, vdi_uuid):
             raise util.SMException("failed to pause VDI %s" % vdi_uuid)
         try:
-            return self._snapshot(sr_uuid, vdi_uuid)
+            return self._snapshot(snap_type)
         finally:
             blktap2.VDI.tap_unpause(self.session, sr_uuid, vdi_uuid)
         
     def clone(self, sr_uuid, vdi_uuid):
-        if not self.vdi_type != lvhdutil.VDI_TYPE_VHD:
+        if not self.vdi_type != vhdutil.VDI_TYPE_VHD:
             raise xs_errors.XenError('Unimplemented')
-        return self._snapshot(sr_uuid, vdi_uuid)
+        return self._snapshot(self.SNAPSHOT_DOUBLE)
 
-    def _snapshot(self, sr_uuid, vdi_uuid):
-        dest = util.gen_uuid ()
+    def _snapshot(self, snap_type):
+        util.SMlog("FileVDI._snapshot for %s (type %s)" % (self.uuid, snap_type))
+
         args = []
         args.append("vdi_clone")
-        args.append(sr_uuid)
-        args.append(vdi_uuid)
-        args.append(dest)
+        args.append(self.sr.uuid)
+        args.append(self.uuid)
+
+        dest = None
+        dst = None
+        if snap_type == self.SNAPSHOT_DOUBLE:
+            dest = util.gen_uuid()
+            dst = os.path.join(self.sr.path, "%s.%s" % (dest,self.vdi_type))
+            args.append(dest)
 
         if self.hidden:
             raise xs_errors.XenError('VDIClone', opterr='hidden VDI')
@@ -614,19 +622,21 @@ class FileVDI(VDI.VDI):
             self.sr._loadvdis()
             reserved = self.sr.virtual_allocation
             sr_size = self.sr._getsize()
-            if (sr_size - reserved) < ((self.size + \
-                    VDI.VDIMetadataSize(lvhdutil.VDI_TYPE_VHD, self.size))*2):
+            num_vdis = 2
+            if snap_type == self.SNAPSHOT_SINGLE:
+                num_vdis = 1
+            if (sr_size - reserved) < ((self.size + VDI.VDIMetadataSize( \
+                    vhdutil.VDI_TYPE_VHD, self.size)) * num_vdis):
                 raise xs_errors.XenError('SRNoSpace')
 
         newuuid = util.gen_uuid()
         src = self.path
-        dst = os.path.join(self.sr.path, "%s.%s" % (dest,self.vdi_type))
         newsrc = os.path.join(self.sr.path, "%s.%s" % (newuuid,self.vdi_type))
         newsrcname = "%s.%s" % (newuuid,self.vdi_type)
 
         if not self._checkpath(src):
             raise xs_errors.XenError('VDIUnavailable', \
-                  opterr='VDI %s unavailable %s' % (vdi_uuid, src))
+                  opterr='VDI %s unavailable %s' % (self.uuid, src))
 
         # wkcfix: multiphase
         util.start_log_entry(self.sr.path, self.path, args)
@@ -642,7 +652,9 @@ class FileVDI(VDI.VDI):
                     raise
 
             try:
-                util.ioretry(lambda: self._dualsnap(src, dst, newsrcname))
+                util.ioretry(lambda: self._snap(src, newsrcname))
+                if snap_type == self.SNAPSHOT_DOUBLE:
+                    util.ioretry(lambda: self._snap(dst, newsrcname))
                 # mark the original file (in this case, its newsrc) 
                 # as hidden so that it does not show up in subsequent scans
                 util.ioretry(lambda: self._mark_hidden(newsrc))
@@ -654,21 +666,29 @@ class FileVDI(VDI.VDI):
             introduce_parent = True
             try:
                 srcparent = util.ioretry(lambda: self._query_p_uuid(src))
-                dstparent = util.ioretry(lambda: self._query_p_uuid(dst))
-                if srcparent != newuuid and dstparent != newuuid:
+                dstparent = None
+                if snap_type == self.SNAPSHOT_DOUBLE:
+                    dstparent = util.ioretry(lambda: self._query_p_uuid(dst))
+                if srcparent != newuuid and \
+                        (snap_type == self.SNAPSHOT_SINGLE or \
+                        dstparent != newuuid):
                     util.ioretry(lambda: os.unlink(newsrc))
                     introduce_parent = False
             except:
                 pass
 
             # Introduce the new VDI records
-            leaf_vdi = VDI.VDI(self.sr, dest) # user-visible leaf VDI
-            leaf_vdi.read_only = False
-            leaf_vdi.location = dest
-            leaf_vdi.size = self.size
-            leaf_vdi.utilisation = self.utilisation
-            
+            leaf_vdi = None
+            if snap_type == self.SNAPSHOT_DOUBLE:
+                leaf_vdi = VDI.VDI(self.sr, dest) # user-visible leaf VDI
+                leaf_vdi.read_only = False
+                leaf_vdi.location = dest
+                leaf_vdi.size = self.size
+                leaf_vdi.utilisation = self.utilisation
+                leaf_vdi.sm_config = {}
+                leaf_vdi.sm_config['vhd-parent'] = dstparent
 
+            base_vdi = None
             if introduce_parent:
                 base_vdi = VDI.VDI(self.sr, newuuid) # readonly parent
                 base_vdi.label = "base copy"
@@ -678,12 +698,11 @@ class FileVDI(VDI.VDI):
                 base_vdi.utilisation = self.utilisation
                 base_vdi.sm_config = {}
 
-            leaf_vdi.sm_config = {}
-            leaf_vdi.sm_config['vhd-parent'] = dstparent
-
             try:
-                leaf_vdi_ref = leaf_vdi._db_introduce()
-                util.SMlog("vdi_clone: introduced VDI: %s (%s)" % (leaf_vdi_ref,dest))
+                if snap_type == self.SNAPSHOT_DOUBLE:
+                    leaf_vdi_ref = leaf_vdi._db_introduce()
+                    util.SMlog("vdi_clone: introduced VDI: %s (%s)" % \
+                            (leaf_vdi_ref,dest))
                 
                 if introduce_parent:
                     base_vdi_ref = base_vdi._db_introduce()
@@ -708,7 +727,12 @@ class FileVDI(VDI.VDI):
         util.end_log_entry(self.sr.path, self.path, ["done"])
         self.sr._update(self.sr.uuid, self.size)
         # Return info on the new user-visible leaf VDI
-        return leaf_vdi.get_params()
+        ret_vdi = leaf_vdi
+        if not ret_vdi:
+            ret_vdi = base_vdi
+        if not ret_vdi:
+            ret_vdi = self
+        return ret_vdi.get_params()
             
     def get_params(self):
         if not self._checkpath(self.path):
@@ -716,14 +740,8 @@ class FileVDI(VDI.VDI):
                   opterr='VDI %s unavailable %s' % (self.uuid, self.path))
         return super(FileVDI, self).get_params()
 
-    def _dualsnap(self, src, dst, newsrc):
-        cmd = [SR.TAPDISK_UTIL, "snapshot", lvhdutil.VDI_TYPE_VHD, src, newsrc]
-        text = util.pread(cmd)
-        cmd = [SR.TAPDISK_UTIL, "snapshot", lvhdutil.VDI_TYPE_VHD, dst, newsrc]
-        text = util.pread(cmd)
-
-    def _singlesnap(self, src, dst):
-        cmd = [SR.TAPDISK_UTIL, "snapshot", lvhdutil.VDI_TYPE_VHD, src, dst]
+    def _snap(self, child, parent):
+        cmd = [SR.TAPDISK_UTIL, "snapshot", vhdutil.VDI_TYPE_VHD, child, parent]
         text = util.pread(cmd)
 
     def _clonecleanup(self,src,dst,newsrc):
@@ -732,7 +750,8 @@ class FileVDI(VDI.VDI):
         except util.CommandException, inst:
             pass
         try:
-            util.ioretry(lambda: os.unlink(dst))
+            if dst:
+                util.ioretry(lambda: os.unlink(dst))
         except util.CommandException, inst:
             pass
         try:
@@ -740,16 +759,6 @@ class FileVDI(VDI.VDI):
         except util.CommandException, inst:
             pass
       
-    def _snapcleanup(self,src,dst):
-        try:
-            util.ioretry(lambda: os.unlink(dst))
-        except util.CommandException, inst:
-            pass
-        try:
-            util.ioretry(lambda: os.rename(src,dst))
-        except util.CommandException, inst:
-            pass
-
     def _checkpath(self, path):
         try:
             if not util.ioretry(lambda: util.pathexists(path)):
@@ -760,40 +769,40 @@ class FileVDI(VDI.VDI):
                   opterr='IO error checking path %s' % path)
 
     def _query_v(self, path):
-        cmd = [SR.TAPDISK_UTIL, "query", lvhdutil.VDI_TYPE_VHD, "-v", path]
+        cmd = [SR.TAPDISK_UTIL, "query", vhdutil.VDI_TYPE_VHD, "-v", path]
         return long(util.pread(cmd)) * 1024 * 1024
 
     def _query_p_uuid(self, path):
-        cmd = [SR.TAPDISK_UTIL, "query", lvhdutil.VDI_TYPE_VHD, "-p", path]
+        cmd = [SR.TAPDISK_UTIL, "query", vhdutil.VDI_TYPE_VHD, "-p", path]
         parent = util.pread(cmd)
         parent = parent[:-1]
         ls = parent.split('/')
-        return ls[len(ls) - 1].replace(self.FILE_EXTN_VHD, '')[:-1]
+        return ls[len(ls) - 1].replace(vhdutil.FILE_EXTN_VHD, '')
 
     def _query_info(self, path):
         diskinfo = {}
-        cmd = [SR.TAPDISK_UTIL, "query", lvhdutil.VDI_TYPE_VHD, "-vpf", path]
+        cmd = [SR.TAPDISK_UTIL, "query", vhdutil.VDI_TYPE_VHD, "-vpf", path]
         txt = util.pread(cmd).split('\n')
         diskinfo['size'] = txt[0]
-        lst = [txt[1].split('/')[-1].replace(".%s" % self.FILE_EXTN_VHD, "")]
+        lst = [txt[1].split('/')[-1].replace(vhdutil.FILE_EXTN_VHD, "")]
         for val in filter(util.exactmatch_uuid, lst):
             diskinfo['parent'] = val
         diskinfo['hidden'] = txt[2].split()[1]
         return diskinfo
 
     def _create(self, size, path):
-        cmd = [SR.TAPDISK_UTIL, "create", lvhdutil.VDI_TYPE_VHD, size, path]
+        cmd = [SR.TAPDISK_UTIL, "create", vhdutil.VDI_TYPE_VHD, size, path]
         text = util.pread(cmd)
 
     def _mark_hidden(self, path):
-        cmd = [SR.TAPDISK_UTIL, "set", lvhdutil.VDI_TYPE_VHD, path,
+        cmd = [SR.TAPDISK_UTIL, "set", vhdutil.VDI_TYPE_VHD, path,
                 "hidden", "1"]
         text = util.pread(cmd)
         self.hidden = 1
 
     def extractUuid(path):
         fileName = os.path.basename(path)
-        uuid = fileName.replace(".%s" % FileVDI.FILE_EXTN_VHD, "")
+        uuid = fileName.replace(vhdutil.FILE_EXTN_VHD, "")
         return uuid
     extractUuid = staticmethod(extractUuid)
 

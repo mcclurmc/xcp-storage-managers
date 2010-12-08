@@ -1925,6 +1925,8 @@ def runLeafTests(sr):
     logger.log("====> Test Group: Leaf coalesce", 0)
 
     rawVals = [False, True]
+    if srType != "lvhd":
+        rawVals = [False]
     liveVals = [False, True]
     resizeVals = [0, 100 * tutil.MiB]
     writeBlocks = [1, 100]
@@ -2125,8 +2127,7 @@ def main():
         if testPause:
             runPauseTests(sr)
         if testCoalesce:
-            if srType == "lvhd":
-                runLeafTests(sr)
+            runLeafTests(sr)
             runCoalesceTests(sr)
         if testCaching:
             if srType != "nfs":

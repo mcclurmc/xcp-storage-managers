@@ -34,13 +34,11 @@ MSIZE = long(MSIZE_MB * 1024 * 1024)
 VG_LOCATION = "/dev"
 VG_PREFIX = "VG_XenStorage-"
 
-VDI_TYPE_VHD = 'vhd'
-VDI_TYPE_RAW = 'aio'
 LV_PREFIX = { 
-        VDI_TYPE_VHD : "VHD-",
-        VDI_TYPE_RAW : "LV-",
+        vhdutil.VDI_TYPE_VHD : "VHD-",
+        vhdutil.VDI_TYPE_RAW : "LV-",
 }
-VDI_TYPES = [ VDI_TYPE_VHD, VDI_TYPE_RAW ]
+VDI_TYPES = [ vhdutil.VDI_TYPE_VHD, vhdutil.VDI_TYPE_RAW ]
 
 JRN_INFLATE = "inflate"
 
@@ -124,7 +122,7 @@ def getVDIInfo(lvmCache):
 
     haveVHDs = False
     for uuid, lvInfo in lvs.iteritems():
-        if lvInfo.vdiType == VDI_TYPE_VHD:
+        if lvInfo.vdiType == vhdutil.VDI_TYPE_VHD:
             haveVHDs = True
         vdiInfo = VDIInfo(uuid)
         vdiInfo.vdiType    = lvInfo.vdiType
@@ -138,12 +136,12 @@ def getVDIInfo(lvmCache):
         vdis[uuid]         = vdiInfo
 
     if haveVHDs:
-        pattern = "%s*" % LV_PREFIX[VDI_TYPE_VHD]
+        pattern = "%s*" % LV_PREFIX[vhdutil.VDI_TYPE_VHD]
         vhds = vhdutil.getAllVHDs(pattern, extractUuid, lvmCache.vgName)
         uuids = vdis.keys()
         for uuid in uuids:
             vdi = vdis[uuid]
-            if vdi.vdiType == VDI_TYPE_VHD:
+            if vdi.vdiType == vhdutil.VDI_TYPE_VHD:
                 if not vhds.get(uuid):
                     lvmCache.refresh()
                     if lvmCache.checkLV(vdi.lvName):
@@ -164,7 +162,7 @@ def getVDIInfo(lvmCache):
 def inflate(journaler, srUuid, vdiUuid, size):
     """Expand a VDI LV (and its VHD) to 'size'. If the LV is already bigger
     than that, it's a no-op. Does not change the virtual size of the VDI"""
-    lvName = LV_PREFIX[VDI_TYPE_VHD] + vdiUuid
+    lvName = LV_PREFIX[vhdutil.VDI_TYPE_VHD] + vdiUuid
     vgName = VG_PREFIX + srUuid
     path = os.path.join(VG_LOCATION, vgName, lvName)
     lvmCache = journaler.lvmCache
@@ -199,7 +197,7 @@ def deflate(lvmCache, lvName, size):
 def setSizeVirt(journaler, srUuid, vdiUuid, size, jFile):
     """When resizing the VHD virtual size, we might have to inflate the LV in
     case the metadata size increases"""
-    lvName = LV_PREFIX[VDI_TYPE_VHD] + vdiUuid
+    lvName = LV_PREFIX[vhdutil.VDI_TYPE_VHD] + vdiUuid
     vgName = VG_PREFIX + srUuid
     path = os.path.join(VG_LOCATION, vgName, lvName)
     inflate(journaler, srUuid, vdiUuid, calcSizeVHDLV(size))
@@ -218,7 +216,7 @@ def _tryAcquire(lock):
 
 def attachThin(journaler, srUuid, vdiUuid):
     """Ensure that the VDI LV is expanded to the fully-allocated size"""
-    lvName = LV_PREFIX[VDI_TYPE_VHD] + vdiUuid
+    lvName = LV_PREFIX[vhdutil.VDI_TYPE_VHD] + vdiUuid
     vgName = VG_PREFIX + srUuid
     lock = Lock(vhdutil.LOCK_TYPE_SR, srUuid)
     lvmCache = journaler.lvmCache
@@ -238,7 +236,7 @@ def attachThin(journaler, srUuid, vdiUuid):
 
 def detachThin(session, lvmCache, srUuid, vdiUuid):
     """Shrink the VDI to the minimal size if no one is using it"""
-    lvName = LV_PREFIX[VDI_TYPE_VHD] + vdiUuid
+    lvName = LV_PREFIX[vhdutil.VDI_TYPE_VHD] + vdiUuid
     path = os.path.join(VG_LOCATION, VG_PREFIX + srUuid, lvName)
     lock = Lock(vhdutil.LOCK_TYPE_SR, srUuid)
     _tryAcquire(lock)

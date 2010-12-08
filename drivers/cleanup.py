@@ -411,10 +411,12 @@ class VDI:
 
     STR_TREE_INDENT = 4
 
-    def __init__(self, sr, uuid):
+    def __init__(self, sr, uuid, raw):
         self.sr         = sr
         self.scanError  = True
         self.uuid       = uuid
+        self.raw        = raw
+        self.fileName   = ""
         self.parentUuid = ""
         self.sizeVirt   = -1
         self._sizeVHD   = -1
@@ -601,12 +603,19 @@ class VDI:
         strHidden = ""
         if self.hidden:
             strHidden = "*"
-        strSizeVHD = ""
+        strSizeVirt = "?"
+        if self.sizeVirt > 0:
+            strSizeVirt = Util.num2str(self.sizeVirt)
+        strSizeVHD = "?"
         if self._sizeVHD > 0:
-            strSizeVHD = Util.num2str(self._sizeVHD)
+            strSizeVHD = "/%s" % Util.num2str(self._sizeVHD)
+        strType = ""
+        if self.raw:
+            strType = "[RAW]"
+            strSizeVHD = ""
 
-        return "%s%s(%s/%s)" % (strHidden, self.uuid[0:8],
-                Util.num2str(self.sizeVirt), strSizeVHD)
+        return "%s%s(%s%s)%s" % (strHidden, self.uuid[0:8], strSizeVirt,
+                strSizeVHD, strType)
 
     def validate(self):
         if not vhdutil.check(self.path):
@@ -630,6 +639,7 @@ class VDI:
         self.validate()
         self.parent.validate()
         self.parent._increaseSizeVirt(self.sizeVirt)
+        self.sr._updateSlavesOnResize(self.parent)
         self._coalesceVHD(0)
         self.parent.validate()
         #self._verifyContents(0)
@@ -803,16 +813,23 @@ class VDI:
 class FileVDI(VDI):
     """Object representing a VDI in a file-based SR (EXT or NFS)"""
 
-    FILE_SUFFIX = ".vhd"
-
     def extractUuid(path):
         path = os.path.basename(path.strip())
-        if not path.endswith(FileVDI.FILE_SUFFIX):
+        if not (path.endswith(vhdutil.FILE_EXTN_VHD) or \
+                path.endswith(vhdutil.FILE_EXTN_RAW)):
             return None
-        uuid = path.replace(FileVDI.FILE_SUFFIX, "")
+        uuid = path.replace(vhdutil.FILE_EXTN_VHD, "").replace( \
+                vhdutil.FILE_EXTN_RAW, "")
         # TODO: validate UUID format
         return uuid
     extractUuid = staticmethod(extractUuid)
+
+    def __init__(self, sr, uuid, raw):
+        VDI.__init__(self, sr, uuid, raw)
+        if self.raw:
+            self.fileName = "%s%s" % (self.uuid, vhdutil.FILE_EXTN_RAW)
+        else:
+            self.fileName = "%s%s" % (self.uuid, vhdutil.FILE_EXTN_VHD)
 
     def load(self, info = None):
         if not info:
@@ -831,13 +848,13 @@ class FileVDI(VDI):
         self.hidden     = info.hidden
         self.scanError  = False
         self.path       = os.path.join(self.sr.path, "%s%s" % \
-                (self.uuid, self.FILE_SUFFIX))
+                (self.uuid, vhdutil.FILE_EXTN_VHD))
 
     def rename(self, uuid):
         oldPath = self.path
         VDI.rename(self, uuid)
-        fileName = "%s%s" % (self.uuid, self.FILE_SUFFIX)
-        self.path = os.path.join(self.sr.path, fileName)
+        self.fileName = "%s%s" % (self.uuid, vhdutil.FILE_EXTN_VHD)
+        self.path = os.path.join(self.sr.path, self.fileName)
         assert(not util.pathexists(self.path))
         Util.log("Renaming %s -> %s" % (oldPath, self.path))
         os.rename(oldPath, self.path)
@@ -869,16 +886,15 @@ class LVHDVDI(VDI):
         self.children   = []
         self._sizeVHD   = -1
         self.scanError  = vdiInfo.scanError
-        self.raw        = vdiInfo.vdiType == lvhdutil.VDI_TYPE_RAW
         self.sizeLV     = vdiInfo.sizeLV
         self.sizeVirt   = vdiInfo.sizeVirt
-        self.lvName     = vdiInfo.lvName
+        self.fileName   = vdiInfo.lvName
         self.lvActive   = vdiInfo.lvActive
         self.lvOpen     = vdiInfo.lvOpen
         self.lvReadonly = vdiInfo.lvReadonly
         self.hidden     = vdiInfo.hidden
         self.parentUuid = vdiInfo.parentUuid
-        self.path       = os.path.join(self.sr.path, self.lvName)
+        self.path       = os.path.join(self.sr.path, self.fileName)
 
     def getDriverName(self):
         if self.raw:
@@ -896,7 +912,7 @@ class LVHDVDI(VDI):
             util.fistpoint.activate("LVHDRT_inflating_the_parent",self.sr.uuid)
         finally:
             self.sr.unlock()
-        self.sizeLV = self.sr.lvmCache.getSize(self.lvName)
+        self.sizeLV = self.sr.lvmCache.getSize(self.fileName)
         self._sizeVHD = -1
 
     def deflate(self):
@@ -906,10 +922,10 @@ class LVHDVDI(VDI):
         self._activate()
         self.sr.lock()
         try:
-            lvhdutil.deflate(self.sr.lvmCache, self.lvName, self.getSizeVHD())
+            lvhdutil.deflate(self.sr.lvmCache, self.fileName, self.getSizeVHD())
         finally:
             self.sr.unlock()
-        self.sizeLV = self.sr.lvmCache.getSize(self.lvName)
+        self.sizeLV = self.sr.lvmCache.getSize(self.fileName)
         self._sizeVHD = -1
 
     def inflateFully(self):
@@ -931,17 +947,17 @@ class LVHDVDI(VDI):
 
     def rename(self, uuid):
         oldUuid = self.uuid
-        oldLVName = self.lvName
+        oldLVName = self.fileName
         VDI.rename(self, uuid)
-        self.lvName = lvhdutil.LV_PREFIX[lvhdutil.VDI_TYPE_VHD] + self.uuid
+        self.fileName = lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD] + self.uuid
         if self.raw:
-            self.lvName = lvhdutil.LV_PREFIX[lvhdutil.VDI_TYPE_RAW] + self.uuid
-        self.path = os.path.join(self.sr.path, self.lvName)
-        assert(not self.sr.lvmCache.checkLV(self.lvName))
+            self.fileName = lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_RAW] + self.uuid
+        self.path = os.path.join(self.sr.path, self.fileName)
+        assert(not self.sr.lvmCache.checkLV(self.fileName))
 
-        self.sr.lvmCache.rename(oldLVName, self.lvName)
+        self.sr.lvmCache.rename(oldLVName, self.fileName)
         if self.sr.lvActivator.get(oldUuid, False):
-            self.sr.lvActivator.replace(oldUuid, self.uuid, self.lvName, False)
+            self.sr.lvActivator.replace(oldUuid, self.uuid, self.fileName, False)
 
         ns = lvhdutil.NS_PREFIX_LVM + self.sr.uuid
         (cnt, bcnt) = RefCounter.check(oldUuid, ns)
@@ -954,7 +970,7 @@ class LVHDVDI(VDI):
                     self.uuid)
         self.sr.lock()
         try:
-            self.sr.lvmCache.remove(self.lvName)
+            self.sr.lvmCache.remove(self.fileName)
         finally:
             self.sr.unlock()
         RefCounter.reset(self.uuid, lvhdutil.NS_PREFIX_LVM + self.sr.uuid)
@@ -981,13 +997,13 @@ class LVHDVDI(VDI):
 
     def _loadInfoHidden(self):
         if self.raw:
-            self.hidden = self.sr.lvmCache.getHidden(self.lvName)
+            self.hidden = self.sr.lvmCache.getHidden(self.fileName)
         else:
             VDI._loadInfoHidden(self)
 
     def _setHidden(self, hidden = True):
         if self.raw:
-            self.sr.lvmCache.setHidden(self.lvName, hidden)
+            self.sr.lvmCache.setHidden(self.fileName, hidden)
             self.hidden = hidden
         else:
             VDI._setHidden(self, hidden)
@@ -1019,26 +1035,25 @@ class LVHDVDI(VDI):
         """LVHD parents must first be activated, inflated, and made writable"""
         try:
             self._activateChain()
-            self.sr.lvmCache.setReadonly(self.parent.lvName, False)
+            self.sr.lvmCache.setReadonly(self.parent.fileName, False)
             self.parent.validate()
             self.inflateParentForCoalesce()
             VDI._doCoalesce(self)
         finally:
             self.parent._loadInfoSizeVHD()
             self.parent.deflate()
-            self.sr.lvmCache.setReadonly(self.parent.lvName, True)
-        self.sr._updateSlavesOnResize(self.parent)
+            self.sr.lvmCache.setReadonly(self.parent.fileName, True)
 
     def _setParent(self, parent):
         self._activate()
         if self.lvReadonly:
-            self.sr.lvmCache.setReadonly(self.lvName, False)
+            self.sr.lvmCache.setReadonly(self.fileName, False)
 
         try:
             vhdutil.setParent(self.path, parent.path, parent.raw)
         finally:
             if self.lvReadonly:
-                self.sr.lvmCache.setReadonly(self.lvName, True)
+                self.sr.lvmCache.setReadonly(self.fileName, True)
         self._deactivate()
         self.parent = parent
         self.parentUuid = parent.uuid
@@ -1052,7 +1067,7 @@ class LVHDVDI(VDI):
                      (self.parentUuid, self.uuid))
 
     def _activate(self):
-        self.sr.lvActivator.activate(self.uuid, self.lvName, False)
+        self.sr.lvActivator.activate(self.uuid, self.fileName, False)
 
     def _activateChain(self):
         vdi = self
@@ -1076,7 +1091,7 @@ class LVHDVDI(VDI):
             oldSize = self.sizeLV
             self.sizeLV = util.roundup(lvutil.LVM_SIZE_INCREMENT, size)
             Util.log("  Growing %s: %d->%d" % (self.path, oldSize, self.sizeLV))
-            self.sr.lvmCache.setSize(self.lvName, self.sizeLV)
+            self.sr.lvmCache.setSize(self.fileName, self.sizeLV)
             offset = oldSize
         unfinishedZero = False
         jval = self.sr.journaler.get(self.JRN_ZERO, self.uuid)
@@ -1643,7 +1658,92 @@ class SR:
         return True
 
     def _doCoalesceLeaf(self, vdi):
-        pass # abstract
+        """Actual coalescing of a leaf VDI onto parent. Must be called in an
+        offline/atomic context"""
+        self.journaler.create(VDI.JRN_LEAF, vdi.uuid, vdi.parent.uuid)
+        self._prepareCoalesceLeaf(vdi)
+        vdi.parent._setHidden(False)
+        vdi.parent._increaseSizeVirt(vdi.sizeVirt, False)
+        vdi.validate()
+        vdi.parent.validate()
+        util.fistpoint.activate("LVHDRT_coaleaf_before_coalesce", self.uuid)
+        timeout = vdi.LIVE_LEAF_COALESCE_TIMEOUT
+        if vdi.getConfig(vdi.DB_LEAFCLSC) == vdi.LEAFCLSC_FORCE:
+            Util.log("Leaf-coalesce forced, will not use timeout")
+            timeout = 0
+        vdi._coalesceVHD(timeout)
+        util.fistpoint.activate("LVHDRT_coaleaf_after_coalesce", self.uuid)
+        vdi.parent.validate()
+        #vdi._verifyContents(timeout / 2)
+
+        # rename
+        vdiUuid = vdi.uuid
+        oldName = vdi.fileName
+        origParentUuid = vdi.parent.uuid
+        vdi.rename(self.TMP_RENAME_PREFIX + vdiUuid)
+        util.fistpoint.activate("LVHDRT_coaleaf_one_renamed", self.uuid)
+        vdi.parent.rename(vdiUuid)
+        util.fistpoint.activate("LVHDRT_coaleaf_both_renamed", self.uuid)
+        self._updateSlavesOnRename(vdi.parent, oldName)
+
+        # Note that "vdi.parent" is now the single remaining leaf and "vdi" is 
+        # garbage
+
+        # update the VDI record
+        vdi.parent.delConfig(VDI.DB_VHD_PARENT)
+        if vdi.parent.raw:
+            vdi.parent.setConfig(VDI.DB_VDI_TYPE, vhdutil.VDI_TYPE_RAW)
+        vdi.parent.delConfig(VDI.DB_VHD_BLOCKS)
+        util.fistpoint.activate("LVHDRT_coaleaf_after_vdirec", self.uuid)
+
+        self._updateNode(vdi)
+
+        # delete the obsolete leaf & inflate the parent (in that order, to 
+        # minimize free space requirements)
+        parent = vdi.parent
+        vdi._setHidden(True)
+        vdi.parent.children = []
+        vdi.parent = None
+
+        extraSpace = self._calcExtraSpaceNeeded(vdi, parent)
+        freeSpace = self.getFreeSpace()
+        if freeSpace < extraSpace:
+            # don't delete unless we need the space: deletion is time-consuming 
+            # because it requires contacting the slaves, and we're paused here
+            util.fistpoint.activate("LVHDRT_coaleaf_before_delete", self.uuid)
+            self.deleteVDI(vdi)
+            util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
+        self.xapi.forgetVDI(origParentUuid)
+        self._finishCoalesceLeaf(parent)
+        self._updateSlavesOnResize(parent)
+
+        util.fistpoint.activate("LVHDRT_coaleaf_before_remove_j", self.uuid)
+        self.journaler.remove(VDI.JRN_LEAF, vdiUuid)
+    
+    def _calcExtraSpaceNeeded(self, child, parent):
+        assert(not parent.raw) # raw parents not supported
+        extra = child.getSizeVHD() - parent.getSizeVHD()
+        if extra < 0:
+            extra = 0
+        return extra
+
+    def _prepareCoalesceLeaf(self, vdi):
+        pass
+
+    def _updateNode(self, vdi):
+        pass
+
+    def _finishCoalesceLeaf(self, parent):
+        pass
+
+    def _updateSlavesOnUndoLeafCoalesce(self, parent, child):
+        pass
+
+    def _updateSlavesOnRename(self, vdi, oldName):
+        pass
+
+    def _updateSlavesOnResize(self, vdi):
+        pass
 
     def _removeStaleVDIs(self, uuidsPresent):
         for uuid in self.vdis.keys():
@@ -1651,6 +1751,14 @@ class SR:
                 Util.log("VDI %s disappeared since last scan" % \
                         self.vdis[uuid])
                 del self.vdis[uuid]
+
+    def _handleInterruptedCoalesceLeaf(self):
+        """An interrupted leaf-coalesce operation may leave the VHD tree in an 
+        inconsistent state. If the old-leaf VDI is still present, we revert the 
+        operation (in case the original error is persistent); otherwise we must 
+        finish the operation"""
+        # abstract
+        pass
 
     def _buildTree(self, force):
         self.vdiTrees = []
@@ -1684,6 +1792,10 @@ class FileSR(SR):
         self.path = "/var/run/sr-mount/%s" % self.uuid
         self.journaler = fjournaler.Journaler(self.path)
 
+    def findLeafCoalesceable(self):
+        """Disable leaf-coalesce for File-based SRs"""
+        return None
+
     def scan(self, force = False):
         if not util.pathexists(self.path):
             raise util.SMException("directory %s not found!" % self.uuid)
@@ -1692,18 +1804,27 @@ class FileSR(SR):
             vdi = self.getVDI(uuid)
             if not vdi:
                 self.logFilter.logNewVDI(uuid)
-                vdi = FileVDI(self, uuid)
+                vdi = FileVDI(self, uuid, False)
                 self.vdis[uuid] = vdi
             vdi.load(vhdInfo)
-        self._removeStaleVDIs(vhds.keys())
+        uuidsPresent = vhds.keys()
+        rawList = filter(lambda x: x.endswith(vhdutil.FILE_EXTN_RAW),
+                os.listdir(self.path))
+        for rawName in rawList:
+            uuid = FileVDI.extractUuid(rawName)
+            uuidsPresent.append(uuid)
+            vdi = self.getVDI(uuid)
+            if not vdi:
+                self.logFilter.logNewVDI(uuid)
+                vdi = FileVDI(self, uuid, True)
+                self.vdis[uuid] = vdi
+        self._removeStaleVDIs(uuidsPresent)
         self._buildTree(force)
         self.logFilter.logState()
+        self._handleInterruptedCoalesceLeaf()
 
     def getFreeSpace(self):
         return util.get_fs_size(self.path) - util.get_fs_utilisation(self.path)
-
-    def findLeafCoalesceable(self):
-        return None # not implemented for FileSR
 
     def cleanupCache(self):
         cacheFiles = filter(self._isCacheFileName, os.listdir(self.path))
@@ -1760,7 +1881,7 @@ class FileSR(SR):
     def _scan(self, force):
         for i in range(SR.SCAN_RETRY_ATTEMPTS):
             error = False
-            pattern = os.path.join(self.path, "*%s" % FileVDI.FILE_SUFFIX)
+            pattern = os.path.join(self.path, "*%s" % vhdutil.FILE_EXTN_VHD)
             vhds = vhdutil.getAllVHDs(pattern, FileVDI.extractUuid)
             for uuid, vhdInfo in vhds.iteritems():
                 if vhdInfo.error:
@@ -1797,6 +1918,73 @@ class FileSR(SR):
         Util.log("Checking with slave: %s" % repr(call))
         _host = self.xapi.session.xenapi.host
         text  = _host.call_plugin(*call)
+
+    def _handleInterruptedCoalesceLeaf(self):
+        entries = self.journaler.getAll(VDI.JRN_LEAF)
+        for uuid, parentUuid in entries.iteritems():
+            fileList = os.listdir(self.path)
+            childName = uuid + vhdutil.FILE_EXTN_VHD
+            tmpChildName = self.TMP_RENAME_PREFIX + uuid + vhdutil.FILE_EXTN_VHD
+            parentName1 = parentUuid + vhdutil.FILE_EXTN_VHD
+            parentName2 = parentUuid + vhdutil.FILE_EXTN_RAW
+            parentPresent = (parentName1 in fileList or parentName2 in fileList)
+            if parentPresent or tmpChildName in fileList:
+                self._undoInterruptedCoalesceLeaf(uuid, parentUuid)
+            else:
+                self._finishInterruptedCoalesceLeaf(uuid, parentUuid)
+            self.journaler.remove(VDI.JRN_LEAF, uuid)
+            vdi = self.getVDI(uuid)
+            if vdi:
+                vdi.ensureUnpaused()
+
+    def _undoInterruptedCoalesceLeaf(self, childUuid, parentUuid):
+        Util.log("*** UNDO LEAF-COALESCE")
+        parent = self.getVDI(parentUuid)
+        if not parent:
+            parent = self.getVDI(childUuid)
+            if not parent:
+                raise util.SMException("Neither %s nor %s found" % \
+                        (parentUuid, childUuid))
+            Util.log("Renaming parent back: %s -> %s" % (childUuid, parentUuid))
+            parent.rename(parentUuid)
+        util.fistpoint.activate("LVHDRT_coaleaf_undo_after_rename", self.uuid)
+
+        child = self.getVDI(childUuid)
+        if not child:
+            child = self.getVDI(self.TMP_RENAME_PREFIX + childUuid)
+            if not child:
+                raise util.SMException("Neither %s nor %s found" % \
+                        (childUuid, self.TMP_RENAME_PREFIX + childUuid))
+            Util.log("Renaming child back to %s" % childUuid)
+            child.rename(childUuid)
+            Util.log("Updating the VDI record")
+            child.setConfig(VDI.DB_VHD_PARENT, parentUuid)
+            child.setConfig(VDI.DB_VDI_TYPE, vhdutil.VDI_TYPE_VHD)
+            util.fistpoint.activate("LVHDRT_coaleaf_undo_after_rename2", self.uuid)
+
+        if child.hidden:
+            child._setHidden(False)
+        if not parent.hidden:
+            parent._setHidden(True)
+        self._updateSlavesOnUndoLeafCoalesce(parent, child)
+        util.fistpoint.activate("LVHDRT_coaleaf_undo_end", self.uuid)
+        Util.log("*** leaf-coalesce undo successful")
+        if util.fistpoint.is_active("LVHDRT_coaleaf_stop_after_recovery"):
+            child.setConfig(VDI.DB_LEAFCLSC, VDI.LEAFCLSC_DISABLED)
+
+    def _finishInterruptedCoalesceLeaf(self, childUuid, parentUuid):
+        Util.log("*** FINISH LEAF-COALESCE")
+        vdi = self.getVDI(childUuid)
+        if not vdi:
+            raise util.SMException("VDI %s not found" % childUuid)
+        try:
+            self.xapi.forgetVDI(parentUuid)
+        except XenAPI.Failure:
+            pass
+        self._updateSlavesOnResize(vdi)
+        util.fistpoint.activate("LVHDRT_coaleaf_finish_end", self.uuid)
+        Util.log("*** finished leaf-coalesce successfully")
+
 
 class LVHDSR(SR):
     TYPE = SR.TYPE_LVHD
@@ -1853,7 +2041,8 @@ class LVHDSR(SR):
             vdi = self.getVDI(uuid)
             if not vdi:
                 self.logFilter.logNewVDI(uuid)
-                vdi = LVHDVDI(self, uuid)
+                vdi = LVHDVDI(self, uuid,
+                        vdiInfo.vdiType == vhdutil.VDI_TYPE_RAW)
                 self.vdis[uuid] = vdi
             vdi.load(vdiInfo)
         self._removeStaleVDIs(vdis.keys())
@@ -1892,53 +2081,18 @@ class LVHDSR(SR):
         out of the extended portion of the LV. Do it before pausing the child
         to avoid a protracted downtime"""
         if vdi.parent.raw and vdi.sizeVirt > vdi.parent.sizeVirt:
-            self.lvmCache.setReadonly(vdi.parent.lvName, False)
+            self.lvmCache.setReadonly(vdi.parent.fileName, False)
             vdi.parent._increaseSizeVirt(vdi.sizeVirt)
 
         return SR._liveLeafCoalesce(self, vdi)
 
-    def _doCoalesceLeaf(self, vdi):
-        """Actual coalescing of a leaf VDI onto parent. Must be called in an
-        offline/atomic context"""
+    def _prepareCoalesceLeaf(self, vdi):
         vdi._activateChain()
-        self.journaler.create(VDI.JRN_LEAF, vdi.uuid, vdi.parent.uuid)
-        self.lvmCache.setReadonly(vdi.parent.lvName, False)
-        vdi.parent._setHidden(False)
+        self.lvmCache.setReadonly(vdi.parent.fileName, False)
         vdi.deflate()
         vdi.inflateParentForCoalesce()
-        vdi.parent._increaseSizeVirt(vdi.sizeVirt, False)
-        vdi.validate()
-        vdi.parent.validate()
-        util.fistpoint.activate("LVHDRT_coaleaf_before_coalesce", self.uuid)
-        timeout = vdi.LIVE_LEAF_COALESCE_TIMEOUT
-        if vdi.getConfig(vdi.DB_LEAFCLSC) == vdi.LEAFCLSC_FORCE:
-            Util.log("Leaf-coalesce forced, will not use timeout")
-            timeout = 0
-        vdi._coalesceVHD(timeout)
-        util.fistpoint.activate("LVHDRT_coaleaf_after_coalesce", self.uuid)
-        vdi.parent.validate()
-        #vdi._verifyContents(timeout / 2)
 
-        # rename
-        vdiUuid = vdi.uuid
-        oldNameLV = vdi.lvName
-        origParentUuid = vdi.parent.uuid
-        vdi.rename(self.TMP_RENAME_PREFIX + vdiUuid)
-        util.fistpoint.activate("LVHDRT_coaleaf_one_renamed", self.uuid)
-        vdi.parent.rename(vdiUuid)
-        util.fistpoint.activate("LVHDRT_coaleaf_both_renamed", self.uuid)
-        self._updateSlavesOnRename(vdi.parent, oldNameLV)
-
-        # Note that "vdi.parent" is now the single remaining leaf and "vdi" is 
-        # garbage
-
-        # update the VDI record
-        vdi.parent.delConfig(VDI.DB_VHD_PARENT)
-        if vdi.parent.raw:
-            vdi.parent.setConfig(VDI.DB_VDI_TYPE, lvhdutil.VDI_TYPE_RAW)
-        vdi.parent.delConfig(VDI.DB_VHD_BLOCKS)
-        util.fistpoint.activate("LVHDRT_coaleaf_after_vdirec", self.uuid)
-
+    def _updateNode(self, vdi):
         # fix the refcounts: the remaining node should inherit the binary 
         # refcount from the leaf (because if it was online, it should remain 
         # refcounted as such), but the normal refcount from the parent (because 
@@ -1952,43 +2106,23 @@ class LVHDSR(SR):
         assert(pCnt >= 0)
         RefCounter.set(vdi.parent.uuid, pCnt, cBcnt, ns)
 
-        # delete the obsolete leaf & inflate the parent (in that order, to 
-        # minimize free space requirements)
-        parent = vdi.parent
-        vdi._setHidden(True)
-        vdi.parent.children = []
-        vdi.parent = None
-
-        extraSpace = lvhdutil.calcSizeVHDLV(parent.sizeVirt) - parent.sizeLV
-        freeSpace = self.getFreeSpace()
-        if freeSpace < extraSpace:
-            # don't delete unless we need the space: deletion is time-consuming 
-            # because it requires contacting the slaves, and we're paused here
-            util.fistpoint.activate("LVHDRT_coaleaf_before_delete", self.uuid)
-            self.deleteVDI(vdi)
-            util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
-        self.xapi.forgetVDI(origParentUuid)
+    def _finishCoalesceLeaf(self, parent):
         if not parent.isSnapshot() or parent.isAttachedRW():
             parent.inflateFully()
         else:
             parent.deflate()
-        self._updateSlavesOnResize(parent)
 
-        util.fistpoint.activate("LVHDRT_coaleaf_before_remove_j", self.uuid)
-        self.journaler.remove(VDI.JRN_LEAF, vdiUuid)
+    def _calcExtraSpaceNeeded(self, child, parent):
+        return lvhdutil.calcSizeVHDLV(parent.sizeVirt) - parent.sizeLV
 
     def _handleInterruptedCoalesceLeaf(self):
-        """An interrupted leaf-coalesce operation may leave the VHD tree in an 
-        inconsistent state. If the old-leaf VDI is still present, we revert the 
-        operation (in case the original error is persistent); otherwise we must 
-        finish the operation"""
         entries = self.journaler.getAll(VDI.JRN_LEAF)
         for uuid, parentUuid in entries.iteritems():
-            childLV = lvhdutil.LV_PREFIX[lvhdutil.VDI_TYPE_VHD] + uuid
-            tmpChildLV = lvhdutil.LV_PREFIX[lvhdutil.VDI_TYPE_VHD] + \
+            childLV = lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD] + uuid
+            tmpChildLV = lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD] + \
                     self.TMP_RENAME_PREFIX + uuid
-            parentLV1 = lvhdutil.LV_PREFIX[lvhdutil.VDI_TYPE_VHD] + parentUuid
-            parentLV2 = lvhdutil.LV_PREFIX[lvhdutil.VDI_TYPE_RAW] + parentUuid
+            parentLV1 = lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD] + parentUuid
+            parentLV2 = lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_RAW] + parentUuid
             parentPresent = (self.lvmCache.checkLV(parentLV1) or \
                     self.lvmCache.checkLV(parentLV2))
             if parentPresent or self.lvmCache.checkLV(tmpChildLV):
@@ -2022,7 +2156,7 @@ class LVHDSR(SR):
             child.rename(childUuid)
             Util.log("Updating the VDI record")
             child.setConfig(VDI.DB_VHD_PARENT, parentUuid)
-            child.setConfig(VDI.DB_VDI_TYPE, lvhdutil.VDI_TYPE_VHD)
+            child.setConfig(VDI.DB_VDI_TYPE, vhdutil.VDI_TYPE_VHD)
             util.fistpoint.activate("LVHDRT_coaleaf_undo_after_rename2", self.uuid)
 
             # refcount (best effort - assume that it had succeeded if the 
@@ -2043,7 +2177,7 @@ class LVHDSR(SR):
         if not parent.hidden:
             parent._setHidden(True)
         if not parent.lvReadonly:
-            self.lvmCache.setReadonly(parent.lvName, True)
+            self.lvmCache.setReadonly(parent.fileName, True)
         self._updateSlavesOnUndoLeafCoalesce(parent, child)
         util.fistpoint.activate("LVHDRT_coaleaf_undo_end", self.uuid)
         Util.log("*** leaf-coalesce undo successful")
@@ -2072,7 +2206,7 @@ class LVHDSR(SR):
         where the Agent thinks a host is offline but the host is up."""
         args = {"vgName" : self.vgName,
                 "action1": "deactivateNoRefcount",
-                "lvName1": vdi.lvName,
+                "lvName1": vdi.fileName,
                 "action2": "cleanupLock",
                 "uuid2"  : vdi.uuid,
                 "ns2"    : lvhdutil.NS_PREFIX_LVM + self.uuid}
@@ -2098,20 +2232,20 @@ class LVHDSR(SR):
                     child)
             return
 
-        tmpName = lvhdutil.LV_PREFIX[lvhdutil.VDI_TYPE_VHD] + \
+        tmpName = lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD] + \
                 self.TMP_RENAME_PREFIX + child.uuid
         args = {"vgName" : self.vgName,
                 "action1": "deactivateNoRefcount",
                 "lvName1": tmpName,
                 "action2": "deactivateNoRefcount",
-                "lvName2": child.lvName,
+                "lvName2": child.fileName,
                 "action3": "refresh",
-                "lvName3": child.lvName,
+                "lvName3": child.fileName,
                 "action4": "refresh",
-                "lvName4": parent.lvName}
+                "lvName4": parent.fileName}
         for slave in slaves:
             Util.log("Updating %s, %s, %s on slave %s" % \
-                    (tmpName, child.lvName, parent.lvName, slave))
+                    (tmpName, child.fileName, parent.fileName, slave))
             text = self.xapi.session.xenapi.host.call_plugin( \
                     slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
             Util.log("call-plugin returned: '%s'" % text)
@@ -2126,10 +2260,10 @@ class LVHDSR(SR):
                 "action1": "deactivateNoRefcount",
                 "lvName1": oldNameLV,
                 "action2": "refresh",
-                "lvName2": vdi.lvName}
+                "lvName2": vdi.fileName}
         for slave in slaves:
             Util.log("Updating %s to %s on slave %s" % \
-                    (oldNameLV, vdi.lvName, slave))
+                    (oldNameLV, vdi.fileName, slave))
             text = self.xapi.session.xenapi.host.call_plugin( \
                     slave, self.xapi.PLUGIN_ON_SLAVE, "multi", args)
             Util.log("call-plugin returned: '%s'" % text)
@@ -2141,7 +2275,7 @@ class LVHDSR(SR):
             util.SMlog("Update-on-resize: %s not attached on any slave" % vdi)
             return
         lvhdutil.lvRefreshOnSlaves(self.xapi.session, self.uuid, self.vgName,
-                vdi.lvName, vdi.uuid, slaves)
+                vdi.fileName, vdi.uuid, slaves)
 
 
 ################################################################################
