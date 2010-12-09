@@ -2409,15 +2409,23 @@ Parameters:
     -a --abort       abort any currently running operation (GC or coalesce)
     -q --query       query the current state (GC'ing, coalescing or not running)
     -x --disable     disable GC/coalesce (will be in effect until you exit)
+    -t --debug       see Debug below
 
 Options:
     -b --background  run in background (return immediately) (valid for -g only)
     -f --force       continue in the presence of VHDs with errors (when doing
                      GC, this might cause removal of any such VHDs) (only valid
                      for -G) (DANGEROUS)
+
+Debug:
+    The --debug parameter enables manipulation of LVHD VDIs for debugging
+    purposes.  ** NEVER USE IT ON A LIVE VM **
+    The following parameters are required:
+    -t --debug <cmd> <cmd> is one of "activate", "deactivate", "inflate",
+                     "deflate".
+    -v --vdi_uuid    VDI UUID
     """
    #-d --dry-run     don't actually perform any SR-modifying operations
-   #-t               perform a custom operation (for testing)
     print output
     Util.log("(Invalid usage)")
     sys.exit(1)
@@ -2535,6 +2543,34 @@ def get_coalesceable_leaves(session, srUuid, vdiUuids):
             coalesceable.append(uuid)
     return coalesceable
 
+def debug(sr_uuid, cmd, vdi_uuid):
+    Util.log("Debug command: %s" % cmd)
+    sr = SR.getInstance(sr_uuid, None)
+    if not isinstance(sr, LVHDSR):
+        print "Error: not an LVHD SR"
+        return
+    sr.scanLocked()
+    vdi = sr.getVDI(vdi_uuid)
+    if not vdi:
+        print "Error: VDI %s not found"
+        return
+    print "Running %s on SR %s" % (cmd, sr)
+    print "VDI before: %s" % vdi
+    if cmd == "activate":
+        vdi._activate()
+        print "VDI file: %s" % vdi.path
+    if cmd == "deactivate":
+        ns = lvhdutil.NS_PREFIX_LVM + sr.uuid
+        sr.lvmCache.deactivate(ns, vdi.uuid, vdi.fileName, False)
+    if cmd == "inflate":
+        vdi.inflateFully()
+        sr.cleanup()
+    if cmd == "deflate":
+        vdi.deflate()
+        sr.cleanup()
+    sr.scanLocked()
+    print "VDI after:  %s" % vdi
+
 ##############################################################################
 #
 #  CLI
@@ -2545,10 +2581,11 @@ def main():
     background = False
     force      = False
     dryRun     = False
-    test       = False
-    shortArgs  = "gGaqxu:bfdt"
+    debug_cmd  = ""
+    vdi_uuid   = ""
+    shortArgs  = "gGaqxu:bfdt:v:"
     longArgs   = ["gc", "gc_force", "abort", "query", "disable",
-            "uuid", "background", "force", "dry-run", "test"]
+            "uuid=", "background", "force", "dry-run", "debug=", "vdi_uuid="]
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], shortArgs, longArgs)
@@ -2574,12 +2611,19 @@ def main():
         if o in ("-d", "--dry-run"):
             Util.log("Dry run mode")
             dryRun = True
-        if o in ("-t"):
-            action = "test"
+        if o in ("-t", "--debug"):
+            action = "debug"
+            debug_cmd = a
+        if o in ("-v", "--vdi_uuid"):
+            vdi_uuid = a
 
     if not action or not uuid:
         usage()
-    elif action != "query":
+    if action == "debug" and not (debug_cmd and vdi_uuid) or \
+            action != "debug" and (debug_cmd or vdi_uuid):
+        usage()
+
+    if action != "query" and action != "debug":
         print "All output goes in %s" % LOG_FILE
 
     if action == "gc":
@@ -2596,9 +2640,8 @@ def main():
         raw_input("Press enter to re-enable...")
         print "GC/coalesce re-enabled"
         lockRunning.release()
-    elif action == "test":
-        Util.log("Test operation")
-        pass
+    elif action == "debug":
+        debug(uuid, debug_cmd, vdi_uuid)
 
 
 if __name__ == '__main__':
