@@ -28,7 +28,7 @@ import cleanup
 CAPABILITIES = ["SR_PROBE","SR_UPDATE", "SR_CACHING",
                 "VDI_CREATE","VDI_DELETE","VDI_ATTACH","VDI_DETACH",
                 "VDI_UPDATE", "VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE",
-                "VDI_RESIZE_ONLINE", "VDI_GENERATE_CONFIG",
+                "VDI_RESIZE_ONLINE",
                 "VDI_RESET_ON_BOOT", "ATOMIC_PAUSE"]
 
 CONFIGURATION = [ [ 'server', 'hostname or IP address of NFS server (required)' ], \
