@@ -270,7 +270,7 @@ class LVHDoISCSISR(LVHDSR.LVHDSR):
             LVHDSR.LVHDSR.create(self, sr_uuid, size)
         except Exception, inst:
             self.iscsi.detach(sr_uuid)
-            raise SR.SROSError(inst.errno, inst)
+            raise xs_errors.XenError("SRUnavailable", opterr=inst)
         self.iscsi.detach(sr_uuid)
 
     def delete(self, sr_uuid):
@@ -293,7 +293,7 @@ class LVHDoISCSISR(LVHDSR.LVHDSR):
         except Exception, inst:
             for i in self.iscsiSRs:
                 i.detach(sr_uuid)
-            raise SR.SROSError(inst.errno, inst)
+            raise xs_errors.XenError("SRUnavailable", opterr=inst)
         self._setMultipathableFlag(SCSIid=self.SCSIid)
         
     def detach(self, sr_uuid):
