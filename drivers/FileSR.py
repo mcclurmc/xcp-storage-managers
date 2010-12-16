@@ -588,7 +588,7 @@ class FileVDI(VDI.VDI):
             blktap2.VDI.tap_unpause(self.session, sr_uuid, vdi_uuid)
         
     def clone(self, sr_uuid, vdi_uuid):
-        if not self.vdi_type != vhdutil.VDI_TYPE_VHD:
+        if self.vdi_type != vhdutil.VDI_TYPE_VHD:
             raise xs_errors.XenError('Unimplemented')
         return self._snapshot(self.SNAPSHOT_DOUBLE)
 
