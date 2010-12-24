@@ -72,7 +72,7 @@ def soft_mount(mountpoint, remoteserver, remotepath, transport):
 
     # CA-27534: don't cache directory attributes.
     # so slaves follow snapshot name flips consistently.
-    options += 'acdirmin=0,acdirmax=0'
+    options += ',acdirmin=0,acdirmax=0'
 
     try:
         util.ioretry(lambda: 
