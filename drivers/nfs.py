@@ -66,9 +66,14 @@ def soft_mount(mountpoint, remoteserver, remotepath, transport):
         raise NfsException("Failed to make directory: code is %d" % 
                             inst.code)
 
-    options = "soft,timeo=%d,retrans=%d,%s,noac" % (SOFTMOUNT_TIMEOUT,
+    options = "soft,timeo=%d,retrans=%d,%s" % (SOFTMOUNT_TIMEOUT,
                                                SOFTMOUNT_RETRANS,
                                                transport)
+
+    # CA-27534: don't cache directory attributes.
+    # so slaves follow snapshot name flips consistently.
+    options += 'acdirmin=0,acdirmax=0'
+
     try:
         util.ioretry(lambda: 
                      util.pread(["mount.nfs", "%s:%s" 

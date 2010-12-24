@@ -434,10 +434,6 @@ def get_fs_utilisation(path):
     return (st[statvfs.F_BLOCKS] - st[statvfs.F_BFREE]) * \
             st[statvfs.F_FRSIZE]
 
-def get_mtime(path):
-    st = ioretry_stat(lambda: os.stat(path))
-    return st[stat.ST_MTIME]
-
 def ismount(path):
     """Test whether a path is a mount point"""
     try:
