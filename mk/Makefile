@@ -73,6 +73,14 @@ PEXPECT_DIST := $(CARBON_DISTFILES)/sm/pexpect-2.3.tar.gz
 PEXPECT_SRC := $(MY_OBJ_DIR)/pexpect-2.3
 PYTHON_DEST := $(SM_STAGING)/usr/lib/python2.4
 
+ISA_DIST := $(CARBON_DISTFILES)/sm/ISA.tar.gz
+ISA_SRC := $(MY_OBJ_DIR)/ISA
+ISA_INSTALL := ISA-Install.sh
+
+WINSA_DIST := $(CARBON_DISTFILES)/sm/WinSA.zip
+
+SH := /bin/sh
+
 .PHONY: build
 build: $(PKG) $(MY_SOURCES)/MANIFEST
 	@ :
@@ -138,6 +146,10 @@ $(SM_STAMP):
 	install -m 755 -o root -g root $(REPO)/drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
 	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats
 	@touch $@
+	cd $(MY_OBJ_DIR) && tar zxf $(ISA_DIST)
+	cd $(ISA_SRC) && $(SH) -c './$(ISA_INSTALL)'
+	cd $(SM_DEST) && cp -rf $(WINSA_DIST) .
+
 
 $(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP)
 	echo sm attrib file $(PEXPECT_DIST) > $@
