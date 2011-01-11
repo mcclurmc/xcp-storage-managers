@@ -20,6 +20,9 @@ import vhdutil
 
 PLUGIN_TAP_PAUSE = "tapdisk-pause"
 
+ENABLE_MULTIPLE_ATTACH = "/etc/xensource/allow_multiple_vdi_attach"
+NO_MULTIPLE_ATTACH = not (os.path.exists(ENABLE_MULTIPLE_ATTACH)) 
+
 def locking(excType, override=True):
     def locking2(op):
         def wrapper(self, *args):
@@ -1225,7 +1228,7 @@ class VDI(object):
         vdi_ref = self._session.xenapi.VDI.get_by_uuid(vdi_uuid)
         host_ref = self._session.xenapi.host.get_by_uuid(util.get_this_host())
         sm_config = self._session.xenapi.VDI.get_sm_config(vdi_ref)
-        if util.is_attached_rw(sm_config):
+        if NO_MULTIPLE_ATTACH and util.is_attached_rw(sm_config):
             raise util.SMException("VDI %s already attached RW" % vdi_uuid)
         if sm_config.has_key('paused'):
             util.SMlog("Paused or host_ref key found [%s]" % sm_config)
