@@ -106,7 +106,7 @@ class TapCtl(object):
 
         def __getattr__(self, key):
             if self.info.has_key(key): return self.info[key]
-            return object.__getattribute__(self, name)
+            return object.__getattribute__(self, key)
 
     @classmethod
     def __mkcmd_real(cls, args):
