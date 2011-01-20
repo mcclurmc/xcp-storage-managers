@@ -140,17 +140,28 @@ class ISOSR(SR.SR):
         """Create a VDI class.  If the VDI does not exist, we determine
         here what its filename should be."""
 
-        if 'vdi_location' in self.srcmd.params:
-            filename = util.to_plain_string(self.srcmd.params['vdi_location'])
-        else:
+        filename = util.to_plain_string(self.srcmd.params.get('vdi_location'))
+        if filename is None:
+            smconfig = self.srcmd.params.get('vdi_sm_config')
+            if smconfig is None:
+                # uh, oh, a VDI.from_uuid()
+                import XenAPI
+                _VDI = self.session.xenapi.VDI
+                try:
+                    vdi_ref  = _VDI.get_by_uuid(uuid)
+                except XenAPI.Failure, e:
+                    if e.details[0] != 'UUID_INVALID': raise
+                else:
+                    filename = _VDI.get_location(vdi_ref)
+
+        if filename is None:
             # Get the filename from sm-config['path'], or use the UUID
             # if the path param doesn't exist.
-            smconfig = self.srcmd.params['vdi_sm_config']
-            if smconfig.has_key('path'):
+            if smconfig and smconfig.has_key('path'):
                 filename = smconfig['path']
                 if not self.vdi_path_regex.match(filename):
                     raise xs_errors.XenError('VDICreate', \
-                     opterr='Invalid path "%s"' % filename)
+                                                 opterr='Invalid path "%s"' % filename)
             else:
                 filename = '%s.img' % uuid
 

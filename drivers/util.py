@@ -78,6 +78,8 @@ def roundup(divisor, value):
     return value
 
 def to_plain_string(obj):
+    if obj is None:
+        return None
     if type(obj) == str:
         return obj
     if type(obj) == unicode:
