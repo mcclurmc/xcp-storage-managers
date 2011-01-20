@@ -910,8 +910,8 @@ class VDI(object):
     VDI_PLUG_TYPE = { 'phy'  : 'phy',  # for NETAPP
                       'raw'  : 'phy',
                       'aio'  : 'tap',  # for LVHD raw nodes
-                      'iso'  : 'loop', # for ISOSR
-                      'file' : 'loop',
+                      'iso'  : 'tap', # for ISOSR
+                      'file' : 'tap',
                       'vhd'  : 'tap' }
 
     def tap_wanted(self):
@@ -927,11 +927,6 @@ class VDI(object):
                                          self.target.vdi)
 
         if plug_type == 'tap': return True
-
-        # NB. Loop device support currently remains in the agent, and
-        # we cannot preempt it. But we will eventually replace it.
-
-        if plug_type == 'loop': return False
 
         # 2. Otherwise, there may be more reasons
         #
