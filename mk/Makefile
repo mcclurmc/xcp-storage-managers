@@ -73,9 +73,9 @@ PEXPECT_DIST := $(CARBON_DISTFILES)/sm/pexpect-2.3.tar.gz
 PEXPECT_SRC := $(MY_OBJ_DIR)/pexpect-2.3
 PYTHON_DEST := $(SM_STAGING)/usr/lib/python2.4
 
-ISA_DIST := $(CARBON_DISTFILES)/sm/ISA.tar.gz
-ISA_SRC := $(MY_OBJ_DIR)/ISA
-ISA_INSTALL := ISA-Install.sh
+ISA_DIST := $(CARBON_DISTFILES)/sm/iSL-patch.tar.gz
+ISA_SRC := $(MY_OBJ_DIR)/iSL-patch
+ISA_INSTALL := iSL-Install.sh
 
 WINSA_DIST := $(CARBON_DISTFILES)/sm/WinSA.zip
 
