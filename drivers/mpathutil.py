@@ -47,10 +47,14 @@ def status():
     for line in (mpath_cli.get_all_topologies()):
         print line
 
+def resize(scsi_id):
+    mpath_cli.resize_map(scsi_id)
+
 def usage():
     print "Usage:";
     print "%s add <scsi_id>" % sys.argv[0]
     print "%s remove <scsi_id>" % sys.argv[0]
+    print "%s resize <scsi_id>" % sys.argv[0]
     print "%s list" % sys.argv[0]
     print "%s status" % sys.argv[0]
 
@@ -79,6 +83,8 @@ def main():
             add(scsi_id)
         elif mode=="remove":
             remove(scsi_id)
+        elif mode=="resize":
+            resize(scsi_id)
         else:
             usage()
             sys.exit(-1)
