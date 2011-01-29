@@ -304,10 +304,12 @@ class TapCtl(object):
         cls._pread(args)
 
     @classmethod
-    def open(cls, pid, minor, _type, _file, lcache = False, existing_prt = -1,
-            secondary = None, standby = False):
+    def open(cls, pid, minor, _type, _file, rdonly,
+             lcache = False, existing_prt = -1, secondary = None, standby = False):
         params = Tapdisk.Arg(_type, _file)
         args = [ "open", "-p", pid, "-m", minor, '-a', str(params) ]
+        if rdonly:
+            args.append('-R')
         if lcache:
             args.append("-r")
         if existing_prt >= 0:
@@ -669,10 +671,10 @@ class Tapdisk(object):
     @classmethod
     def launch_from_arg(cls, arg):
         arg = cls.Arg.parse(arg)
-        return cls.launch(arg.path, arg.type)
+        return cls.launch(arg.path, arg.type, False)
 
     @classmethod
-    def launch_on_tap(cls, blktap, path, _type, 
+    def launch_on_tap(cls, blktap, path, _type, rdonly,
                       lcache = False, existing_prt = -1,
                       secondary = None, standby = False):
 
@@ -689,8 +691,8 @@ class Tapdisk(object):
                 TapCtl.attach(pid, minor)
 
                 try:
-                    TapCtl.open(pid, minor, _type, path, lcache, 
-                                existing_prt, secondary, standby)
+                    TapCtl.open(pid, minor, _type, path, rdonly,
+                                lcache, existing_prt, secondary, standby)
 
                     try:
                         return cls.__from_blktap(blktap)
@@ -716,10 +718,10 @@ class Tapdisk(object):
             raise TapdiskFailed(cls.Arg(_type, path), ctl)
 
     @classmethod
-    def launch(cls, path, _type):
+    def launch(cls, path, _type, rdonly):
         blktap = Blktap.allocate()
         try:
-            return cls.launch_on_tap(blktap, path, _type)
+            return cls.launch_on_tap(blktap, path, _type, rdonly)
         except:
             blktap.free()
             raise
@@ -1119,7 +1121,7 @@ class VDI(object):
     # soon as ISOs are tapdisks.
 
     @staticmethod
-    def _tap_activate(phy_path, vdi_type, sr_uuid):
+    def _tap_activate(phy_path, vdi_type, sr_uuid, writable):
 
         tapdisk = Tapdisk.find_by_path(phy_path)
         if not tapdisk:
@@ -1132,7 +1134,8 @@ class VDI(object):
                 tapdisk = \
                     Tapdisk.launch_on_tap(blktap,
                                           phy_path,
-                                          VDI._tap_type(vdi_type))
+                                          VDI._tap_type(vdi_type),
+                                          not writable)
             except:
                 blktap.free()
                 raise
@@ -1213,10 +1216,8 @@ class VDI(object):
             return False
 
 
-    def _add_tag(self, vdi_uuid):
+    def _add_tag(self, vdi_uuid, writable):
         util.SMlog("Adding tag to: %s" % vdi_uuid)
-        writable = ('args' not in self.target.vdi.sr.srcmd.params) or \
-                (self.target.vdi.sr.srcmd.params['args'][0] == "true")
         attach_mode = "RO"
         if writable:
             attach_mode = "RW"
@@ -1261,23 +1262,24 @@ class VDI(object):
         else:
             util.SMlog("WARNING: host key %s not found!" % host_key)
 
-    def attach(self, sr_uuid, vdi_uuid, activate = False):
+    def attach(self, sr_uuid, vdi_uuid, writable, activate = False):
         """Return/dev/sm/backend symlink path"""
         if not self.target.has_cap("ATOMIC_PAUSE") or activate:
             util.SMlog("Attach & activate")
             self._attach(sr_uuid, vdi_uuid)
-            dev_path = self._activate(sr_uuid, vdi_uuid, {})
+            dev_path = self._activate(sr_uuid, vdi_uuid, writable, {})
             self.BackendLink.from_uuid(sr_uuid, vdi_uuid).mklink(dev_path)
 
         # Return backend/ link
         back_path = self.BackendLink.from_uuid(sr_uuid, vdi_uuid).path()
         return xmlrpclib.dumps((back_path,), "", True)
 
-    def activate(self, sr_uuid, vdi_uuid, caching_params):
+    def activate(self, sr_uuid, vdi_uuid, writable, caching_params):
         util.SMlog("blktap2.activate")
         for i in range(self.ATTACH_DETACH_RETRY_SECS):
             try:
-                if self._activate_locked(sr_uuid, vdi_uuid, caching_params):
+                if self._activate_locked(sr_uuid, vdi_uuid,
+                                         writable, caching_params):
                     return
             except util.SRBusyException:
                 util.SMlog("SR locked, retrying")
@@ -1285,13 +1287,13 @@ class VDI(object):
         raise util.SMException("VDI %s locked" % vdi_uuid)
 
     @locking("VDIUnavailable")
-    def _activate_locked(self, sr_uuid, vdi_uuid, caching_params):
+    def _activate_locked(self, sr_uuid, vdi_uuid, writable, caching_params):
         """Wraps target.activate and adds a tapdisk"""
         import VDI as sm
 
         #util.SMlog("VDI.activate %s" % vdi_uuid)
         if self.tap_wanted():
-            if not self._add_tag(vdi_uuid):
+            if not self._add_tag(vdi_uuid, writable):
                 return False
             # it is possible that while the VDI was paused some of its 
             # attributes have changed (e.g. its size if it was inflated; or its 
@@ -1309,7 +1311,7 @@ class VDI(object):
                 self._attach(sr_uuid, vdi_uuid)
 
             # Activate the physical node
-            dev_path = self._activate(sr_uuid, vdi_uuid, caching_params)
+            dev_path = self._activate(sr_uuid, vdi_uuid, writable, caching_params)
         except:
             util.SMlog("Exception in activate/attach")
             if self.tap_wanted():
@@ -1320,7 +1322,7 @@ class VDI(object):
         self.BackendLink.from_uuid(sr_uuid, vdi_uuid).mklink(dev_path)
         return True
 
-    def _activate(self, sr_uuid, vdi_uuid, caching_params):
+    def _activate(self, sr_uuid, vdi_uuid, writable, caching_params):
         self.target.activate(sr_uuid, vdi_uuid)
 
         dev_path = self.setup_cache(sr_uuid, vdi_uuid, caching_params)
@@ -1329,7 +1331,7 @@ class VDI(object):
             # Maybe launch a tapdisk on the physical link
             if self.tap_wanted():
                 vdi_type = self.target.get_vdi_type()
-                dev_path = self._tap_activate(phy_path, vdi_type, sr_uuid)
+                dev_path = self._tap_activate(phy_path, vdi_type, sr_uuid, writable)
             else:
                 dev_path = phy_path # Just reuse phy
 
@@ -1528,6 +1530,7 @@ class VDI(object):
                 prt_tapdisk = \
                     Tapdisk.launch_on_tap(blktap,
                                           read_cache_path, 'vhd',
+                                          rdonly=True,
                                           lcache=True)
             except:
                 blktap.free()
@@ -1544,6 +1547,7 @@ class VDI(object):
                 leaf_tapdisk = \
                     Tapdisk.launch_on_tap(blktap,
                                           local_leaf_path, 'vhd',
+                                          rdonly=False,
                                           lcache=False,
                                           existing_prt=prt_tapdisk.minor,
                                           secondary=secondary,
