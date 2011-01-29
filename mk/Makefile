@@ -147,7 +147,7 @@ $(SM_STAMP):
 	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats
 	@touch $@
 	cd $(MY_OBJ_DIR) && tar zxf $(ISA_DIST)
-	cd $(ISA_SRC) && $(SH) -c './$(ISA_INSTALL)'
+	#cd $(ISA_SRC) && $(SH) -c './$(ISA_INSTALL)'
 	cd $(SM_DEST) && cp -rf $(WINSA_DIST) .
 
 
