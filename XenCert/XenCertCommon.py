@@ -29,6 +29,9 @@ __nfs_args__ = [
 __lvmohba_args__ = [
     ["adapters",       "comma separated list of HBAs to test against", " : ", None,        "optional", "-a", ""   ] ]
 
+__isl_args__ = [
+    ["file",       "configuration file describing target array paramters", " : ", None,        "required", "-F", ""   ] ]
+
 __lvmoiscsi__ = [
     ["target",          "comma separated list of Target names/IP addresses", " : ", None,        "required", "-t", ""      ],
     ["targetIQN",       "comma separated list of target IQNs OR \"*\"", " : ", None,        "required", "-q", ""      ],
@@ -69,7 +72,13 @@ def parse_args(version_string):
                        default=element[3],
                        help=element[1],
                        dest=element[0])
-    
+   
+    for element in __isl_args__:
+        opt.add_option(element[5], element[6],
+                       default=element[3],
+                       help=element[1],
+                       dest=element[0])
+
     for element in __lvmoiscsi__:
         opt.add_option(element[5], element[6],
                        default=element[3],
@@ -102,7 +111,7 @@ def store_configuration(g_storage_conf, options):
 
 def valid_arguments(options, g_storage_conf):
     """ validate arguments """
-    if not options.storage_type in ["lvmohba", "nfs", "lvmoiscsi"]:
+    if not options.storage_type in ["lvmohba", "nfs", "lvmoiscsi", "isl"]:
         Print("Error: storage type (lvmohba, nfs or lvmoiscsi) is required")
         return 0
 
@@ -121,6 +130,8 @@ def valid_arguments(options, g_storage_conf):
         subargs = __nfs_args__
     elif options.storage_type == "lvmohba":
         subargs = __lvmohba_args__
+    elif options.storage_type == "isl":
+        subargs = __isl_args__
     elif options.storage_type == "lvmoiscsi":
         subargs = __lvmoiscsi__
 
@@ -149,6 +160,9 @@ def GetStorageHandler(g_storage_conf):
     if g_storage_conf["storage_type"] == "nfs":
         return StorageHandler.StorageHandlerNFS(g_storage_conf)
     
+    if g_storage_conf["storage_type"] == "isl":
+        return StorageHandler.StorageHandlerISL(g_storage_conf)
+
     return None
 
 def DisplayCommonOptions():
@@ -172,6 +186,11 @@ def DisplayHBAOptions():
     Print(" Storage type lvmohba:\n")
     for item in __lvmohba_args__:
         printHelpItem(item)    
+
+def DisplayiSLOptions():
+    Print(" Storage type isl:\n")
+    for item in __isl_args__:
+        printHelpItem(item)    
   
 def DisplayTestSpecificOptions():
     Print("Test specific options:")
@@ -181,17 +200,21 @@ def DisplayTestSpecificOptions():
 
 def DisplayStorageSpecificUsage(storage_type):
     if storage_type == 'lvmoiscsi':
-	DisplayiSCSIOptions()
+        DisplayiSCSIOptions()
     elif storage_type == 'nfs':
-	DisplayNfsOptions()
+        DisplayNfsOptions()
     elif storage_type == 'lvmohba':
-	DisplayHBAOptions()
+        DisplayHBAOptions()
+    elif storage_type == 'isl':
+        DisplayiSLOptions()
     elif storage_type == None:
         DisplayiSCSIOptions()
         Print("")
         DisplayNfsOptions()
         Print("")
         DisplayHBAOptions()        
+        Print("")
+        DisplayiSLOptions()        
      
 def DisplayUsage(storage_type = None):
     DisplayCommonOptions();

@@ -680,6 +680,21 @@ def parse_config(vendor, product):
 	    
     return (retVal, returnmap )
 
+def parse_xml_config(file):
+    configuration = {}
+    config_info = xml.dom.minidom.parse(file)
+    required = ['adapterid','ssid', 'spid', 'username', 'password', 'target']
+    optional = ['port', 'protocol', 'chapuser', 'chappass']
+    for val in required + optional:
+       try:
+           configuration[val] = str(config_info.getElementsByTagName(val)[0].firstChild.nodeValue)
+       except:
+           print "parse exception on %s" % val
+           if val in required:
+               raise
+    print configuration
+    return configuration
+
 #Returns a list of following tuples for the SCSI Id given
 #(HBTL, Path dm status, Path status) 
 def get_path_status(scsi_id, onlyActive = False):
