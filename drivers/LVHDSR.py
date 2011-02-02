@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python                                                               
 # Copyright (C) 2006-2007 XenSource Ltd.
 # Copyright (C) 2008-2009 Citrix Ltd.
 #
@@ -38,11 +38,12 @@ from refcounter import RefCounter
 from ipc import IPCFlag
 from lvmanager import LVActivator
 import XenAPI
+import re
 
 geneology = {}
 CAPABILITIES = ["SR_PROBE","SR_UPDATE",
         "VDI_CREATE","VDI_DELETE","VDI_ATTACH", "VDI_DETACH",
-        "VDI_CLONE", "VDI_SNAPSHOT", "VDI_RESIZE", "ATOMIC_PAUSE"]
+        "VDI_CLONE", "VDI_SNAPSHOT", "VDI_RESIZE", "VDI_UPDATE", "ATOMIC_PAUSE"]
 
 CONFIGURATION = [ ['device', 'local device path (required) (e.g. /dev/sda3)'] ]
 
@@ -65,7 +66,7 @@ PARAM_RAW = "raw"
 OPS_EXCLUSIVE = [
         "sr_create", "sr_delete", "sr_attach", "sr_detach", "sr_scan",
         "sr_update", "vdi_create", "vdi_delete", "vdi_resize", "vdi_snapshot",
-        "vdi_clone" ] 
+        "vdi_clone" ]
 
 
 class LVHDSR(SR.SR):
@@ -187,26 +188,159 @@ class LVHDSR(SR.SR):
                 self._undoAllJournals()
             if not self.cmd in ["sr_attach","sr_probe"]:
                 self._checkMetadataVolume(self.sm_config)
-
+        
+        # get a VDI -> TYPE map from the storage
+        contains_uuid_regex = \
+            re.compile("^.*[0-9a-f]{8}-(([0-9a-f]{4})-){3}[0-9a-f]{12}.*")
+        self.storageVDIs = {}
+                    
+        for key in self.lvmCache.lvs.keys():
+            # if the lvname has a uuid in it
+            type = None
+            if contains_uuid_regex.search(key) != None:
+                if key.startswith(lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD]):
+                    type = vhdutil.VDI_TYPE_VHD
+                    vdi = key[len(lvhdutil.LV_PREFIX[type]):]
+                elif key.startswith(lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_RAW]):
+                    type = vhdutil.VDI_TYPE_RAW
+                    vdi = key[len(lvhdutil.LV_PREFIX[type]):]
+                else:
+                    continue
+            
+            if type != None:
+                self.storageVDIs[vdi] = type
+                
+        util.SMlog("self.storageVDIs:%s" % self.storageVDIs)
+        
+        # check if metadata volume exists
+        try:
+            self.mdexists = self.lvmCache.checkLV(self.MDVOLUME_NAME)
+        except:
+            self.mdexists = False
+                
     def cleanup(self):
         # we don't need to hold the lock to dec refcounts of activated LVs
         if not self.lvActivator.deactivateAll():
-            raise util.SMException("failed to deactivate LVs")
-
+            raise util.SMException("failed to deactivate LVs")    
+        
+    def updateSRMetadata(self, allocation, name_label, name_description):
+        try:
+            update_map = {}
+            # Add SR specific SR metadata
+            update_map = \
+            { 'allocation': allocation,
+              'uuid': self.uuid,
+              'name_label': name_label,
+              'name_description': name_description
+            }
+            
+            for vdi in self.session.xenapi.SR.get_VDIs(self.sr_ref):                        
+                vdi_uuid = self.session.xenapi.VDI.get_uuid(vdi)
+                
+                # Create the VDI entry in the SR metadata
+                update_map['%s%s' %  \
+                           (lvutil.VDI_UUID_TAG_PREFIX, vdi_uuid)] = \
+                {
+                   'name_label': \
+                        self.session.xenapi.VDI.get_name_label(vdi),
+                   'is_a_snapshot': \
+                    int(self.session.xenapi.VDI.get_is_a_snapshot(vdi)),
+                   'snapshot_of': \
+                        self.session.xenapi.VDI.get_snapshot_of(vdi),
+                   'type': \
+                        self.session.xenapi.VDI.get_type(vdi),
+                   'vdi_type': \
+                       self.session.xenapi.VDI.get_sm_config(vdi)\
+                        ['vdi_type'],
+                    'read_only': \
+                        int(self.session.xenapi.VDI.get_read_only(vdi)),
+                    'managed': \
+                        int(self.session.xenapi.VDI.get_managed(vdi))
+                }
+                
+            lvutil.updateMetadata(self.vgname,
+                                        self.lvmCache,
+                                        self.MDVOLUME_NAME,
+                                        update_map )
+            
+        except Exception, e:
+            raise xs_errors.XenError('MetadataError', \
+                         opterr='Error upgrading SR Metadata: %s' % str(e))
+            
+    def syncMetadataAndStorage(self):
+        try:
+            # if a VDI is present in the metadata but not in the storage
+            # then delete it from the metadata                    
+            xml = metadata.retrieveXMLfromFile(self.mdpath)
+            Dict = metadata._parseXML(xml)
+            for vdi in Dict.keys():
+                if lvutil.exactmatch_vdi_tag(vdi):
+                    vdi = vdi[len(lvutil.VDI_UUID_TAG_PREFIX):]
+                    if not vdi in set(self.storageVDIs.keys()):
+                        # delete this from metadata
+                        lvutil.deleteVdiFromMetadata(self.vgname,
+                                            self.lvmCache,
+                                            self.MDVOLUME_NAME,
+                                            vdi)
+                    else:
+                        # search for this in the metadata, compare types
+                        found = False
+                        (found, update_map) = \
+                            lvutil.findVDI(self.vgname,
+                                           self.lvmCache,
+                                           self.MDVOLUME_NAME, vdi)
+                        if found:
+                            if update_map['vdi_type'] != \
+                                self.storageVDIs[vdi]:
+                                # storage type takes authority
+                                update_map['vdi_type'] = \
+                                    self.storageVDIs[vdi]
+                                lvutil.updateMetadata(
+                                    self.vgname,
+                                    self.lvmCache,
+                                    self.MDVOLUME_NAME,                                     
+                                    {'%s%s' % (lvutil.VDI_UUID_TAG_PREFIX,
+                                               vdi): update_map})
+                        else:
+                            # This should never happen
+                            pass
+            
+        except Exception, e:
+            raise xs_errors.XenError('MetadataError', \
+                opterr='Error synching SR Metadata and storage: %s' % str(e))
+               
     def _checkMetadataVolume(self, map):
-        exists = self.lvmCache.checkLV(self.MDVOLUME_NAME)
+        self.mdexists = self.lvmCache.checkLV(self.MDVOLUME_NAME)
         if self.isMaster:
-            if exists and self.cmd == "sr_attach":
-                self._synchMetaData(map)
-            elif not exists and map.get(self.FLAG_USE_VHD) == "true":
+            if self.mdexists and self.cmd == "sr_attach":
+                try:
+                    self.lvmCache.activateNoRefcount(self.MDVOLUME_NAME)
+                    self._synchMetaData(map)
+                    
+                    if metadata.requiresUpgrade(self.mdpath):
+                        util.SMlog("This SR requires metadata upgrade.")
+                        self.updateSRMetadata( \
+                            self.session.xenapi.SR.get_sm_config(self.sr_ref)\
+                                ['allocation'],
+                            self.session.xenapi.SR.get_name_label(self.sr_ref),
+                            self.session.xenapi.SR.get_name_description(self.sr_ref)
+                        )                        
+                    else:
+                        util.SMlog("SR metadata upgrade not required.")
+                        util.SMlog("Sync SR metadata and the state on the storage.")
+                        self.syncMetadataAndStorage()
+                    self.lvmCache.deactivateNoRefcount(self.MDVOLUME_NAME)
+                except Exception, e:
+                    util.SMlog("Exception in _checkMetadataVolume, error: %s. Deactivating management volume." % str(e))
+                    self.lvmCache.deactivateNoRefcount(self.MDVOLUME_NAME)
+            elif not self.mdexists and map.get(self.FLAG_USE_VHD) == "true":
                 self._introduceMetaDataVolume(map)
-        if exists:
+        if self.mdexists:
             self.legacyMode = False
-
+        
     def _synchMetaData(self, map):
         util.SMlog("Synching Metadata volume")
         try:
-            self.lvmCache.activateNoRefcount(self.MDVOLUME_NAME)
             xml = metadata.retrieveXMLfromFile(self.mdpath)
             Dict = metadata._parseXML(xml)
             if Dict.get("allocation") == 'thick':
@@ -214,12 +348,10 @@ class LVHDSR(SR.SR):
                 map['allocation'] = 'thick'
             else:
                 self.thinpr = True
-                map['allocation'] = 'thin'
-            self.lvmCache.deactivateNoRefcount(self.MDVOLUME_NAME)
-        except:
-            raise
+                map['allocation'] = 'thin'            
+        except Exception, e:
             raise xs_errors.XenError('MetadataError', \
-                         opterr='Error synching Metadata Volume')
+                         opterr='Error synching Metadata Volume: %s' % str(e))
         try:
             map[self.FLAG_USE_VHD] = 'true'
             self.session.xenapi.SR.set_sm_config(self.sr_ref, map)
@@ -227,7 +359,6 @@ class LVHDSR(SR.SR):
             raise xs_errors.XenError('MetadataError', \
                          opterr='Error updating sm_config key')
 
-        
     def _introduceMetaDataVolume(self, map):
         util.SMlog("Creating Metadata volume")
         try:
@@ -236,19 +367,22 @@ class LVHDSR(SR.SR):
                 allocstr = "thin"
             else:
                 allocstr = "thick"
-            Dict = {'allocation':allocstr}
-            metadata.writeXMLtoFile(self.mdpath, Dict)
+                
+            name_label = self.session.xenapi.SR.get_name_label(self.sr_ref)
+            name_description = self.session.xenapi.SR.get_name_description(self.sr_ref)
             map[self.FLAG_USE_VHD] = "true"
             map['allocation'] = allocstr
-            self.session.xenapi.SR.set_sm_config(self.sr_ref, map)
-            self.lvmCache.deactivateNoRefcount(self.MDVOLUME_NAME)
-        except:
+            self.session.xenapi.SR.set_sm_config(self.sr_ref, map)            
+            
+            # Add the SR metadata
+            self.updateSRMetadata(allocstr, name_label, name_description)
+                    
+        except Exception, e:
             raise xs_errors.XenError('MetadataError', \
-                         opterr='Error introducing Metadata Volume')
+                        opterr='Error introducing Metadata Volume: %s' % str(e))
 
-    def _removeMetadataVolume(self):
-        exists = self.lvmCache.checkLV(self.MDVOLUME_NAME)
-        if exists:
+    def _removeMetadataVolume(self):        
+        if self.mdexists:
             try:
                 self.lvmCache.remove(self.MDVOLUME_NAME)
             except:
@@ -355,7 +489,84 @@ class LVHDSR(SR.SR):
         stats = lvutil._getVGstats(self.vgname)
         self.physical_size = stats['physical_size']
         self.physical_utilisation = stats['physical_utilisation']
+        
+        # Now check if there are any VDIs in the metadata, which are not in XAPI        
+        if self.mdexists:
+            # get VDIs from XAPI
+            vdis = self.session.xenapi.SR.get_VDIs(self.sr_ref)
+            vdi_uuids = set([])
+            for vdi in vdis:
+                vdi_uuids.add(self.session.xenapi.VDI.get_uuid(vdi))
+            
+            self.lvmCache.activateNoRefcount(self.MDVOLUME_NAME)
+            xml = metadata.retrieveXMLfromFile(self.mdpath)
+            Dict = metadata._parseXML(xml)
+            util.SMlog(Dict)
+            
+            for key in Dict.keys():
+                if lvutil.exactmatch_vdi_tag(key):
+                    vdi_uuid = key[4:]
+                    if vdi_uuid not in vdi_uuids:
+                        util.SMlog("Introduce VDI %s as it is present in \
+                                   metadata and not in XAPI." % vdi_uuid)
+                        sm_config = {}
+                        sm_config['vdi_type'] = Dict[key]['vdi_type']
+                        lvname = "%s%s" % \
+                            (lvhdutil.LV_PREFIX[sm_config['vdi_type']],vdi_uuid)
+                        self.lvmCache.activateNoRefcount(lvname)
+                        lvPath = os.path.join(self.path, lvname)
+                            
+                        if Dict[key]['vdi_type'] == vhdutil.VDI_TYPE_RAW:
+                            size = self.lvmCache.getSize( \
+                                lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_RAW] + \
+                                    vdi_uuid)
+                            utilisation = \
+                                        util.roundup(lvutil.LVM_SIZE_INCREMENT,
+                                                       long(size))
+                        else:
+                            parent = \
+                                vhdutil._getVHDParentNoCheck(lvPath)
+                            
+                            if parent != None:
+                                sm_config['vhd-parent'] = parent[len( \
+                                    lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD]):]
+                            size = vhdutil.getSizeVirt(lvPath)
+                            if self.thinpr:
+                                utilisation = \
+                                    util.roundup(lvutil.LVM_SIZE_INCREMENT,
+                                      vhdutil.calcOverheadEmpty(lvhdutil.MSIZE))
+                            else:
+                                utilisation = lvhdutil.calcSizeVHDLV(long(size))
+                                
+                        self.lvmCache.deactivateNoRefcount(lvname)
+                        
+                        vdi_ref = self.session.xenapi.VDI.db_introduce(
+                                                vdi_uuid,
+                                                Dict[key]['name_label'],
+                                                '',
+                                                self.sr_ref,
+                                                Dict[key]['type'],
+                                                False,
+                                                bool(int(Dict[key]['read_only'])),
+                                                {},
+                                                vdi_uuid,
+                                                {},
+                                                {})
 
+                        self.session.xenapi.VDI.set_sm_config(vdi_ref,
+                                                              sm_config)
+                        self.session.xenapi.VDI.set_managed(vdi_ref,
+                                                    bool(int(Dict[key]['managed'])))
+                        self.session.xenapi.VDI.set_virtual_size(vdi_ref,
+                                                                 str(size))                          
+                        self.session.xenapi.VDI.set_physical_utilisation( \
+                            vdi_ref, str(utilisation))
+                        self.session.xenapi.VDI.set_is_a_snapshot( \
+                            vdi_ref, bool(int(Dict[key]['is_a_snapshot'])))
+                        if bool(int(Dict[key]['is_a_snapshot'])):
+                            self.session.xenapi.VDI.set_snapshot_of( \
+                                            vdi_ref, Dict[key]['snapshot_of'])
+            
         ret = super(LVHDSR, self).scan(uuid)
         self._kickGC()
         return ret
@@ -364,6 +575,13 @@ class LVHDSR(SR.SR):
         if not lvutil._checkVG(self.vgname):
             return
         self._updateStats(uuid, 0)
+        
+        # synch name_label in metadata with XAPI
+        update_map = {}
+        update_map = {'name_label': \
+                            self.session.xenapi.SR.get_name_label(self.sr_ref)}
+        lvutil.updateMetadata(self.vgname, self.lvmCache,
+                              self.MDVOLUME_NAME, update_map)    
 
     def _updateStats(self, uuid, virtAllocDelta):
         valloc = int(self.session.xenapi.SR.get_virtual_allocation(self.sr_ref))
@@ -375,8 +593,10 @@ class LVHDSR(SR.SR):
 
     def probe(self):
         return lvutil.srlist_toxml(\
-                lvutil.scan_srlist(lvhdutil.VG_PREFIX, self.root))
-
+                lvutil.scan_srlist(lvhdutil.VG_PREFIX, self.root),
+                (self.srcmd.params['sr_sm_config'].has_key('metadata') and \
+                 self.srcmd.params['sr_sm_config']['metadata'] == 'true'))
+                
     def vdi(self, uuid):
         return LVHDVDI(self, uuid)
 
@@ -575,6 +795,7 @@ class LVHDSR(SR.SR):
         try:
             vdi_ref = self.session.xenapi.VDI.get_by_uuid(origUuid)
             sm_config = self.session.xenapi.VDI.get_sm_config(vdi_ref)
+            type = self.session.xenapi.VDI.get_type(vdi_ref)
             sm_config["vdi_type"] = vhdutil.VDI_TYPE_VHD
             sm_config['vhd-parent'] = baseUuid
             self.session.xenapi.VDI.set_sm_config(vdi_ref, sm_config)
@@ -594,6 +815,20 @@ class LVHDSR(SR.SR):
                 clon_vdi_ref = clon_vdi._db_introduce()
                 util.SMlog("introduced clon VDI: %s (%s)" % \
                         (clon_vdi_ref, clonUuid))
+                
+                update_map = {  '%s%s' % (lvutil.VDI_UUID_TAG_PREFIX, clonUuid):
+                                {'name_label': clon_vdi.label,
+                                    'is_a_snapshot': 0,
+                                    'snapshot_of': '',
+                                    'type': type,
+                                    'vdi_type': clon_vdi.sm_config['vdi_type'],
+                                    'read_only': int(clon_vdi.read_only),
+                                    'managed': int(clon_vdi.managed)}
+                }
+            
+                lvutil.updateMetadata(self.vgname, self.lvmCache,
+                                      self.MDVOLUME_NAME, update_map)
+                
             except XenAPI.Failure:
                 util.SMlog("ERROR introducing the clon record")
 
@@ -611,6 +846,19 @@ class LVHDSR(SR.SR):
             base_vdi_ref = base_vdi._db_introduce()
             util.SMlog("introduced base VDI: %s (%s)" % \
                     (base_vdi_ref, baseUuid))
+            
+            update_map = {  '%s%s' % (lvutil.VDI_UUID_TAG_PREFIX, baseUuid):
+                            {'name_label': base_vdi.label,
+                                'is_a_snapshot': 0,
+                                'snapshot_of': '',
+                                'type': type,
+                                'vdi_type': base_vdi.sm_config['vdi_type'],
+                                'read_only': int(base_vdi.read_only),
+                                'managed': int(base_vdi.managed)}
+            }
+            
+            lvutil.updateMetadata(self.vgname, self.lvmCache,
+                                  self.MDVOLUME_NAME, update_map)            
         except XenAPI.Failure:
             util.SMlog("ERROR introducing the base record")
 
@@ -836,8 +1084,21 @@ class LVHDVDI(VDI.VDI):
 
         self.utilisation = lvSize
         self.sm_config["vdi_type"] = self.vdi_type
-        self._db_introduce()
+        self.ref = self._db_introduce()
         self.sr._updateStats(self.sr.uuid, self.size)
+        
+        update_map = {  '%s%s' % (lvutil.VDI_UUID_TAG_PREFIX, self.uuid):
+                        {'name_label': self.sr.srcmd.params['args'][1],
+                            'is_a_snapshot': 0,
+                            'snapshot_of': '',
+                            'type': self.sr.srcmd.params['vdi_type'],
+                            'vdi_type': self.vdi_type,
+                            'read_only': int(self.read_only),
+                            'managed': int(self.managed)}
+        }
+        
+        lvutil.updateMetadata(self.sr.vgname, self.sr.lvmCache,
+                              self.sr.MDVOLUME_NAME, update_map)
         return VDI.VDI.get_params(self)
 
     def delete(self, sr_uuid, vdi_uuid):
@@ -858,6 +1119,9 @@ class LVHDVDI(VDI.VDI):
         if not self.hidden:
             self._markHidden()
         self._db_forget()
+        lvutil.deleteVdiFromMetadata(self.sr.vgname, self.sr.lvmCache,
+                                     self.sr.MDVOLUME_NAME, self.uuid)
+        
         # deactivate here because it might be too late to do it in the "final" 
         # step: GC might have removed the LV by then
         if self.sr.lvActivator.get(self.uuid, False):
@@ -1000,7 +1264,7 @@ class LVHDVDI(VDI.VDI):
             blktap2.VDI.tap_unpause(self.session, sr_uuid, vdi_uuid)
 
     def clone(self, sr_uuid, vdi_uuid):
-        return self._snapshot(self.SNAPSHOT_DOUBLE)
+        return self._snapshot(self.SNAPSHOT_DOUBLE, True)
 
     def _attach(self):
         self._chainSetActive(True, True, True)
@@ -1032,7 +1296,7 @@ class LVHDVDI(VDI.VDI):
         self._chainSetActive(False, True)
         self.attached = False
 
-    def _snapshot(self, snapType):
+    def _snapshot(self, snapType, cloneOp = False):
         util.SMlog("LVHDVDI._snapshot for %s (type %s)" % (self.uuid, snapType))
 
         if not self.sr.isMaster:
@@ -1066,7 +1330,8 @@ class LVHDVDI(VDI.VDI):
             elif depth >= vhdutil.MAX_CHAIN_SIZE:
                 raise xs_errors.XenError('SnapshotChainTooLong')
 
-        self.issnap = self.session.xenapi.VDI.get_is_a_snapshot(self.sr.srcmd.params['vdi_ref'])
+        self.issnap = self.session.xenapi.VDI.get_is_a_snapshot( \
+                                                self.sr.srcmd.params['vdi_ref'])
 
         fullpr = lvhdutil.calcSizeVHDLV(self.size)
         thinpr = util.roundup(lvutil.LVM_SIZE_INCREMENT, \
@@ -1160,7 +1425,7 @@ class LVHDVDI(VDI.VDI):
         util.fistpoint.activate("LVHDRT_clone_vdi_before_remove_journal",self.sr.uuid)
         self.sr.journaler.remove(self.JRN_CLONE, origUuid)
 
-        return self._finishSnapshot(snapVDI, snapVDI2)
+        return self._finishSnapshot(snapVDI, snapVDI2, cloneOp)
 
 
     def _createSnap(self, snapUuid, snapSizeLV, isNew):
@@ -1191,7 +1456,7 @@ class LVHDVDI(VDI.VDI):
         snapVDI.lvname = snapLV
         return snapVDI
 
-    def _finishSnapshot(self, snapVDI, snapVDI2):
+    def _finishSnapshot(self, snapVDI, snapVDI2, cloneOp = False):
         self.sr._updateStats(self.sr.uuid, self.size)
         basePresent = True
 
@@ -1237,13 +1502,57 @@ class LVHDVDI(VDI.VDI):
             del self.sm_config[key]
 
         # Introduce any new VDI records & update the existing one
+        type = self.session.xenapi.VDI.get_type( \
+                                    self.sr.srcmd.params['vdi_ref'])
         if snapVDI2:
             vdiRef = snapVDI2._db_introduce()
+            if cloneOp:
+                update_map = { '%s%s' % (lvutil.VDI_UUID_TAG_PREFIX, \
+                                         snapVDI2.uuid):
+                            {'name_label': \
+                                self.session.xenapi.VDI.get_name_label( \
+                                    self.sr.srcmd.params['vdi_ref']),
+                                'is_a_snapshot': 0,
+                                'snapshot_of': '',
+                                'type': type,
+                                'vdi_type': snapVDI2.sm_config['vdi_type'],
+                                'read_only': 0,
+                                'managed': int(snapVDI2.managed)}
+                }
+            else:
+                update_map = { '%s%s' % (lvutil.VDI_UUID_TAG_PREFIX, \
+                                         snapVDI2.uuid):
+                            {'name_label': \
+                                self.session.xenapi.VDI.get_name_label( \
+                                    self.sr.srcmd.params['vdi_ref']),
+                                'is_a_snapshot': 1,
+                                'snapshot_of': snapVDI.uuid,
+                                'type': type,
+                                'vdi_type': snapVDI2.sm_config['vdi_type'],
+                                'read_only': 0,
+                                'managed': int(snapVDI2.managed)}
+                }
+            
+            lvutil.updateMetadata(self.sr.vgname, self.sr.lvmCache,
+                                  self.sr.MDVOLUME_NAME, update_map)
             util.SMlog("vdi_clone: introduced 2nd snap VDI: %s (%s)" % \
                        (vdiRef, snapVDI2.uuid))
 
         if basePresent:
             vdiRef = self._db_introduce()
+            update_map = {  '%s%s' % (lvutil.VDI_UUID_TAG_PREFIX, self.uuid):
+                            {'name_label': self.label,
+                                'is_a_snapshot': 0,
+                                'snapshot_of': '',
+                                'type': type,
+                                'vdi_type': self.sm_config['vdi_type'],
+                                'read_only': 1,
+                                'location': self.uuid,
+                                'managed': 0}
+            }
+            
+            lvutil.updateMetadata(self.sr.vgname, self.sr.lvmCache,
+                                  self.sr.MDVOLUME_NAME, update_map)
             util.SMlog("vdi_clone: introduced base VDI: %s (%s)" % \
                     (vdiRef, self.uuid))
 
@@ -1439,7 +1748,18 @@ class LVHDVDI(VDI.VDI):
             self.session.xenapi.SR.set_physical_utilisation(self.sr.sr_ref,
                     str(sr_utilisation))
 
-
+    def update(self, sr_uuid, vdi_uuid):
+        #Synch the name_label of this VDI on storage with the name_label in XAPI
+        vdi_ref = self.session.xenapi.VDI.get_by_uuid(self.uuid)
+        (found, update_map) = lvutil.findVDI(self.sr.vgname, self.sr.lvmCache,
+                                             self.sr.MDVOLUME_NAME, self.uuid)
+        if update_map['name_label'] != \
+            self.session.xenapi.VDI.get_name_label(vdi_ref):
+            update_map['name_label'] = \
+                self.session.xenapi.VDI.get_name_label(vdi_ref)
+        lvutil.updateMetadata(self.sr.vgname, self.sr.lvmCache,
+                        self.sr.MDVOLUME_NAME,
+                        {'%s%s' % (lvutil.VDI_UUID_TAG_PREFIX, vdi_uuid): update_map})
 
 try:
     if __name__ == '__main__':

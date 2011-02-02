@@ -299,3 +299,16 @@ def _parseVHDInfo(line, extractUuidFunction):
             vhdInfo.parentPath = val
             vhdInfo.parentUuid = extractUuidFunction(val)
     return vhdInfo
+
+def _getVHDParentNoCheck(path):
+    cmd = ["vhd-util", "read", "-p", "-n", "%s" % path]
+    text = util.pread(cmd)
+    util.SMlog(text)
+    for line in text.split('\n'):
+        if line.find("decoded name :") != -1:
+            val = line.split(':')[1].strip()
+            vdi = val.replace("--", "-")[-40:]
+            if vdi[1:].startswith("LV-"):
+                vdi = vdi[1:]
+            return vdi
+    return None
