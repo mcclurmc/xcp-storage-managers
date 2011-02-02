@@ -682,17 +682,22 @@ def parse_config(vendor, product):
 
 def parse_xml_config(file):
     configuration = {}
+    # predefines if not overriden in config file
+    configuration['lunsize'] = '128'
+    configuration['growsize'] = '4'
+
     config_info = xml.dom.minidom.parse(file)
     required = ['adapterid','ssid', 'spid', 'username', 'password', 'target']
-    optional = ['port', 'protocol', 'chapuser', 'chappass']
+    optional = ['port', 'protocol', 'chapuser', 'chappass', 'lunsize', 'growsize']
     for val in required + optional:
        try:
            configuration[val] = str(config_info.getElementsByTagName(val)[0].firstChild.nodeValue)
        except:
-           print "parse exception on %s" % val
            if val in required:
+               print "parse exception on REQUIRED ISL option: %s" % val
                raise
-    print configuration
+           else:
+               print "parse exception on OPTIONAL ISL option: %s" % val
     return configuration
 
 #Returns a list of following tuples for the SCSI Id given

@@ -25,7 +25,6 @@ import ISCSISR
 import random
 import nfs
 import commands
-import STC0002 as islOper
 
 retValIO = 0
 timeTaken = '' 
@@ -33,6 +32,12 @@ bytesCopied = ''
 speedOfCopy = ''
 pathsFailed = False
 failoverTime = 0
+
+# simple tracer
+def report(predicate, condition):
+    if predicate != condition:
+        Print("Conidtion Failed, check SMlog")
+
 
 # Hardcoded time limit for Functional tests in hours
 timeLimitFunctional = 4
@@ -600,7 +605,7 @@ class StorageHandler:
                 if listPathConfigNew[i][2] != self.listPathConfig[i][2]:                            
                     return False
             return True
-        except:
+        except Exception, e:
             XenCertPrint("Failed to match new paths with old paths.")
             return False        
         
@@ -640,7 +645,7 @@ class StorageHandlerISCSI(StorageHandler):
                     displayOperationStatus(True)
                     break
 
-                except:
+                except Exception, e:
                     XenCertPrint("Could not perform SR control tests with device %s, trying other devices." % scsiId)
                     continue
                     
@@ -741,7 +746,7 @@ class StorageHandlerISCSI(StorageHandler):
                         if record[2] == iqn or wildcard:
                             try:
                                 listPortalIQNs.index((record[0], record[2]))
-                            except:    
+                            except Exception, e:
                                 listPortalIQNs.append((record[0], record[2]))
                                 break
             
@@ -972,7 +977,7 @@ class StorageHandlerHBA(StorageHandler):
                     displayOperationStatus(True)
                     break
 
-                except:
+                except Exception, e:
                     XenCertPrint("Could not perform SR control tests with device %s, trying other devices." % scsiId)
                     continue
 
@@ -1403,24 +1408,198 @@ class StorageHandlerISL(StorageHandler):
         XenCertPrint("Reached StorageHandlerISL constructor")
         self.file = storage_conf['file']
         self.configuration = StorageHandlerUtil.parse_xml_config(self.file)
-        self.initizialize()
         StorageHandler.__init__(self, storage_conf)
+
+##
+## Nota Bene: 
+##
+##  1) These test cases use "cslg" for SR type and should be changed when the final SR type for 
+##     Integrated StorageLink is determined. 
+##  2) target/username/password is currently hard-coded for a storagelink gateway, and must be changed
+##     to reflect the target (array) and username/password credentials of the array, presumably 
+##     retreived from the config file.
+##  3) The "Meta Data" VDI need to be accomodated -- which is special for integrated StorageLink
+##
+
+    #
+    #  VDI related
+    #
+       
+    def Create_VDI(self, sr_ref, size):
+        XenCertPrint("Create VDI")
+        vdi_rec = {}
+        try:
+            vdi_rec['name_label'] = "XenCertVDI-" + str(time.time()).replace(".","")
+            vdi_rec['name_description'] = ''
+            vdi_rec['type'] = 'user'
+            vdi_rec['virtual_size'] = str(size)
+            vdi_rec['SR'] = sr_ref
+            vdi_rec['read_only'] = False
+            vdi_rec['sharable'] = False
+            vdi_rec['other_config'] = {}
+            vdi_rec['sm_config'] = {}
+            results = self.session.xenapi.VDI.create(vdi_rec)
+            return (True, results)
+        except Exception, e:
+            XenCertPrint("Failed to create VDI. Exception: %s" % str(e))
+            return (False, "")
+       
+    def Resize_VDI(self, vdi_ref, size):
+        XenCertPrint("Resize VDI")
+        try:
+            self.session.xenapi.VDI.resize(vdi_ref, str(size))
+            return True
+        except Exception, e:
+            XenCertPrint("Failed to Resize VDI. Exception: %s" % str(e))
+            return False
+       
+    def Snapshot_VDI(self, vdi_ref):
+        XenCertPrint("Snapshot VDI")
+        options = {}
+        try:
+            results = self.session.xenapi.VDI.snapshot(vdi_ref, options)
+            return (True, results)
+        except Exception, e:
+            XenCertPrint("Failed to Snapshot VDI. Exception: %s" % str(e))
+            return (False, "")
+       
+    def Clone_VDI(self, vdi_ref):
+        XenCertPrint("Clone VDI")
+        options = {}
+        try:
+            results = self.session.xenapi.VDI.clone(vdi_ref, options)
+            return (True, results)
+        except Exception, e:
+            XenCertPrint("Failed to Clone VDI. Exception: %s" % str(e))
+            return (False, "")
+       
+    def Destroy_VDI(self, vdi_ref):
+        XenCertPrint("Destroy VDI")
+        try:
+            results = self.session.xenapi.VDI.destroy(vdi_ref)
+            return True
+        except Exception, e:
+            XenCertPrint("Failed to Destroy VDI. Exception: %s" % str(e))
+            return False
+
+    #
+    #  SR related
+    #
+       
+    def getAllPBDs(self, sr_ref):
+        try:
+            XenCertPrint("Getting all PBDs")
+            results = self.session.xenapi.SR.get_PBDs(sr_ref)
+            return results
+        except Exception, e:
+            XenCertPrint("Getting all PBDs failed. Exception: %s" % str(e))
+            return []
+       
+    def Unplug_PBD(self, pbd_ref):
+        try:
+            XenCertPrint("Unplugging PBD")
+            self.session.xenapi.PBD.unplug(pbd_ref)
+            return True
+        except Exception, e:
+            XenCertPrint("Failed to unplug PBD. Exception: %s" % str(e))
+            return False
+       
+    def Destroy_PBD(self, pbd_ref):
+        try:
+            XenCertPrint("destroying PBD")
+            self.session.xenapi.PBD.destroy(pbd_ref)
+            return True
+        except Exception, e:
+            XenCertPrint("Failed to Destroy PBD. Exception: %s" % str(e))
+            return False
         
-    def Create(self):
+    def Probe_SR(self, sr_ref):
+        local_dconf = {}
+        local_smconfig = {}
+        local_dconf['adapterid'] = self.configuration['adapterid']
+        #['target'] = self.configuration['target']
+        #local_dconf['username'] = self.configuration['username']
+        #local_dconf['password'] = self.configuration['password']
+
+        # wkc: fixfix use existing CSLG type args until ISL ready
+        local_dconf['target'] = 'wim7'
+        local_dconf['username'] = 'admin'
+        local_dconf['password'] = 'storagelink'
+
+        # different kinds of probe based on the amount of data present in dconf
+        # how should we verify?
+
+        try:
+            XenCertPrint("probing SR, target only")
+            probe = self.session.xenapi.SR.probe(util.get_localhost_uuid(self.session), local_dconf, "cslg", local_smconfig)
+        except Exception, e:
+            # exceptions are OK
+            pass
+
+        try:
+            XenCertPrint("probing SR, target + ssid")
+            local_dconf['storageSystemId'] = self.configuration['ssid']
+            probe = self.session.xenapi.SR.probe(util.get_localhost_uuid(self.session), local_dconf, "cslg", local_smconfig)
+        except Exception, e:
+            # exceptions are OK
+            pass
+
+        try:
+            XenCertPrint("probing SR, target + ssid + spid")
+            local_dconf['storagePoolId'] = self.configuration['spid']
+            probe = self.session.xenapi.SR.probe(util.get_localhost_uuid(self.session), local_dconf, "cslg", local_smconfig)
+        except Exception, e:
+            # exceptions are OK
+            pass
+
+        return True
+
+    def Forget_SR(self, sr_ref):
+        XenCertPrint("Forget SR")
+        try:
+            pbd_list = self.getAllPBDs(sr_ref)
+            for pbd_ref in pbd_list:
+                self.Unplug_PBD(pbd_ref)
+            for pbd_ref in pbd_list:
+                self.Destroy_PBD(pbd_ref)
+            self.session.xenapi.SR.forget(sr_ref)
+            return True
+        except Exception, e:
+            XenCertPrint("Failed to Forget SR. Exception: %s" % str(e))
+            return False
+
+    def Destroy_SR(self, sr_ref):
+        XenCertPrint("Destroy SR")
+        try:
+            pbd_list = self.getAllPBDs(sr_ref)
+            for pbd_ref in pbd_list:
+                self.Unplug_PBD(pbd_ref)
+            self.session.xenapi.SR.destroy(sr_ref)
+            return True
+        except Exception, e:
+            XenCertPrint("Failed to Destroy SR. Exception: %s" % str(e))
+            return False
+
+    def Create_SR(self):
+        XenCertPrint("Create SR")
         self.device_config = {}
         retVal = True
         sr_ref = None
         try:
-            XenCertPrint("First use XAPI to get information for creating an SR.")
-            
             # Create an SR
-            Print("      Creating the SR.")
             self.device_config['adapterid'] = self.configuration['adapterid']
-            self.device_config['target'] = self.configuration['target']
+            #self.device_config['target'] = self.configuration['target']
             self.device_config['storageSystemId'] = self.configuration['ssid']
             self.device_config['storagePoolId'] = self.configuration['spid']
-            self.device_config['username'] = self.configuration['username']
-            self.device_config['password'] = self.configuration['password']
+            #self.device_config['username'] = self.configuration['username']
+            #self.device_config['password'] = self.configuration['password']
+
+            # wkc: fixfix use existing CSLG type args until ISL ready
+            self.device_config['target'] = 'wim7'
+            self.device_config['username'] = 'admin'
+            self.device_config['password'] = 'storagelink'
+
+            # skip chapuser/pass for now (wkc: fixfix)
             #if self.configuration.has_key('chapuser') != None and self.configuration.has_key('chappasswd') != None:
             #    device_config['chapuser'] = self.storage_conf['chapuser']
             #    device_config['chappassword'] = self.storage_conf['chappasswd']
@@ -1429,22 +1608,16 @@ class StorageHandlerISL(StorageHandler):
                 XenCertPrint("The SR create parameters are %s, %s" % (util.get_localhost_uuid(self.session), self.device_config))
                 sr_ref = self.session.xenapi.SR.create(util.get_localhost_uuid(self.session), self.device_config, '0', 'XenCertTestSR', '', 'cslg', '',False, {})
                 XenCertPrint("Created the SR %s using device_config %s" % (sr_ref, self.device_config))
-                displayOperationStatus(True)
-                sys.exit()
-
-            except:
-                XenCertPrint("Could not perform SR control tests ")
-                raise
+            except Exception, e:
+                XenCertPrint("Failed to Create SR. Exception: %s" % str(e))
                     
             if sr_ref == None:
-                displayOperationStatus(False)
                 retVal = False
         except Exception, e:
-            Print("   - Failed to create SR. Exception: %s" % str(e))
-            displayOperationStatus(False)
-            raise Exception(str(e))
+            XenCertPrint("Failed to Create SR. Exception: %s" % str(e))
+            retVal = False
         
-        return (retVal, sr_ref, device_config)
+        return (retVal, sr_ref, self.device_config)
         
     def GetPathStatus(self, device_config):
         # Query DM-multipath status, reporting a) Path checker b) Path Priority handler c) Number of paths d) distribution of active vs passive paths
@@ -1452,316 +1625,262 @@ class StorageHandlerISL(StorageHandler):
             self.mapIPToHost = StorageHandlerUtil._init_adapters()      
             XenCertPrint("The IP to host id map is: %s" % self.mapIPToHost) 
             
-            (retVal, configMap) = StorageHandlerUtil.GetConfig(device_config['SCSIid'])
-            if not retVal:                
-                raise Exception("   - Failed to get SCSI config information for SCSI Id: %s" % device_config['SCSIid'])
-
-            XenCertPrint("The config map extracted from scsi_id %s is %s" % (device_config['SCSIid'], configMap))
-            
-            # Get path_checker and priority handler for this device.
-            (retVal, mpath_config) = StorageHandlerUtil.parse_config(configMap['ID_VENDOR'], configMap['ID_MODEL'])
-            if not retVal:                
-                raise Exception("   - Failed to get multipathd config information for vendor: %s and product: %s" % (configMap['ID_VENDOR'], configMap['ID_MODEL']))
-            XenCertPrint("The mpath config extracted from multipathd is %s" % mpath_config)
-
-            Print(">> Multipathd enabled for %s, %s with the following config" % (configMap['ID_VENDOR'], configMap['ID_MODEL']))
-            Print("   please confirm that these settings are optimal:")
-            Print("     device {")
-            for key in mpath_config:
-                Print("             %s %s" % (key, mpath_config[key]))
-
-            Print("     }")
- 
-            (retVal, self.listPathConfig) = StorageHandlerUtil.get_path_status(device_config['SCSIid'])
-            if not retVal:                
-                raise Exception("Failed to get path status information for SCSI Id: %s" % device_config['SCSIid'])
-            XenCertPrint("The path status extracted from multipathd is %s" % self.listPathConfig)
-            
+            Print(">> GetPathStatus <<TBD>>")
+          
             return True
+
         except Exception, e:
             Print("   - Failed to get path status for device_config: %s. Exception: %s" % (device_config, str(e)))
             return False            
 
     def DisplayPathStatus(self):
-        Print("       %-15s %-15s %-25s %-15s" % ('IP address', 'HBTL','Path DM status','Path status')            )
-        for item in self.listPathConfig:
-            Print("       %-15s %-15s %-25s %-15s" % (StorageHandlerUtil.findIPAddress(self.mapIPToHost, item[0]), item[0], item[1], item[2]))
+        Print(">> DisplayPathStatus <<TBD>>")
             
     def RandomlyFailPaths(self):
-        try:
-            self.noOfPaths = random.randint(1, len(self.listPathConfig) -1 )   
-            self.blockedpathinfo = ''
-            self.paths = ''
-            for item in self.listPathConfig: 
-                ip = StorageHandlerUtil.findIPAddress(self.mapIPToHost, item[0])
-                self.paths += ip + ','
-                       
-            self.paths = self.paths.rstrip(',')
-            (self.blockedpathinfo) = self.BlockUnblockPaths(True, self.storage_conf['pathHandlerUtil'], self.noOfPaths, self.paths)
-            PrintOnSameLine(" -> Blocking %d paths (%s)\n" % (self.noOfPaths, self.blockedpathinfo))
-            return True                    
-        except Exception, e:
-            raise e
-        
-    def FunctionalTests(self):
-        logoutlist = []
-        retVal = True
-        checkPoint = 0
-        totalCheckPoints = 4
-        timeForIOTestsInSec = 0
-        totalSizeInMiB = 0
-        wildcard = False
+        Print(">> RandomlyFailPaths <<TBD>>")
 
-        try:
-            # Take SR device-config parameters and initialise data path layer.        
-            Print("INITIALIZING SCSI DATA PATH LAYER ")
-            
-            iqns = self.storage_conf['targetIQN'].split(',')
-            if len(iqns) == 1 and iqns[0]=='*':
-                wildcard = True
-            listPortalIQNs = []
-            for target in self.storage_conf['target'].split(','):
-                try:
-                    map = iscsilib.discovery(target, ISCSISR.DEFAULT_PORT, self.storage_conf['chapuser'], self.storage_conf['chappasswd'])                                        
-                except Exception, e:
-                    Print("Exception discovering iscsi target: %s, exception: %s" % (target, str(e)))
-                    displayOperationStatus(False)                
-            
-                # Create a list of portal IQN combinations.                
-                for record in map:
-                    for iqn in iqns:
-                        if record[2] == iqn or wildcard:
-                            try:
-                                listPortalIQNs.index((record[0], record[2]))
-                            except:    
-                                listPortalIQNs.append((record[0], record[2]))
-                                break
-            
-            displayOperationStatus(True)
-            checkPoint += 1
-
-            # Now traverse through this multimap and for each IQN
-            # Connect to all available portals in turn and verify that
-            Print("DISCOVERING ADVERTISED SESSION TARGETS")
-            Print("   %-70s %-20s" % ('IQN', 'Session Target'))
-            for (portal, iqn) in listPortalIQNs:
-                Print("   %-70s %-20s" % (iqn, portal))
-        
-            displayOperationStatus(True)
-            checkPoint += 1
-
-            Print("REPORT LUNS EXPOSED")
-            Print(">> This test logs on to all the advertised target and IQN combinations")
-            Print("   and discovers the LUNs exposed by each including information")
-            Print("   like the LUN ID, SCSI ID and the size of each LUN.")
-            Print("   This test also verifies that all the sessions from the same IQN ")
-            Print("   expose the same number of LUNs and the same LUNs.")
-            Print("")
-            # Create a map of the following format
-            # SCSIid -> (portal, iqn, device) tuple list            
-            scsiToTupleMap = {}
-            # and one of the following format
-            # iqn -> [SCSI IDS]
-            # for each portal below, check if iqn is in the map
-            # if yes check if the SCSI Ids match, else report error
-            # if iqn not in map add iqn and list of SCSI IDs.
-            iqnToScsiList = {}
-            firstPortal = True
-            for (portal, iqn) in listPortalIQNs:
-                try:
-                    scsilist = []
-                    # Login to this IQN, portal combination
-                    iscsilib.login(portal, iqn, self.storage_conf['chapuser'], self.storage_conf['chappasswd'])
-                    XenCertPrint("Logged on to the target.")
-                    logoutlist.append((portal,iqn))                        
-                            
-                    # Now test the target
-                    iscsilib._checkTGT(portal)
-                    XenCertPrint("Checked the target.")
-                    lunToScsi = StorageHandlerUtil.get_lun_scsiid_devicename_mapping(iqn, portal)
-                    if len(lunToScsi.keys()) == 0:
-                        raise Exception("   - No LUNs found!")
-                        
-                    XenCertPrint("The portal %s and the iqn %s yielded the following LUNs on discovery:" % (portal, iqn))
-                    mapDeviceToHBTL = scsiutil.cacheSCSIidentifiers()
-                    XenCertPrint("The mapDeviceToHBTL is %s" % mapDeviceToHBTL)
-                          
-                    if firstPortal:
-                        Print("     %-23s\t%-4s\t%-34s\t%-10s" % ('PORTAL', 'LUN', 'SCSI-ID', 'Size(MiB)'))
-                        firstPortal = False
-                    for key in lunToScsi.keys():
-                        # Find the HBTL for this lun
-                        scsilist.append(lunToScsi[key][0])
-                        HBTL = mapDeviceToHBTL[lunToScsi[key][1]]
-                        HBTL_id = HBTL[1] + ":" + HBTL[2] + ":" + HBTL[3] + ":" + HBTL[4]
-                        filepath = '/sys/class/scsi_device/' + HBTL_id + '/device/block:*/size'
-                        XenCertPrint("The filepath is: %s" % filepath)
-                        filelist = glob.glob(filepath)
-                        XenCertPrint("The HBTL_id is %s. The filelist is: %s" % (HBTL_id, filelist))
-                        sectors = util.get_single_entry(filelist[0])
-                        size = int(sectors) * 512 / 1024 / 1024
-                        Print("     %-23s\t%-4s\t%-34s\t%-10s" % (portal, key, lunToScsi[key][0], size))
-                        timeForIOTestsInSec += StorageHandlerUtil.FindDiskDataTestEstimate(lunToScsi[key][1], size)
-                        if scsiToTupleMap.has_key(lunToScsi[key][0]):
-                            scsiToTupleMap[lunToScsi[key][0]].append(( portal, iqn, lunToScsi[key][1]))
-                        else:
-                            scsiToTupleMap[lunToScsi[key][0]] = [( portal, iqn, lunToScsi[key][1])]
-                        
-                        totalSizeInMiB += size                                                   
-                except Exception, e:
-                    Print("     WARNING: No LUNs reported by portal %s for iqn %s. Exception: %s" % (portal, iqn, str(e)))
-                    XenCertPrint("     WARNING: No LUNs reported by portal %s for iqn %s." % (portal, iqn))
-                    continue
-                
-                if iqnToScsiList.has_key(iqn):
-                    XenCertPrint("Reference scsilist: %s, current scsilist: %s" % (iqnToScsiList[iqn], scsilist))
-                    if iqnToScsiList[iqn].sort() != scsilist.sort():
-                        raise Exception("     ERROR: LUNs reported by portal %s for iqn %s do not match LUNs reported by other portals of the same IQN." % (portal, iqn))
-                else:
-                    iqnToScsiList[iqn] = scsilist
-                        
-            displayOperationStatus(True)
-            checkPoint += 1
-
-            Print("DISK IO TESTS")
-            Print(">> This tests execute a disk IO test against each available LUN to verify ")
-            Print("   that they are writeable and there is no apparent disk corruption.")
-            Print("   the tests attempt to write to the LUN over each available path and")
-            Print("   reports the number of writable paths to each LUN.")
-            seconds = timeForIOTestsInSec
-            minutes = 0
-            hrs = 0
-            XenCertPrint("Total estimated time for the disk IO tests in seconds: %d" % timeForIOTestsInSec)
-            if timeForIOTestsInSec > 60:
-                minutes = timeForIOTestsInSec/60
-                seconds = int(timeForIOTestsInSec - (minutes * 60))
-                if minutes > 60:
-                    hrs = int(minutes/60)
-                    minutes = int(minutes - (hrs * 60))
-            
-            if hrs > timeLimitFunctional or hrs == timeLimitFunctional and minutes > 0:
-                raise Exception("The disk IO tests will take more than %s hours, please restrict the total disk sizes above to %d GiB."
-                                % (timeLimitFunctional, (timeLimitFunctional*60*60*totalSizeInMiB)/timeForIOTestsInSec))
-                
-            Print("   START TIME: %s " % (time.asctime(time.localtime())))
-            
-            if hrs > 0:
-                Print("   APPROXIMATE RUN TIME: %s hours, %s minutes, %s seconds." % (hrs, minutes, seconds))
-            elif minutes > 0:
-                Print("   APPROXIMATE RUN TIME: %s minutes, %s seconds." % (minutes, seconds))
-            elif seconds > 0:
-                Print("   APPROXIMATE RUN TIME: %s seconds." % seconds)
-            
-            Print("")
-            firstPortal = True
-            lunsMatch = True
-            for key in scsiToTupleMap.keys():                                
-                try:                    
-                    totalCheckPoints += 1
-                    Print("     - Testing LUN with SCSI ID %-30s" % key)
-                    
-                    pathNo = 0
-                    pathPassed = 0
-                    for tuple in scsiToTupleMap[key]:
-                        pathNo += 1                        
-                        # tuple = (portal, iqn, device)
-                        # If this is a root device then skip IO tests for this device.
-                        if os.path.realpath(util.getrootdev()) == tuple[2]:
-                            Print("     -> Skipping IO tests on device %s, as it is the root device." % tuple[2])
-        
-                        # Execute a disk IO test against each path to the LUN to verify that it is writeable
-                        # and there is no apparent disk corruption
-                        PrintOnSameLine("        Path num: %d. Device: %s" % (pathNo, tuple[2]))
-                        try:
-                            # First write a small chunk on the device to make sure it works                    
-                            XenCertPrint("First write a small chunk on the device %s to make sure it works." % tuple[2])
-                            cmd = ['dd', 'if=/dev/zero', 'of=%s' % tuple[2], 'bs=1M', 'count=1', 'conv=nocreat', 'oflag=direct']
-                            util.pread(cmd)
-                                                        
-                            cmd = ['./diskdatatest', 'write', '1', tuple[2]]
-                            XenCertPrint("The command to be fired is: %s" % cmd)
-                            util.pread(cmd)
-                            
-                            cmd = ['./diskdatatest', 'verify', '1', tuple[2]]
-                            XenCertPrint("The command to be fired is: %s" % cmd)
-                            util.pread(cmd)
-                            
-                            XenCertPrint("Device %s passed the disk IO test. " % tuple[2])
-                            pathPassed += 1
-                            Print("")
-                            displayOperationStatus(True)
-                            
-                        except Exception, e:  
-                            Print("        Exception: %s" % str(e))
-                            displayOperationStatus(False)
-                            XenCertPrint("Device %s failed the disk IO test. Please check if the disk is writable." % tuple[2] )
-                        
-                    if pathPassed == 0:
-                        displayOperationStatus(False)
-                        raise Exception("     - LUN with SCSI ID %-30s. Failed the IO test, none of the paths were writable." % key)                        
-                    else:
-                        Print("        SCSI ID: %s Total paths: %d. Writable paths: %d." % (key, len(scsiToTupleMap[key]), pathPassed))
-                        displayOperationStatus(True)
-                        checkPoint += 1                            
-                                
-                except Exception, e:                    
-                    raise Exception("   - Testing failed while testing devices with SCSI ID: %s." % key)
-                
-            Print("   END TIME: %s " % (time.asctime(time.localtime())))
-            
-            checkPoint += 1
-        
-        except Exception, e:
-            Print("- Functional testing failed due to an exception.")
-            Print("- Exception: %s"  % str(e))
-            retVal = False
-            
-         # Logout of all the sessions in the logout list
-        for (portal,iqn) in logoutlist:
-            try:
-                XenCertPrint("Logging out of the session: %s, %s" % (portal, iqn))
-                iscsilib.logout(portal, iqn) 
-            except Exception, e:
-                Print("- Logout failed for the combination %s, %s, but it may not have been logged on so ignore the failure." % (portal, iqn))
-                Print("  Exception: %s" % str(e))
-        XenCertPrint("Checkpoints: %d, totalCheckPoints: %s" % (checkPoint, totalCheckPoints))
-        XenCertPrint("Leaving StorageHandlerISCSI FunctionalTests")
-
-        return (retVal, checkPoint, totalCheckPoints)
-
-    def initizialize(self):
-        context = {}
-
-        #Device Config
-        self.device_config = {}
-        self.device_config['adapterid'] = self.configuration['adapterid']
-        self.device_config['target'] = self.configuration['target']
-        self.device_config['storageSystemId'] = self.configuration['ssid']
-        self.device_config['storagePoolId'] = self.configuration['spid']
-        self.device_config['username'] = self.configuration['username']
-        self.device_config['password'] = self.configuration['password']
-
-        return context
+    #
+    # the following tests for integrated storage link can be found here
+    #
+    # http://scale.uk.xensource.com/confluence/display/QA/SR+Test+Plan
 
     def basicTests(self, session):
-        #STC0001()
-        return
+        retVal = True
+        checkPoints = 1
+        totalCheckPoints = 1
+
+        Print (">> ISL Basic tests <<TBD>>")
+        # STC0001: Installation and Access
+        # 
+        #    .test for presence of SM and any corresponding SM subtype in XAPI after reboot following a fresh installation
+        #    .test for expected SM capabilities
+        # 
+        #  << TBD >>
+
+        return (retVal, checkPoints, totalCheckPoints)   
 
     def FunctionalTests(self):
-        ##STC0002: Functional SMAPI tests
+        retVal = True
+        checkPoints = 0
+        totalCheckPoints = 7
+
+        Print (">>> ISL Functional tests")
+        # R2 - SR basic feature tests
+        # STC0002: Functional SMAPI tests (gated on SM.capabilities field)
+        # 
+        #  * .SR.create
+        #  * .SR.destroy
+        #  * .SR.probe
+        #    .SR.introduce
+        #  * .SR.forget
+        #    .SR.scan - Persistant metadata test. Forget VDI database entries and 
+        #                verify they get re-instantiated with the same 
+        #                parameters (including name-label and any other 
+        #                metadata that should be persisted. Should also attach 
+        #                VDIs and check that the xenstore_data keys are the same)
+        #    .PBD.plug then PBD.unplug shared SR on master while slave PBD unplugged
+        #    .PBD.plug then PBD.unplug shared SR on slave while master PBD unplugged
+        #    .PBD.plug then PBD.unplug shared SR on master while slave PBD missing
+        #    .PBD.plug then PBD.unplug non-shared SR on master
+        #    .PBD.plug then PBD.unplug non-shared SR on slave
+        #  * .VDI.create
+        #  * .VDI.destroy
+        #  * .VDI.snapshot - particularly testing that the newly created snapshot 
+        #                 is independent of the original, such that deleting 
+        #                 the original does not delete the snapshot.
+        #  * .VDI.clone - as for snapshot.
+        #  * .VDI.resize 
+        #  * .VDI-shrink should raise an error
+        #    .VDI-grow by minimum block size (SR/subtype specific)+ 1, repeat 
+        #                 multiple resizes in a loop
+        #    .VDI-resize on running VM
+        #    .VBD.plug
+        #    .VBD.unplug
+        #    .VDI.copy between SR and local LVM (slave-master, slave-slave, master-slave)
+        #    .VDI-clone with slow copy should not lock SR
+        #    .Verify sparseness support for source and destination SRs during VDI.copy 
+        #                 for those SRs where it is possible to tell.
+        #
+        # STC0005: Verify stated limits of SR
+        # 
+        #    .verify supported maximum number of VDIs can be created and attached
+        #    .verify supported number of snapshots can be taken and destroyed
+        #    .verify when a VDI is created that it is at least as large as requested 
+        #                 (i.e. odd sizes of VDIs should round up correctly)
+        #    .verify default disk scheduler
+        #
+        # STC0006: Data integrity tests
+        # 
+        #    .data-integrity of resized VM (ref: TC9414) 
+        #    .Create a 4GB VDI on a CVSM SR
+        #    .Attach the VDI to dom0 and write a randomized (but known) pattern to the VDI
+        #    .Detach the VDI from dom0
+        #    .Resize the VDI to 8GB
+        #    .Attach the VDI to dom0 and validate the pattern on the first 4GB
+        #    .Write a pattern to the second 4GB chunk of the VDI
+        #    .Perform an online resize of the VDI to 12GB
+        #    .Detach and reattach the VDI
+        #    .Validate the patterns on the first and second 4GB chunks
+        #    .VDI.clone/snapshot integrity tests 
+        #    .Add known data pattern to VDI
+        #    .trigger clone and snapshot combinations
+        #    .continue to write data to the original node and verify that snapshot and 
+        #                 clone data matches previous known data patterns
+        #    .ensure that deleting original disk does not affect the snapshot.
+        #    .Zeroed disk contents: Verify new vdi is zeroed when advertised as being so. (see CA-49609)
+        #    .Randomised data integrity tests, covering clone/snapshot.
+        # 
+
         try:
-            #Create SR
-            islOper.SR_create(self.device_config)
-            #SR Destroy
-        except:
+            Print ("  >> SR create, SR destroy")
+            #  * .SR.create
+            #  * .SR.destroy
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            if retVal:
+                self.Destroy_SR(sr_ref)
+                checkPoints += 1
+            displayOperationStatus(retVal)
+
+            Print ("  >> SR create, SR probe, SR destroy")
+            #  * .SR.create
+            #  * .SR.probe
+            #  * .SR.destroy
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            if retVal:
+                report(self.Probe_SR(sr_ref), True)
+                report(self.Destroy_SR(sr_ref), True)
+                checkPoints += 1
+            displayOperationStatus(retVal)
+
+            Print ("  >> SR create, SR forget, SR introduce, SR destroy")
+            #  * .SR.create
+            #  * .SR.forget
+            #    .SR.introduce  (wkc fixfix -- needs to be done)
+            #    .SR.destroy
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            if retVal:
+                report(self.Forget_SR(sr_ref), True)
+                #self.Introduce_SR(sr_ref)
+                #self.Destroy_SR(sr_ref)
+                checkPoints += 1
+            displayOperationStatus(retVal)
+
+            #    .VDI.create
+            #    .VDI.snapshot - particularly testing that the newly created snapshot 
+            #                 is independent of the original, such that deleting 
+            #                 the original does not delete the snapshot.
+            #    .VDI.destroy
+            Print ("  >> SR create, VDI create, VDI snapshot, VDI destroy, VDI destroy (snapshot), SR destroy")
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            if retVal:
+                lunsizeBytes = int(self.configuration['lunsize'])
+                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
+                if retVal:
+                    (retVal, vdi_snap_ref) = self.Snapshot_VDI(vdi_ref)
+                    if retVal:
+                        report(self.Destroy_VDI(vdi_ref), True)
+                        # need to test to make sure snap still exists (wkc fixfix)
+                        self.Destroy_VDI(vdi_snap_ref)
+                        checkPoints += 1
+                        displayOperationStatus(True)
+                    else:
+                        # snapshot failed
+                        displayOperationStatus(False)
+                else:
+                    # create VDI failed
+                    displayOperationStatus(False)
+                self.Destroy_SR(sr_ref)
+            else:
+                # create SR failed
+                displayOperationStatus(False)
+                    
+            # same as above, just use clone
+            #    .VDI.clone - as for snapshot.
+            Print ("  >> SR create, VDI create, VDI clone, VDI destroy, VDI destroy (clone), SR destroy")
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            if retVal:
+                lunsizeBytes = int(self.configuration['lunsize'])
+                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
+                if retVal:
+                    (retVal, vdi_clone_ref) = self.Clone_VDI(vdi_ref)
+                    if retVal:
+                        self.Destroy_VDI(vdi_ref)
+                        # need to test to make sure clone still exists (wkc fixfix)
+                        report(self.Destroy_VDI(vdi_clone_ref), True)
+                        checkPoints += 1
+                        displayOperationStatus(True)
+                    else:
+                        # clone failed
+                        displayOperationStatus(False)
+                else:
+                    # create VDI failed
+                    displayOperationStatus(False)
+                report(self.Destroy_SR(sr_ref), True)
+            else:
+                # create SR failed
+                displayOperationStatus(False)
+
+            #    .VDI.resize 
+            Print ("  >> SR create, VDI create, [check size], VDI resize, [check size] VDI destroy, SR destroy")
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            if retVal:
+                lunsizeBytes = int(self.configuration['lunsize'])
+                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
+                if retVal:
+                    retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                    Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
+                    # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
+                    newsize = int(retSize)*2
+                    retVal = self.Resize_VDI(vdi_ref, int(newsize))
+                    if retVal:
+                        # recheck new size wkc: fixfix
+                        retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                        Print("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
+                        report(self.Destroy_VDI(vdi_ref), True)
+                        checkPoints += 1
+                        displayOperationStatus(True)
+                    else:
+                        # resize failed
+                        displayOperationStatus(False)
+                else:
+                    # create VDI failed
+                    displayOperationStatus(False)
+                report(self.Destroy_SR(sr_ref), True)
+            else:
+                # create SR failed
+                displayOperationStatus(False)
+
+            #    .VDI.resize (shrink) expect an error
+            Print ("  >> SR create, VDI create, VDI resize (shrink), VDI destroy, SR destroy")
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            if retVal:
+                lunsizeBytes = int(self.configuration['lunsize'])
+                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
+                if retVal:
+                    retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                    Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
+                    # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
+                    newsize = int(retSize)/2
+                    retVal = self.Resize_VDI(vdi_ref, int(newsize))
+                    if retVal == True:
+                        displayOperationStatus(False)
+                    else:
+                        checkPoints += 1
+                        displayOperationStatus(True)
+                    report(self.Destroy_VDI(vdi_ref), True)
+                report(self.Destroy_SR(sr_ref), True)
+            else:
+                # create SR failed
+                displayOperationStatus(False)
+
+        except Exception, e:
             raise
-        ##STC0005: Verify stated limits of SR
-        ##STC0006: Data integrity tests
-        return
+
+        return (retVal, checkPoints, totalCheckPoints)   
 
     def cleanup(context):
         return
     
     def __del__(self):
-        XenCertPrint("Reached StorageHandlerISCSI destructor")
+        XenCertPrint("Reached StorageHandlerISL destructor")
         StorageHandler.__del__(self)

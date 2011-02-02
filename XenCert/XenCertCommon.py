@@ -13,7 +13,7 @@ from optparse import OptionParser
 import StorageHandler
 from StorageHandlerUtil import Print
 
-storage_type = "storage type (lvmoiscsi, lvmohba, nfs)"
+storage_type = "storage type (lvmoiscsi, lvmohba, nfs, isl)"
 
 # argument format:
 #  keyword
@@ -112,7 +112,7 @@ def store_configuration(g_storage_conf, options):
 def valid_arguments(options, g_storage_conf):
     """ validate arguments """
     if not options.storage_type in ["lvmohba", "nfs", "lvmoiscsi", "isl"]:
-        Print("Error: storage type (lvmohba, nfs or lvmoiscsi) is required")
+        Print("Error: storage type (lvmohba, nfs, isl or lvmoiscsi) is required")
         return 0
 
     for element in __commonparams__:
