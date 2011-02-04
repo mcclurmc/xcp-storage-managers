@@ -34,6 +34,8 @@ CONFIGURATION = [ [ 'SCSIid', 'The scsi_id of the destination LUN' ], \
                   [ 'targetIQN', 'The IQN of the target LUN group to be attached' ], \
                   [ 'chapuser', 'The username to be used during CHAP authentication' ], \
                   [ 'chappassword', 'The password to be used during CHAP authentication' ], \
+                  [ 'incoming_chapuser', 'The incoming username to be used during bi-directional CHAP authentication (optional)' ], \
+                  [ 'incoming_chappassword', 'The incoming password to be used during bi-directional CHAP authentication (optional)' ], \
                   [ 'port', 'The network port number on which to query the target' ], \
                   [ 'multihomed', 'Enable multi-homing to this target, true or false (optional, defaults to same value as host.other_config:multipathing)' ], \
                   [ 'usediscoverynumber', 'The specific iscsi record index to use. (optional)' ], \

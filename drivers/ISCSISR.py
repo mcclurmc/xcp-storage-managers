@@ -29,6 +29,8 @@ CONFIGURATION = [ [ 'target', 'IP address or hostname of the iSCSI target (requi
                   [ 'targetIQN', 'The IQN of the target LUN group to be attached (required)' ], \
                   [ 'chapuser', 'The username to be used during CHAP authentication (optional)' ], \
                   [ 'chappassword', 'The password to be used during CHAP authentication (optional)' ], \
+                  [ 'incoming_chapuser', 'The incoming username to be used during bi-directional CHAP authentication (optional)' ], \
+                  [ 'incoming_chappassword', 'The incoming password to be used during bi-directional CHAP authentication (optional)' ], \
                   [ 'port', 'The network port number on which to query the target (optional)' ], \
                   [ 'multihomed', 'Enable multi-homing to this target, true or false (optional, defaults to same value as host.other_config:multipathing)' ] ]
 
@@ -133,6 +135,16 @@ class ISCSISR(SR.SR):
                 self.chappassword = util.get_secret(self.session, self.dconf['chappassword_secret'])
             else:
                 self.chappassword = self.dconf['chappassword']
+
+        self.incoming_chapuser = ""
+        self.incoming_chappassword = ""
+        if self.dconf.has_key('incoming_chapuser') \
+                and (self.dconf.has_key('incoming_chappassword') or self.dconf.has_key('incoming_chappassword_secret')):
+            self.incoming_chapuser = self.dconf['incoming_chapuser']
+            if self.dconf.has_key('incoming_chappassword_secret'):
+                self.incoming_chappassword = util.get_secret(self.session, self.dconf['incoming_chappassword_secret'])
+            else:
+                self.incoming_chappassword = self.dconf['incoming_chappassword']
 
         self.port = DEFAULT_PORT
         if self.dconf.has_key('port') and self.dconf['port']:
@@ -280,7 +292,7 @@ class ISCSISR(SR.SR):
                                 continue
                             util._testHost(ipaddr, long(port), 'ISCSITarget')
                             util.SMlog("Logging in to [%s:%s]" % (ipaddr,port))
-                            iscsilib.login(portal, iqn, self.chapuser, self.chappassword)
+                            iscsilib.login(portal, iqn, self.chapuser, self.chappassword, self.incoming_chapuser, self.incoming_chappassword)
                             npaths = npaths + 1
                         except:
                             pass
