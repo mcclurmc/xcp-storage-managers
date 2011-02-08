@@ -1869,6 +1869,7 @@ class StorageHandlerISL(StorageHandler):
                         displayOperationStatus(True)
                     report(self.Destroy_VDI(vdi_ref), True)
                 report(self.Destroy_SR(sr_ref), True)
+                retVal = True
             else:
                 # create SR failed
                 displayOperationStatus(False)
