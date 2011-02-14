@@ -808,5 +808,25 @@
                 <description>Failed to communicate with the multipath daemon</description>
                 <value>430</value>
         </code>
+        <code>
+                <name>CSL_Integrated</name>
+                <description>Error in storage adapter communication</description>
+                <value>431</value>
+        </code>
+        <code>
+                <name>CSLGConfigAdapterMissing</name>
+                <description>The adapter id is missing</description>
+                <value>432</value>
+        </code>
+        <code>
+                <name>CSLGConfigUsernameMissing</name>
+                <description>The username is missing</description>
+                <value>433</value>
+        </code>
+        <code>
+                <name>CSLGConfigPasswordMissing</name>
+                <description>The password is missing</description>
+                <value>434</value>
+        </code>
 
 </SM-errorcodes>
