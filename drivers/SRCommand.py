@@ -197,7 +197,7 @@ class SRCommand:
             if not target.sr.driver_config.get("ATTACH_FROM_CONFIG_WITH_TAPDISK"):
                 return ret
             target = blktap2.VDI(self.vdi_uuid, target, self.driver_info)
-            return target.attach(self.params['sr_uuid'], self.vdi_uuid, True)
+            return target.attach(self.params['sr_uuid'], self.vdi_uuid, True, True)
 
         elif self.cmd == 'sr_create':
             return sr.create(self.params['sr_uuid'], long(self.params['args'][0]))
