@@ -36,8 +36,7 @@ failoverTime = 0
 # simple tracer
 def report(predicate, condition):
     if predicate != condition:
-        Print("Conidtion Failed, check SMlog")
-
+        Print("Condition Failed, check SMlog")
 
 # Hardcoded time limit for Functional tests in hours
 timeLimitFunctional = 4
@@ -510,7 +509,7 @@ class StorageHandler:
             displayOperationStatus(True)
             checkPoint += 1
 
-               #Create and plug SR
+            #Create and plug SR
             XenCertPrint( "2. Now use XAPI to get information for creating an SR."           )
             Print("   -> Creating shared SR.")
             (retVal, sr_ref, device_config) = self.Create()
@@ -1413,12 +1412,7 @@ class StorageHandlerISL(StorageHandler):
 ##
 ## Nota Bene: 
 ##
-##  1) These test cases use "cslg" for SR type and should be changed when the final SR type for 
-##     Integrated StorageLink is determined. 
-##  2) target/username/password is currently hard-coded for a storagelink gateway, and must be changed
-##     to reflect the target (array) and username/password credentials of the array, presumably 
-##     retreived from the config file.
-##  3) The "Meta Data" VDI need to be accomodated -- which is special for integrated StorageLink
+##  1) The "Meta Data" VDI need to be accomodated -- which is special for integrated StorageLink
 ##
 
     #
@@ -1504,6 +1498,15 @@ class StorageHandlerISL(StorageHandler):
             XenCertPrint("Failed to unplug PBD. Exception: %s" % str(e))
             return False
        
+    def Plug_PBD(self, pbd_ref):
+        try:
+            XenCertPrint("Plugging PBD")
+            self.session.xenapi.PBD.plug(pbd_ref)
+            return True
+        except Exception, e:
+            XenCertPrint("Failed to plug PBD. Exception: %s" % str(e))
+            return False
+       
     def Destroy_PBD(self, pbd_ref):
         try:
             XenCertPrint("destroying PBD")
@@ -1517,14 +1520,9 @@ class StorageHandlerISL(StorageHandler):
         local_dconf = {}
         local_smconfig = {}
         local_dconf['adapterid'] = self.configuration['adapterid']
-        #['target'] = self.configuration['target']
-        #local_dconf['username'] = self.configuration['username']
-        #local_dconf['password'] = self.configuration['password']
-
-        # wkc: fixfix use existing CSLG type args until ISL ready
-        local_dconf['target'] = 'wim7'
-        local_dconf['username'] = 'admin'
-        local_dconf['password'] = 'storagelink'
+        local_dconf['target'] = self.configuration['target']
+        local_dconf['username'] = self.configuration['username']
+        local_dconf['password'] = self.configuration['password']
 
         # different kinds of probe based on the amount of data present in dconf
         # how should we verify?
@@ -1580,7 +1578,11 @@ class StorageHandlerISL(StorageHandler):
             XenCertPrint("Failed to Destroy SR. Exception: %s" % str(e))
             return False
 
-    def Create_SR(self):
+    def Create(self, shared=False):
+        """ alias to create SR """
+        return self.Create_SR(shared)
+
+    def Create_SR(self, shared=False):
         XenCertPrint("Create SR")
         self.device_config = {}
         retVal = True
@@ -1588,16 +1590,9 @@ class StorageHandlerISL(StorageHandler):
         try:
             # Create an SR
             self.device_config['adapterid'] = self.configuration['adapterid']
-            #self.device_config['target'] = self.configuration['target']
+            self.device_config['target'] = self.configuration['target']
             self.device_config['storageSystemId'] = self.configuration['ssid']
             self.device_config['storagePoolId'] = self.configuration['spid']
-            #self.device_config['username'] = self.configuration['username']
-            #self.device_config['password'] = self.configuration['password']
-
-            # wkc: fixfix use existing CSLG type args until ISL ready
-            self.device_config['target'] = 'wim7'
-            self.device_config['username'] = 'admin'
-            self.device_config['password'] = 'storagelink'
 
             # skip chapuser/pass for now (wkc: fixfix)
             #if self.configuration.has_key('chapuser') != None and self.configuration.has_key('chappasswd') != None:
@@ -1606,7 +1601,7 @@ class StorageHandlerISL(StorageHandler):
             # try to create an SR with one of the LUNs mapped, if all fails throw an exception
             try:                    
                 XenCertPrint("The SR create parameters are %s, %s" % (util.get_localhost_uuid(self.session), self.device_config))
-                sr_ref = self.session.xenapi.SR.create(util.get_localhost_uuid(self.session), self.device_config, '0', 'XenCertTestSR', '', 'cslg', '',False, {})
+                sr_ref = self.session.xenapi.SR.create(util.get_localhost_uuid(self.session), self.device_config, '0', 'XenCertTestSR', '', 'cslg', '', shared, {})
                 XenCertPrint("Created the SR %s using device_config %s" % (sr_ref, self.device_config))
             except Exception, e:
                 XenCertPrint("Failed to Create SR. Exception: %s" % str(e))
@@ -1662,7 +1657,7 @@ class StorageHandlerISL(StorageHandler):
     def FunctionalTests(self):
         retVal = True
         checkPoints = 0
-        totalCheckPoints = 7
+        totalCheckPoints = 0
 
         Print (">>> ISL Functional tests")
         # R2 - SR basic feature tests
@@ -1678,11 +1673,11 @@ class StorageHandlerISL(StorageHandler):
         #                parameters (including name-label and any other 
         #                metadata that should be persisted. Should also attach 
         #                VDIs and check that the xenstore_data keys are the same)
-        #    .PBD.plug then PBD.unplug shared SR on master while slave PBD unplugged
-        #    .PBD.plug then PBD.unplug shared SR on slave while master PBD unplugged
-        #    .PBD.plug then PBD.unplug shared SR on master while slave PBD missing
-        #    .PBD.plug then PBD.unplug non-shared SR on master
-        #    .PBD.plug then PBD.unplug non-shared SR on slave
+        #  * .PBD.plug then PBD.unplug shared SR on master while slave PBD unplugged
+        #  * .PBD.plug then PBD.unplug shared SR on slave while master PBD unplugged
+        #  * .PBD.plug then PBD.unplug shared SR on master while slave PBD missing
+        #  + .PBD.plug then PBD.unplug non-shared SR on master (covered in other tests)
+        #  + .PBD.plug then PBD.unplug non-shared SR on slave  (covered in other tests)
         #  * .VDI.create
         #  * .VDI.destroy
         #  * .VDI.snapshot - particularly testing that the newly created snapshot 
@@ -1691,11 +1686,11 @@ class StorageHandlerISL(StorageHandler):
         #  * .VDI.clone - as for snapshot.
         #  * .VDI.resize 
         #  * .VDI-shrink should raise an error
-        #    .VDI-grow by minimum block size (SR/subtype specific)+ 1, repeat 
+        #  * .VDI-grow by minimum block size (SR/subtype specific)+ 1, repeat 
         #                 multiple resizes in a loop
         #    .VDI-resize on running VM
-        #    .VBD.plug
-        #    .VBD.unplug
+        #  + .VBD.plug    (covered in other tests)
+        #  + .VBD.unplug  (covered in other tests)
         #    .VDI.copy between SR and local LVM (slave-master, slave-slave, master-slave)
         #    .VDI-clone with slow copy should not lock SR
         #    .Verify sparseness support for source and destination SRs during VDI.copy 
@@ -1733,6 +1728,7 @@ class StorageHandlerISL(StorageHandler):
 
         try:
             Print ("  >> SR create, SR destroy")
+            totalCheckPoints += 1
             #  * .SR.create
             #  * .SR.destroy
             (retVal, sr_ref, dconf) = self.Create_SR()
@@ -1742,6 +1738,7 @@ class StorageHandlerISL(StorageHandler):
             displayOperationStatus(retVal)
 
             Print ("  >> SR create, SR probe, SR destroy")
+            totalCheckPoints += 1
             #  * .SR.create
             #  * .SR.probe
             #  * .SR.destroy
@@ -1753,6 +1750,7 @@ class StorageHandlerISL(StorageHandler):
             displayOperationStatus(retVal)
 
             Print ("  >> SR create, SR forget, SR introduce, SR destroy")
+            totalCheckPoints += 1
             #  * .SR.create
             #  * .SR.forget
             #    .SR.introduce  (wkc fixfix -- needs to be done)
@@ -1771,6 +1769,7 @@ class StorageHandlerISL(StorageHandler):
             #                 the original does not delete the snapshot.
             #    .VDI.destroy
             Print ("  >> SR create, VDI create, VDI snapshot, VDI destroy, VDI destroy (snapshot), SR destroy")
+            totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
             if retVal:
                 lunsizeBytes = int(self.configuration['lunsize'])
@@ -1797,6 +1796,7 @@ class StorageHandlerISL(StorageHandler):
             # same as above, just use clone
             #    .VDI.clone - as for snapshot.
             Print ("  >> SR create, VDI create, VDI clone, VDI destroy, VDI destroy (clone), SR destroy")
+            totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
             if retVal:
                 lunsizeBytes = int(self.configuration['lunsize'])
@@ -1822,6 +1822,7 @@ class StorageHandlerISL(StorageHandler):
 
             #    .VDI.resize 
             Print ("  >> SR create, VDI create, [check size], VDI resize, [check size] VDI destroy, SR destroy")
+            totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
             if retVal:
                 lunsizeBytes = int(self.configuration['lunsize'])
@@ -1852,6 +1853,7 @@ class StorageHandlerISL(StorageHandler):
 
             #    .VDI.resize (shrink) expect an error
             Print ("  >> SR create, VDI create, VDI resize (shrink), VDI destroy, SR destroy")
+            totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
             if retVal:
                 lunsizeBytes = int(self.configuration['lunsize'])
@@ -1874,6 +1876,141 @@ class StorageHandlerISL(StorageHandler):
                 # create SR failed
                 displayOperationStatus(False)
 
+            #    .VDI.grow
+            Print ("  >> SR create, VDI create, [check size], VDI resize (grow), [check size], repeat, VDI destroy, SR destroy")
+            totalCheckPoints += 1
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            if retVal:
+                lunsizeBytes = int(self.configuration['lunsize'])
+                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
+                if retVal:
+                    retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                    Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
+                    # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
+                    passed = 1
+                    for i in range(0,10):
+                        newsize = int(retSize)+int(self.configuration['growsize'])
+                        retVal = self.Resize_VDI(vdi_ref, int(newsize))
+                        if retVal:
+                            # recheck new size wkc: fixfix
+                            retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                            Print("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
+                            displayOperationStatus(True)
+                        else:
+                            # resize failed
+                            displayOperationStatus(False)
+                            passed = 0
+                    checkPoints += passed
+                else:
+                    # create VDI failed
+                    displayOperationStatus(False)
+                report(self.Destroy_VDI(vdi_ref), True)
+                report(self.Destroy_SR(sr_ref), True)
+            else:
+                # create SR failed
+                displayOperationStatus(False)
+
+            # multiple host PBD plug/unplugs - requires a shared SR
+            Print ("  >> Mulitple host tests")
+            try:
+                host_list = self.session.xenapi.host.get_all()
+                if len(host_list) > 1:
+                    Print ("  >> create SR, unplug all PBDs.")
+                    totalCheckPoints += 1
+                    (retVal, sr_ref, dconf) = self.Create_SR(True)
+                    if retVal:
+                        passed = 1
+                        pbd_list = self.getAllPBDs(sr_ref)
+                        for pbd_ref in pbd_list:
+                            if self.Unplug_PBD(pbd_ref) == False:
+                                passed = 0
+                        checkPoints += passed
+                    else:
+                        # unplug failed
+                        displayOperationStatus(False)
+
+                    #    .PBD.plug then PBD.unplug shared SR on master while slave PBD unplugged
+                    Print ("  >> PBD plug and unplug on master with slave PBD unplugged")
+                    totalCheckPoints += 1
+                    try:
+                        poolref = self.session.xenapi.pool.get_all()[0]
+                        masterref = self.session.xenapi.pool.get_master(poolref)
+                        passed = 1
+                        for pbd_ref in pbd_list:
+                            if self.session.xenapi.PBD.get_host(pbd_ref) == masterref:
+                                mpbd = pbd_ref
+                                if self.Plug_PBD(mpbd) == False:
+                                    passed = 0
+                        if self.Unplug_PBD(mpbd) == False:
+                            passed = 0
+                        checkPoints += passed
+                        displayOperationStatus(passed == 1)
+                    except Exception, e:
+                        # failed to operate on xapi
+                        XenCertPrint("Exception: %s" % str(e))
+                        displayOperationStatus(False)
+                
+                    #    .PBD.plug then PBD.unplug shared SR on slave while master PBD unplugged
+                    Print ("  >> PBD plug and unplug on slave with master PBD unplugged")
+                    totalCheckPoints += 1
+                    try:
+                        poolref = self.session.xenapi.pool.get_all()[0]
+                        masterref = self.session.xenapi.pool.get_master(poolref)
+                        passed = 1
+                        for pbd_ref in pbd_list:
+                            if self.session.xenapi.PBD.get_host(pbd_ref) != masterref:
+                                spbd = pbd_ref
+                                if self.Plug_PBD(spbd) == False:
+                                    passed = 0
+                                break
+                        if self.Unplug_PBD(spbd) == False:
+                            passed = 0
+                        checkPoints += passed
+                        displayOperationStatus(passed == 1)
+                    except Exception, e:
+                        # failed to operate on xapi
+                        XenCertPrint("Exception: %s" % str(e))
+                        displayOperationStatus(False)
+
+                    #    .PBD.plug then PBD.unplug shared SR on master while slave PBD missing
+                    Print ("  >> PBD plug and unplug on master with slave PBD missing")
+                    totalCheckPoints += 1
+                    try:
+                        poolref = self.session.xenapi.pool.get_all()[0]
+                        masterref = self.session.xenapi.pool.get_master(poolref)
+                        passed = 1
+                        # delete all but master PBD
+                        for pbd_ref in pbd_list:
+                            if self.session.xenapi.PBD.get_host(pbd_ref) != masterref:
+                                self.session.xenapi.PBD.destroy(pbd_ref)
+                        pbd_list = self.getAllPBDs(sr_ref)
+                        # should only be one left
+                        if len(pbd_list) != 1:
+                            displayOperationStatus(False)
+                        else:
+                            pbd_ref = pbd_list[0]
+                            if self.session.xenapi.PBD.get_host(pbd_ref) != masterref:
+                                displayOperationStatus(False)
+                            else:
+                                if self.Plug_PBD(pbd_ref) == False:
+                                    displayOperationStatus(False)
+                                else:
+                                    if self.Unplug_PBD(pbd_ref) == False:
+                                        displayOperationStatus(False)
+                                    else:
+                                        checkPoints += 1
+                                        displayOperationStatus(True)
+                                        self.session.xenapi.PBD.destroy(pbd_ref)
+                                        report(self.Forget_SR(sr_ref), True)
+                    except Exception, e:
+                        # failed to operate on xapi
+                        XenCertPrint("Exception: %s" % str(e))
+                        displayOperationStatus(False)
+                else:
+                    Print ("  >> Only one host detected, skipping")
+            except:
+                Print ("  >> Failed to get host list, skipping")
+               
         except Exception, e:
             raise
 

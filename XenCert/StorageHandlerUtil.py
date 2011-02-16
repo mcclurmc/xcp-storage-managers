@@ -435,7 +435,8 @@ def CreateMaxSizeVDIAndVBD(session, sr_ref):
 	    session.xenapi.SR.scan(sr_ref)
 	    pSize = session.xenapi.SR.get_physical_size(sr_ref)
 	    pUtil = session.xenapi.SR.get_physical_utilisation(sr_ref)
-	    vdi_size = str(actualSRFreeSpace(int(pSize) - int(pUtil)))
+	    #vdi_size = str(actualSRFreeSpace(int(pSize) - int(pUtil)))
+	    vdi_size = '1073741824' # wkc hack (1GB)
 
 	    # Populate VDI args
 	    args={}
