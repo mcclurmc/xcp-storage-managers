@@ -73,14 +73,6 @@ PEXPECT_DIST := $(CARBON_DISTFILES)/sm/pexpect-2.3.tar.gz
 PEXPECT_SRC := $(MY_OBJ_DIR)/pexpect-2.3
 PYTHON_DEST := $(SM_STAGING)/usr/lib/python2.4
 
-ISA_DIST := $(CARBON_DISTFILES)/sm/iSL-patch.tar.gz
-ISA_SRC := $(MY_OBJ_DIR)/iSL-patch
-ISA_INSTALL := iSL-Install.sh
-
-WINSA_DIST := $(CARBON_DISTFILES)/sm/WinSA.zip
-
-SH := /bin/sh
-
 .PHONY: build
 build: $(PKG) $(MY_SOURCES)/MANIFEST
 	@ :
@@ -145,9 +137,6 @@ $(SM_STAMP):
 	install -m 755 -o root -g root $(REPO)/drivers/runvmpr $(SM_STAGING)$(SM_DEST)
 	install -m 755 -o root -g root $(REPO)/drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
 	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats
-	cd $(MY_OBJ_DIR) && tar zxf $(ISA_DIST)
-	cd $(ISA_SRC) && $(SH) -c './$(ISA_INSTALL) $(SM_STAGING)'
-	cd $(SM_STAGING)$(SM_DEST) && cp -rf $(WINSA_DIST) .
 	@touch $@
 
 
