@@ -116,6 +116,7 @@ install:
 	install -m 755 drivers/runvmpr $(SM_STAGING)$(SM_DEST)
 	install -m 755 drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
 	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats
+	cp -rf XenCert $(SM_STAGING)$(DEBUG_DEST)
 
 .PHONY: clean
 clean:

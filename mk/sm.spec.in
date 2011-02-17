@@ -206,6 +206,31 @@ rm -rf $RPM_BUILD_ROOT
 /opt/xensource/sm/xs_errors.pyc
 /opt/xensource/sm/xs_errors.pyo
 /sbin/mpathutil
+/opt/xensource/debug/XenCert/READ\ ME\ FIRST.txt
+/opt/xensource/debug/XenCert/StorageHandler.py
+/opt/xensource/debug/XenCert/StorageHandler.pyc
+/opt/xensource/debug/XenCert/StorageHandler.pyo
+/opt/xensource/debug/XenCert/StorageHandlerUtil.py
+/opt/xensource/debug/XenCert/StorageHandlerUtil.pyc
+/opt/xensource/debug/XenCert/StorageHandlerUtil.pyo
+/opt/xensource/debug/XenCert/XenCert
+/opt/xensource/debug/XenCert/XenCert\ 2.0\ Guide_5.6_FeaturePack1.docx
+/opt/xensource/debug/XenCert/XenCertCommon.py
+/opt/xensource/debug/XenCert/XenCertCommon.pyc
+/opt/xensource/debug/XenCert/XenCertCommon.pyo
+/opt/xensource/debug/XenCert/XenCert_5.6_FeaturePack1_Verification_Results_CheckList.docx
+/opt/xensource/debug/XenCert/blockunblockHBAPort.sh.brocade
+/opt/xensource/debug/XenCert/blockunblockHBAPort.sh.cisco
+/opt/xensource/debug/XenCert/blockunblockHBAPort.sh.qlogic
+/opt/xensource/debug/XenCert/blockunblockhbapaths-brocade
+/opt/xensource/debug/XenCert/blockunblockhbapaths-cisco
+/opt/xensource/debug/XenCert/blockunblockhbapaths-qlogic
+/opt/xensource/debug/XenCert/blockunblockiscsipaths
+/opt/xensource/debug/XenCert/blockunblockpaths
+/opt/xensource/debug/XenCert/cslg_config_netapp.conf
+/opt/xensource/debug/XenCert/diskdatatest
+/opt/xensource/debug/XenCert/isl_config_netapp.conf
+
 
 %changelog
 
