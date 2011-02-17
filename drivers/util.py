@@ -610,15 +610,22 @@ def is_attached_rw(sm_config):
             return True
     return False
 
-def find_my_pbd(session, host_ref, sr_ref):
+def find_my_pbd_record(session, host_ref, sr_ref):
     try:
         pbds = session.xenapi.PBD.get_all_records()
         for pbd_ref in pbds.keys():
             if pbds[pbd_ref]['host'] == host_ref and pbds[pbd_ref]['SR'] == sr_ref:
-                return pbd_ref
+                return [pbd_ref,pbds[pbd_ref]]
         return None
     except Exception, e:
         SMlog("Caught exception while looking up PBD for host %s SR %s: %s" % (str(host_ref), str(sr_ref), str(e)))
+        return None    
+
+def find_my_pbd(session, host_ref, sr_ref):
+    ret = find_my_pbd_record(session, host_ref, sr_ref)
+    if ret <> None:
+        return ret[0]
+    else:
         return None
 
 def test_hostPBD_devs(session, devs):
