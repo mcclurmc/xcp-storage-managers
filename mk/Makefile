@@ -18,13 +18,13 @@ SM_SPEC := sm.spec
 SM_SRC := $(RPM_SOURCESDIR)/sm-$(SM_VERSION).tar.gz
 SM_SRPM := sm-$(SM_VERSION)-$(SM_RELEASE).src.rpm
 SM_STAMP := $(MY_OBJ_DIR)/.rpmbuild.stamp
-
+ERRORCODES_XML := XE_SR_ERRORCODES.xml
 SM_TESTS := $(MY_OUTPUT_DIR)/storage-manager-tests.tar
 REPO := $(call hg_loc,sm)
 
 
 .PHONY: build
-build: $(SM_STAMP) $(SM_TESTS)
+build: $(SM_STAMP) $(SM_TESTS) $(MY_OUTPUT_DIR)/$(ERRORCODES_XML)
 
 $(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP) $(RPM_BUILD_COOKIE)
 	( echo "$(COMPONENT) gpl file $(RPM_SRPMSDIR)/$(SM_SRPM)" ; \
@@ -62,3 +62,6 @@ $(SM_TESTS):
 	rm -f $@
 	tar -cf $@ -C $(REPO) tests
 
+$(MY_OUTPUT_DIR)/$(ERRORCODES_XML):
+	rm -f $@
+	cp $(REPO)/drivers/$(ERRORCODES_XML) $@
