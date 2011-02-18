@@ -206,7 +206,7 @@ rm -rf $RPM_BUILD_ROOT
 /opt/xensource/sm/xs_errors.pyc
 /opt/xensource/sm/xs_errors.pyo
 /sbin/mpathutil
-/opt/xensource/debug/XenCert/READ\ ME\ FIRST.txt
+"/opt/xensource/debug/XenCert/READ ME FIRST.txt"
 /opt/xensource/debug/XenCert/StorageHandler.py
 /opt/xensource/debug/XenCert/StorageHandler.pyc
 /opt/xensource/debug/XenCert/StorageHandler.pyo
@@ -214,7 +214,7 @@ rm -rf $RPM_BUILD_ROOT
 /opt/xensource/debug/XenCert/StorageHandlerUtil.pyc
 /opt/xensource/debug/XenCert/StorageHandlerUtil.pyo
 /opt/xensource/debug/XenCert/XenCert
-/opt/xensource/debug/XenCert/XenCert\ 2.0\ Guide_5.6_FeaturePack1.docx
+"/opt/xensource/debug/XenCert/XenCert 2.0 Guide_5.6_FeaturePack1.docx"
 /opt/xensource/debug/XenCert/XenCertCommon.py
 /opt/xensource/debug/XenCert/XenCertCommon.pyc
 /opt/xensource/debug/XenCert/XenCertCommon.pyo
