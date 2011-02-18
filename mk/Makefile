@@ -137,6 +137,7 @@ $(SM_STAMP):
 	install -m 755 -o root -g root $(REPO)/drivers/runvmpr $(SM_STAGING)$(SM_DEST)
 	install -m 755 -o root -g root $(REPO)/drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
 	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats
+	cp $(REPO)/drivers/XE_SR_ERRORCODES.xml $(MY_OUTPUT_DIR)
 	@touch $@
 
 $(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP)
