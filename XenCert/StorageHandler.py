@@ -1593,6 +1593,10 @@ class StorageHandlerISL(StorageHandler):
             self.device_config['target'] = self.configuration['target']
             self.device_config['storageSystemId'] = self.configuration['ssid']
             self.device_config['storagePoolId'] = self.configuration['spid']
+            if self.configuration.has_key('username'):
+                self.device_config['username'] = self.configuration['username']
+            if self.configuration.has_key('password'):
+                self.device_config['password'] = self.configuration['password']
 
             # skip chapuser/pass for now (wkc: fixfix)
             #if self.configuration.has_key('chapuser') != None and self.configuration.has_key('chappasswd') != None:
