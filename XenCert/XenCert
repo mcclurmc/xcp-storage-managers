@@ -22,6 +22,8 @@ import time
 
 def main():
     """Main Routine"""
+
+    pass_all = True
     g_storage_conf = {}
     InitLogging()
     PrintToLog("***********************************************************************\n")
@@ -61,24 +63,32 @@ def main():
     if options.multipath or testAll:
 	Print("Performing multipath configuration verification.")
     	(retValMP, checkPointsMP, totalCheckPointsMP) = handler.MPConfigVerificationTests()
+        if checkPointsMP != totalCheckPointsMP:
+            pass_all = False
 	Print("***********************************************************************")
 	timeOfCompletionMP = time.asctime(time.localtime())
 
     if options.control or testAll: 
     	Print("Performing control path stress tests.")
         (retValControl, checkPointsControl, totalCheckPointsControl) = handler.ControlPathStressTests()
+        if checkPointsControl != totalCheckPointsControl:
+            pass_all = False
     	Print("***********************************************************************")
 	timeOfCompletionControl = time.asctime(time.localtime())
 
     if options.pool or testAll:
 	Print("Performing pool tests to ensure consistency.")
     	(retValPool, checkPointsPool, totalCheckPointsPool) = handler.PoolTests()
+        if checkPointsPool != totalCheckPointsPool:
+            pass_all = False
 	Print("***********************************************************************")
 	timeOfCompletionPool = time.asctime(time.localtime())
     	
     if options.functional or testAll: 
     	Print("Performing functional tests.")
     	(retValFunctional, checkPointsFunctional, totalCheckPointsFunctional) = handler.FunctionalTests()
+        if checkPointsFunctional != checkPointsFunctional:
+            pass_all = False
     	Print("***********************************************************************")
 	timeOfCompletionFunctional = time.asctime(time.localtime())
 	    
@@ -137,7 +147,10 @@ def main():
     Print("***********************************************************************")  
     UnInitLogging()
 
-    sys.exit(0)
+    if pass_all:
+        sys.exit(0)
+    else:
+        sys.exit(1)
     
 if __name__ == "__main__":
     main()

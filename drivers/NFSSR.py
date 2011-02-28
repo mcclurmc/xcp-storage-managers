@@ -16,7 +16,6 @@
 import SR, VDI, SRCommand, FileSR, util
 import errno
 import os, re, sys
-import time
 import xml.dom.minidom
 import xmlrpclib
 import xs_errors
@@ -28,7 +27,7 @@ import cleanup
 CAPABILITIES = ["SR_PROBE","SR_UPDATE", "SR_CACHING",
                 "VDI_CREATE","VDI_DELETE","VDI_ATTACH","VDI_DETACH",
                 "VDI_UPDATE", "VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE",
-                "VDI_RESIZE_ONLINE",
+                "VDI_RESIZE_ONLINE", "VDI_GENERATE_CONFIG",
                 "VDI_RESET_ON_BOOT", "ATOMIC_PAUSE"]
 
 CONFIGURATION = [ [ 'server', 'hostname or IP address of NFS server (required)' ], \
@@ -243,16 +242,6 @@ class NFSFileVDI(FileSR.FileVDI):
                 pass
 
         return super(NFSFileVDI, self).attach(sr_uuid, vdi_uuid)
-
-    def clone(self, sr_uuid, vdi_uuid):
-        timestamp_before = int(util.get_mtime(self.sr.path))
-        ret = super(NFSFileVDI, self).clone(sr_uuid, vdi_uuid)
-        timestamp_after = int(util.get_mtime(self.sr.path))
-        if timestamp_after == timestamp_before:
-            util.SMlog("SR dir timestamp didn't change, updating")
-            timestamp_after += 1
-            os.utime(self.sr.path, (timestamp_after, timestamp_after))
-        return ret
 
     def generate_config(self, sr_uuid, vdi_uuid):
         util.SMlog("NFSFileVDI.generate_config")

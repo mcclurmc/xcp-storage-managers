@@ -78,6 +78,8 @@ def roundup(divisor, value):
     return value
 
 def to_plain_string(obj):
+    if obj is None:
+        return None
     if type(obj) == str:
         return obj
     if type(obj) == unicode:
@@ -434,10 +436,6 @@ def get_fs_utilisation(path):
     return (st[statvfs.F_BLOCKS] - st[statvfs.F_BFREE]) * \
             st[statvfs.F_FRSIZE]
 
-def get_mtime(path):
-    st = ioretry_stat(lambda: os.stat(path))
-    return st[stat.ST_MTIME]
-
 def ismount(path):
     """Test whether a path is a mount point"""
     try:
@@ -612,15 +610,22 @@ def is_attached_rw(sm_config):
             return True
     return False
 
-def find_my_pbd(session, host_ref, sr_ref):
+def find_my_pbd_record(session, host_ref, sr_ref):
     try:
         pbds = session.xenapi.PBD.get_all_records()
         for pbd_ref in pbds.keys():
             if pbds[pbd_ref]['host'] == host_ref and pbds[pbd_ref]['SR'] == sr_ref:
-                return pbd_ref
+                return [pbd_ref,pbds[pbd_ref]]
         return None
     except Exception, e:
         SMlog("Caught exception while looking up PBD for host %s SR %s: %s" % (str(host_ref), str(sr_ref), str(e)))
+        return None    
+
+def find_my_pbd(session, host_ref, sr_ref):
+    ret = find_my_pbd_record(session, host_ref, sr_ref)
+    if ret <> None:
+        return ret[0]
+    else:
         return None
 
 def test_hostPBD_devs(session, devs):

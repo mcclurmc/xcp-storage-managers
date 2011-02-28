@@ -435,7 +435,8 @@ def CreateMaxSizeVDIAndVBD(session, sr_ref):
 	    session.xenapi.SR.scan(sr_ref)
 	    pSize = session.xenapi.SR.get_physical_size(sr_ref)
 	    pUtil = session.xenapi.SR.get_physical_utilisation(sr_ref)
-	    vdi_size = str(actualSRFreeSpace(int(pSize) - int(pUtil)))
+	    #vdi_size = str(actualSRFreeSpace(int(pSize) - int(pUtil)))
+	    vdi_size = '1073741824' # wkc hack (1GB)
 
 	    # Populate VDI args
 	    args={}
@@ -679,6 +680,26 @@ def parse_config(vendor, product):
 	    returnmap[key] = multiPathDefaultsMap[key]
 	    
     return (retVal, returnmap )
+
+def parse_xml_config(file):
+    configuration = {}
+    # predefines if not overriden in config file
+    configuration['lunsize'] = '128'
+    configuration['growsize'] = '4'
+
+    config_info = xml.dom.minidom.parse(file)
+    required = ['adapterid','ssid', 'spid', 'username', 'password', 'target']
+    optional = ['port', 'protocol', 'chapuser', 'chappass', 'lunsize', 'growsize']
+    for val in required + optional:
+       try:
+           configuration[val] = str(config_info.getElementsByTagName(val)[0].firstChild.nodeValue)
+       except:
+           if val in required:
+               print "parse exception on REQUIRED ISL option: %s" % val
+               raise
+           else:
+               print "parse exception on OPTIONAL ISL option: %s" % val
+    return configuration
 
 #Returns a list of following tuples for the SCSI Id given
 #(HBTL, Path dm status, Path status) 

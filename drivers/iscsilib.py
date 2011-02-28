@@ -87,7 +87,7 @@ def get_node_records(targetIQN="any"):
     (stdout,stderr) = exn_on_failure(cmd,failuremessage)
     return parse_node_output(stdout, targetIQN)
 
-def set_chap_settings (portal, targetIQN, username, password):
+def set_chap_settings (portal, targetIQN, username, password, username_in, password_in):
     """Sets the username and password on the session identified by the 
     portal/targetIQN combination"""
     failuremessage = "Failed to set CHAP settings"
@@ -104,6 +104,17 @@ def set_chap_settings (portal, targetIQN, username, password):
            "update", "-n", "node.session.auth.password","-v", 
            password]
     (stdout,stderr) = exn_on_failure(cmd, failuremessage)
+
+    if (username_in != ""):
+        cmd = ["iscsiadm", "-m", "node", "-p", portal, "-T", targetIQN, "--op", 
+               "update", "-n", "node.session.auth.username_in","-v", 
+               username_in]
+        (stdout,stderr) = exn_on_failure(cmd, failuremessage)
+
+        cmd = ["iscsiadm", "-m", "node", "-p", portal, "-T", targetIQN, "--op", 
+               "update", "-n", "node.session.auth.password_in","-v", 
+               password_in]
+        (stdout,stderr) = exn_on_failure(cmd, failuremessage)
      
 def get_current_initiator_name():
     """Looks in the config file to see if we've already got a initiator name, 
@@ -140,9 +151,9 @@ def set_current_initiator_name(localIQN):
         raise xs_errors.XenError('ISCSIInitiator', \
                    opterr='Could not set initator name')
 
-def login(portal, target, username, password):
+def login(portal, target, username, password, username_in="", password_in=""):
     if username != "" and password != "":
-        set_chap_settings(portal, target, username, password)
+        set_chap_settings(portal, target, username, password, username_in, password_in)
     cmd = ["iscsiadm", "-m", "node", "-p", portal, "-T", target, "-l"]
     failuremessage = "Failed to login to target."
     try:

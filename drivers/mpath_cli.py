@@ -42,6 +42,9 @@ def remove_path(path):
 def remove_map(m):
     mpexec("remove map %s" % m)
 
+def resize_map(m):
+    mpexec("resize map %s" % m)
+
 # Don't reconfigure!!
 #def reconfigure():
 #    mpexec("reconfigure")
