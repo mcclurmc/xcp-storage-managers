@@ -17,12 +17,13 @@
 from xml.dom import minidom, Node
 import struct
 import sys, string
+import util
 
 HDR_STRING = "XSSM"
 STRUCT_FMT = "%dsIHH" % len(HDR_STRING)
 STRUCT_SIZE = struct.calcsize(STRUCT_FMT)
 MD_MAJOR = 1
-MD_MINOR = 0
+MD_MINOR = 1
 XML_TAG = "SRMetadata"
 
 def buildHeader(len):
@@ -63,11 +64,18 @@ def _generateXML(Dict):
     return dom.toprettyxml()
 
 def _walkXML(parent):
-    Dict = {} 
+    Dict = {}
+    
+    if len(parent.childNodes) == 1:
+        node = parent.childNodes[0]
+        if node.nodeType == Node.TEXT_NODE and not node.hasChildNodes() and node.nodeValue != None and not node.nodeValue.replace('\\n',' ').replace('\\t',' ').strip():
+            # This is an only empty child leaf text node, so return an empty string, rather than an empty map
+            return ''
+
     for node in parent.childNodes:
         if node.nodeType == Node.ELEMENT_NODE:
             # Print the element name
-            Dict[node.nodeName] = ""
+            Dict[util.to_plain_string(node.nodeName)] = ""
             
             # Walk over any text nodes in the current node
             content = []
@@ -77,10 +85,11 @@ def _walkXML(parent):
                     content.append(child.nodeValue.strip())
             if content:
                 strContent = string.join(content)
-                Dict[node.nodeName] = strContent
+                Dict[util.to_plain_string(node.nodeName)] = util.to_plain_string(strContent)
             else:
                 # Walk the child nodes
-                Dict[node.nodeName] = _walkXML(node)
+                Dict[util.to_plain_string(node.nodeName)] = _walkXML(node)
+                
     return Dict
 
 def _parseXML(str):
@@ -95,18 +104,37 @@ def buildOutput(Dict):
     HDR = buildHeader(len(XML) + STRUCT_SIZE)
     return HDR + XML
 
-def retrieveXMLfromFile(path):
+def requiresUpgrade(path):
     f = open(path, "rb")
     s = f.read(STRUCT_SIZE)
     assert(len(s) == STRUCT_SIZE)
     hdr = unpackHeader(s)
-    _testHdr(hdr)
-    xmllen = hdr[1] - STRUCT_SIZE
-    s = f.read(xmllen)
-    f.close()
-    assert(len(s) == xmllen)
-    XML = unpackBody(s, xmllen)
-    return XML[0]
+    mdmajor = hdr[2]
+    mdminor = hdr[3]
+        
+    if mdmajor < MD_MAJOR:
+        return True
+        
+    if mdmajor == MD_MAJOR and mdminor < MD_MINOR:
+        return True
+        
+    return False
+    
+def retrieveXMLfromFile(path):
+    try:
+        f = open(path, "rb")
+        s = f.read(STRUCT_SIZE)
+        assert(len(s) == STRUCT_SIZE)
+        hdr = unpackHeader(s)
+        _testHdr(hdr)
+        xmllen = hdr[1] - STRUCT_SIZE
+        s = f.read(xmllen)            
+        assert(len(s) == xmllen)
+        XML = unpackBody(s, xmllen)
+        return XML[0]
+    
+    finally:
+        f.close()        
 
 def writeXMLtoFile(path, dict):
     f = open(path, "wb")
