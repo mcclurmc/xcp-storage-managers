@@ -187,12 +187,14 @@ def srlist_toxml(VGs, includeMetadata = False):
             subentry.appendChild(textnode)
             
             # add metadata VDI UUID
-            metadataVDI = findMetadataVDI(VG_PREFIX + val, lvmCache, MDVOLUME_NAME)            
+            metadataVDI = findMetadataVDI(VG_PREFIX + val, lvmCache, MDVOLUME_NAME)
+            subentry = dom.createElement("pool_metadata_detected")
+            entry.appendChild(subentry)
             if metadataVDI != None:
-                subentry = dom.createElement("metadata")
-                entry.appendChild(subentry)
-                subentry.appendChild(dom.createTextNode(metadataVDI))
-            
+                subentry.appendChild(dom.createTextNode("true"))
+            else:
+                subentry.appendChild(dom.createTextNode("false"))
+                
     return dom.toprettyxml()
 
 def createVG(root, vgname):
