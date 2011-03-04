@@ -488,10 +488,11 @@ class LVHDSR(SR.SR):
         self._loadvdis()
         stats = lvutil._getVGstats(self.vgname)
         self.physical_size = stats['physical_size']
-        self.physical_utilisation = stats['physical_utilisation']
-        
+        self.physical_utilisation = stats['physical_utilisation']       
+         
         # Now check if there are any VDIs in the metadata, which are not in XAPI        
         if self.mdexists:
+            vdiToSnaps = {}
             # get VDIs from XAPI
             vdis = self.session.xenapi.SR.get_VDIs(self.sr_ref)
             vdi_uuids = set([])
@@ -506,6 +507,12 @@ class LVHDSR(SR.SR):
             for key in Dict.keys():
                 if lvutil.exactmatch_vdi_tag(key):
                     vdi_uuid = key[4:]
+                    if bool(int(Dict[key]['is_a_snapshot'])):
+                        if vdiToSnaps.has_key(Dict[key]['snapshot_of']):
+                            vdiToSnaps[Dict[key]['snapshot_of']].append(vdi_uuid)
+                        else:
+                            vdiToSnaps[Dict[key]['snapshot_of']] = [vdi_uuid]
+                            
                     if vdi_uuid not in vdi_uuids:
                         util.SMlog("Introduce VDI %s as it is present in \
                                    metadata and not in XAPI." % vdi_uuid)
@@ -554,7 +561,7 @@ class LVHDSR(SR.SR):
                                                 {})
 
                         self.session.xenapi.VDI.set_sm_config(vdi_ref,
-                                                              sm_config)
+                                                             sm_config)
                         self.session.xenapi.VDI.set_managed(vdi_ref,
                                                     bool(int(Dict[key]['managed'])))
                         self.session.xenapi.VDI.set_virtual_size(vdi_ref,
@@ -566,7 +573,17 @@ class LVHDSR(SR.SR):
                         if bool(int(Dict[key]['is_a_snapshot'])):
                             self.session.xenapi.VDI.set_snapshot_of( \
                                             vdi_ref, Dict[key]['snapshot_of'])
-            
+
+            # Now set the snapshot statuses correctly in XAPI
+            for srcvdi in vdiToSnaps.keys():
+		for snapvdi in vdiToSnaps[srcvdi]:
+                    try:
+                        # this might fail in cases where its already set, check later
+                        snapref = self.session.xenapi.VDI.get_by_uuid(snapvdi)
+                        self.session.xenapi.VDI.set_snapshot_of(snapref, srcvdi)                        
+                    except Exception, e:
+                        util.SMlog("Setting snapshot failed. Error: %s" % str(e))
+		                
         ret = super(LVHDSR, self).scan(uuid)
         self._kickGC()
         return ret
