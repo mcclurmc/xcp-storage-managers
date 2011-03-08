@@ -30,7 +30,7 @@ import mpp_luncheck
 CAPABILITIES = ["SR_PROBE", "SR_UPDATE", "VDI_CREATE", "VDI_DELETE", "VDI_ATTACH",
                 "VDI_DETACH", "VDI_GENERATE_CONFIG",
                 "VDI_SNAPSHOT", "VDI_CLONE", "VDI_RESIZE", "VDI_RESIZE_ONLINE",
-                "ATOMIC_PAUSE"]
+                "ATOMIC_PAUSE", "VDI_RESET_ON_BOOT"]
 
 CONFIGURATION = [ [ 'SCSIid', 'The scsi_id of the destination LUN' ], \
                   [ 'allocation', 'Valid values are thick or thin (optional, defaults to thick)'] ]

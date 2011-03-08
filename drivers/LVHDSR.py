@@ -42,7 +42,8 @@ import XenAPI
 geneology = {}
 CAPABILITIES = ["SR_PROBE","SR_UPDATE",
         "VDI_CREATE","VDI_DELETE","VDI_ATTACH", "VDI_DETACH",
-        "VDI_CLONE", "VDI_SNAPSHOT", "VDI_RESIZE", "ATOMIC_PAUSE"]
+        "VDI_CLONE", "VDI_SNAPSHOT", "VDI_RESIZE", "ATOMIC_PAUSE",
+        "VDI_RESET_ON_BOOT"]
 
 CONFIGURATION = [ ['device', 'local device path (required) (e.g. /dev/sda3)'] ]
 
