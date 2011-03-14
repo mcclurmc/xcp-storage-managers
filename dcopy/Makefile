@@ -25,11 +25,11 @@ install: install_dcopy install_tp
 
 install_dcopy: dcopy
 	mkdir -p $(DESTDIR)$(PREFIX)
-	install -m 755 -o root -g root $^ $(DESTDIR)$(PREFIX)
+	install -m 755 $^ $(DESTDIR)$(PREFIX)
 
 install_tp: tp
 	mkdir -p $(DESTDIR)$(DEBUGDIR)
-	install -m 755 -o root -g root $^ $(DESTDIR)$(DEBUGDIR)	
+	install -m 755 $^ $(DESTDIR)$(DEBUGDIR)	
 
 clean: 
 	rm -f dcopy tp *.o source_img dest_img

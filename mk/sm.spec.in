@@ -9,6 +9,7 @@ License: LGPL
 URL:  http://www.citrix.com
 Source0: sm-@SM_VERSION@.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
+BuildRequires: swig python-devel xen-devel
 
 %description
 This package contains storage backends used in XCP

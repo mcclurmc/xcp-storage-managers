@@ -1,4 +1,3 @@
-include $(B_BASE)/common.mk
 
 SM_DRIVERS := File
 SM_DRIVERS += NFS
