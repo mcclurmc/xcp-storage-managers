@@ -479,6 +479,11 @@ class LVHDSR(SR.SR):
         # only place to do so.
         self._cleanup(self.isMaster)
 
+    # overload forget_vdi from SR.py, to also delete metadata entry
+    def forget_vdi(self, uuid):
+        lvutil.deleteVdiFromMetadata(self.vgname, self.lvmCache, self.MDVOLUME_NAME, uuid)
+        super(LVHDSR, self).forget_vdi(uuid)
+
     def scan(self, uuid):
         util.SMlog("LVHDSR.scan for %s" % self.uuid)
         if not self.isMaster:
