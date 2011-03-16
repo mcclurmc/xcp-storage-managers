@@ -173,26 +173,28 @@ def srlist_toxml(VGs, includeMetadata = False):
             metadataVDI = None
             lvmCache = lvmcache.LVMCache(VG_PREFIX + val)
             
-            # add SR name_label
-            sr_metadata = getMetadata(VG_PREFIX + val, lvmCache, MDVOLUME_NAME)
-            subentry = dom.createElement("name_label")
-            entry.appendChild(subentry)
-            textnode = dom.createTextNode(sr_metadata['name_label'])
-            subentry.appendChild(textnode)
-            
-            # add SR description            
-            subentry = dom.createElement("name_description")
-            entry.appendChild(subentry)
-            textnode = dom.createTextNode(sr_metadata['name_description'])
-            subentry.appendChild(textnode)
-            
             # add metadata VDI UUID
             metadataVDI = findMetadataVDI(VG_PREFIX + val, lvmCache, MDVOLUME_NAME)
-            subentry = dom.createElement("pool_metadata_detected")
-            entry.appendChild(subentry)
             if metadataVDI != None:
+                # add SR name_label
+                sr_metadata = getMetadata(VG_PREFIX + val, lvmCache, MDVOLUME_NAME)
+                subentry = dom.createElement("name_label")
+                entry.appendChild(subentry)
+                textnode = dom.createTextNode(sr_metadata['name_label'])
+                subentry.appendChild(textnode)
+            
+                # add SR description            
+                subentry = dom.createElement("name_description")
+                entry.appendChild(subentry)
+                textnode = dom.createTextNode(sr_metadata['name_description'])
+                subentry.appendChild(textnode)
+            
+                subentry = dom.createElement("pool_metadata_detected")
+                entry.appendChild(subentry)
                 subentry.appendChild(dom.createTextNode("true"))
             else:
+                subentry = dom.createElement("pool_metadata_detected")
+                entry.appendChild(subentry)
                 subentry.appendChild(dom.createTextNode("false"))
                 
     return dom.toprettyxml()
