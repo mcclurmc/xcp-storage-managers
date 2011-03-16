@@ -167,8 +167,9 @@ class RefCounter:
         if not util.pathexists(nsDir):
             try:
                 os.makedirs(nsDir)
-            except OSError:
-                raise RefCounterException("failed to makedirs '%s'" % nsDir)
+            except OSError, e:
+                raise RefCounterException("failed to makedirs '%s' (%s)" % \
+                        (nsDir, e))
     _createNamespace = staticmethod(_createNamespace)
 
     def _removeObject(ns, obj):
