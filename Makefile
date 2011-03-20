@@ -40,6 +40,7 @@ SM_LIBS += fjournaler
 SM_LIBS += lock
 SM_LIBS += flock
 SM_LIBS += ipc
+SM_LIBS += srmetadata
 SM_LIBS += metadata
 SM_LIBS += lvmanager
 SM_LIBS += blktap2
