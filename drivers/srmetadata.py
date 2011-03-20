@@ -23,7 +23,6 @@ import mmap
 import sys
 sys.path.insert(0,'/opt/xensource/sm/snapwatchd')
 from xslib import xs_file_read
-from xslib import xs_free_buffer
 
 SECTOR_SIZE = 512
 XML_HEADER = "<?xml version=\"1.0\" ?>"
