@@ -66,10 +66,8 @@ def _generateXML(Dict):
 def _walkXML(parent):
     Dict = {}
     
-    if len(parent.childNodes) == 1:
-        node = parent.childNodes[0]
-        if node.nodeType == Node.TEXT_NODE and not node.hasChildNodes() and node.nodeValue != None and not node.nodeValue.replace('\\n',' ').replace('\\t',' ').strip():
-            # This is an only empty child leaf text node, so return an empty string, rather than an empty map
+    if not parent.hasChildNodes():
+        if parent.nodeValue == None:
             return ''
 
     for node in parent.childNodes:
