@@ -73,6 +73,8 @@ def logException(tag):
     SMlog(str)
 
 def roundup(divisor, value):
+    if value == 0:
+        value = 1
     if value % divisor != 0:
         return ((value / divisor) + 1) * divisor
     return value

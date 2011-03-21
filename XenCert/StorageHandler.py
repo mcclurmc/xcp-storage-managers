@@ -14,6 +14,7 @@ from StorageHandlerUtil import Print
 from StorageHandlerUtil import PrintOnSameLine
 from StorageHandlerUtil import XenCertPrint
 from StorageHandlerUtil import displayOperationStatus
+import CSLGMetadata
 import scsiutil, iscsilib
 import XenAPI
 import util
@@ -524,7 +525,7 @@ class StorageHandler:
             ref_other_config = self.session.xenapi.PBD.get_other_config(my_pbd)
             Print("      %-50s %-10s" % ('Host', '[Active, Passive]'))
             for key in ref_other_config.keys():
-                if key.find(device_config['SCSIid']) != -1:
+                if device_config.has_key('SCSIid') and (key.find(device_config['SCSIid']) != -1):
                     Print("      %-50s %-10s" % (util.get_localhost_uuid(self.session), ref_other_config[key]))
                     break
        
@@ -1415,6 +1416,66 @@ class StorageHandlerISL(StorageHandler):
 ##  1) The "Meta Data" VDI need to be accomodated -- which is special for integrated StorageLink
 ##
 
+    def populateVDI_XAPIFields(self, vdi_ref):
+        XenCertPrint("populateVDI_XAPIFields Enter")
+        try:
+            dest = {}
+            #commented below line, because snapshot name_label from XAPI is incorrect
+            #dest['name_label'] = self.session.xenapi.VDI.get_name_label(vdi_ref)
+            is_a_snapshot = str(int(self.session.xenapi.VDI.get_is_a_snapshot(vdi_ref)))
+            if is_a_snapshot == "1":
+                dest['is_a_snapshot'] = is_a_snapshot
+                dest['snapshot_of'] = self.session.xenapi.VDI.get_snapshot_of(vdi_ref)
+                if dest['snapshot_of'] == 'OpaqueRef:NULL':
+                    dest['snapshot_of'] = ''
+                else:
+                    dest['snapshot_of'] = self.session.xenapi.VDI.get_sm_config(dest['snapshot_of'])['SVID']
+            dest['type'] = self.session.xenapi.VDI.get_type(vdi_ref)
+            #commented below, because not all VDI seems to have this field
+            #dest['vdi_type'] = self.session.xenapi.VDI.get_vdi_type(vdi_ref)
+            dest['read_only'] = str(int(self.session.xenapi.VDI.get_read_only(vdi_ref)))
+            dest['managed'] = str(int(self.session.xenapi.VDI.get_managed(vdi_ref)))
+            dest['location'] = self.session.xenapi.VDI.get_sm_config(vdi_ref)['SVID']
+        except:
+            raise Exception("Error while populating VDI metadata values")
+        XenCertPrint("populateVDI_XAPIFields Exit")
+        return dest
+
+    def getMetaDataRec(self, sr_ref):
+        XenCertPrint("getMetaDataRec Enter")
+        self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
+        if self.sm_config.has_key('md_svid'):
+            self.md_svid = self.sm_config['md_svid']
+            self.metadataVolumePath = StorageHandlerUtil._find_LUN(self.md_svid)[0]
+            
+            dict = CSLGMetadata.getMetadata(self.metadataVolumePath)
+
+        XenCertPrint("getMetaDataRec Exit")
+        return dict
+
+    def checkMetadataSR(self, sr_ref, verifyFields):
+        XenCertPrint("checkMetadataSR Enter")
+        dict = self.getMetaDataRec(sr_ref)
+
+        XenCertPrint("checkMetadataSR Exit")
+        return
+    
+    def checkMetadataVDI(self, sr_ref, vdi_ref, verifyFields):
+        XenCertPrint("checkMetadataVDI Enter")
+        if sr_ref == None:
+            sr_ref = self.session.xenapi.VDI.get_SR(vdi_ref)
+        dict = self.getMetaDataRec(sr_ref)
+        XenCertPrint("dict is: %s"%dict)
+        vdi_uuid = self.session.xenapi.VDI.get_uuid(vdi_ref)
+        XenCertPrint("verifyFields is: %s"%verifyFields)
+
+        for key in verifyFields:
+            if dict['vdi_%s'%vdi_uuid][key] != verifyFields[key]:
+                raise Exception("VDI:%s key:%s Metadata:%s <> Xapi:%s doesn't match"%(vdi_uuid, key, dict['vdi_%s'%vdi_uuid][key], verifyFields[key]))
+
+        XenCertPrint("checkMetadataVDI Exit")
+        return
+
     #
     #  VDI related
     #
@@ -1433,6 +1494,8 @@ class StorageHandlerISL(StorageHandler):
             vdi_rec['other_config'] = {}
             vdi_rec['sm_config'] = {}
             results = self.session.xenapi.VDI.create(vdi_rec)
+            self.checkMetadataVDI(sr_ref, results, self.populateVDI_XAPIFields(results))
+
             return (True, results)
         except Exception, e:
             XenCertPrint("Failed to create VDI. Exception: %s" % str(e))
@@ -1452,6 +1515,7 @@ class StorageHandlerISL(StorageHandler):
         options = {}
         try:
             results = self.session.xenapi.VDI.snapshot(vdi_ref, options)
+            self.checkMetadataVDI(None, results, self.populateVDI_XAPIFields(results))
             return (True, results)
         except Exception, e:
             XenCertPrint("Failed to Snapshot VDI. Exception: %s" % str(e))
@@ -1462,6 +1526,7 @@ class StorageHandlerISL(StorageHandler):
         options = {}
         try:
             results = self.session.xenapi.VDI.clone(vdi_ref, options)
+            self.checkMetadataVDI(None, results, self.populateVDI_XAPIFields(results))
             return (True, results)
         except Exception, e:
             XenCertPrint("Failed to Clone VDI. Exception: %s" % str(e))
@@ -1471,7 +1536,10 @@ class StorageHandlerISL(StorageHandler):
         XenCertPrint("Destroy VDI")
         try:
             results = self.session.xenapi.VDI.destroy(vdi_ref)
-            return True
+            try:
+                self.checkMetadataVDI(None, results, self.populateVDI_XAPIFields(results))
+            except:
+                return True
         except Exception, e:
             XenCertPrint("Failed to Destroy VDI. Exception: %s" % str(e))
             return False

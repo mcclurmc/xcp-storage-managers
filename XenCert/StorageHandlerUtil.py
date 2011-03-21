@@ -30,6 +30,8 @@ logfile = None
 logfilename = None
 timeLimitControlInSec = 18000
 
+MAX_TIMEOUT = 15
+
 multiPathDefaultsMap = { 'udev_dir':'/dev',
 			    'polling_interval':'5',
 			    'selector': "round-robin 0",
@@ -763,3 +765,19 @@ def FindDiskDataTestEstimate(device, size):
     totalTime = ((size/512) * estimatedTime)/1000000
     XenCertPrint("Total estimated time for testing IO with the device %s as %d" % (device, totalTime))
     return totalTime
+
+def _find_LUN(svid):
+    basepath = "/dev/disk/by-csldev/"
+    if svid.startswith("NETAPP_"):
+        # special attention for NETAPP SVIDs
+        svid_parts = svid.split("__")
+        globstr = basepath + "NETAPP__LUN__" + "*" + svid_parts[2] + "*" + svid_parts[-1] + "*"
+    else:
+        globstr = basepath + svid + "*"
+
+    path = util.wait_for_path_multi(globstr, MAX_TIMEOUT)
+    if not len(path):
+        return []
+
+    svid_to_use = re.sub("-[0-9]*:[0-9]*:[0-9]*:[0-9]*$","",os.path.basename(path))
+    return scsiutil._genReverseSCSIidmap(svid_to_use, pathname="csldev")
