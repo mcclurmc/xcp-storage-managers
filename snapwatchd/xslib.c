@@ -178,8 +178,6 @@ char *xs_file_read(char *path, int offset, int bytesToRead)
 	int count = read(fd, value, bytesToRead);
 	if(count == -1)
 		printf("Error reading file %s, error: %d" , path, errno);
-	else
-		printf("count: %d, value: %s", count, value);
 	close(fd);
 	return value;
 }
