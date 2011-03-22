@@ -14,7 +14,8 @@ import scsiutil
 import util
 import glob
 import xml.dom.minidom
-import lvhdutil, lvutil, vhdutil
+import lvutil, vhdutil
+from lvhdutil import MSIZE
 import iscsilib
 import mpath_cli
 import os
@@ -163,7 +164,7 @@ def unblockIP(ip):
         XenCertPrint("There was an exception in unblocking ip: %s. Exception: %s" % (ip, str(e)))
    
 def actualSRFreeSpace(size):
-    num = (size - lvutil.LVM_SIZE_INCREMENT - 4096 - vhdutil.calcOverheadEmpty(lvhdutil.MSIZE)) * vhdutil.VHD_BLOCK_SIZE
+    num = (size - lvutil.LVM_SIZE_INCREMENT - 4096 - vhdutil.calcOverheadEmpty(MSIZE)) * vhdutil.VHD_BLOCK_SIZE
     den = 4096 + vhdutil.VHD_BLOCK_SIZE
 
     return num/den
