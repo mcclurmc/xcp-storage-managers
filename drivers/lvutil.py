@@ -25,7 +25,7 @@ import util
 import xs_errors
 import xml.dom.minidom
 from lvhdutil import VG_LOCATION,VG_PREFIX
-from lvmcache import LVMCache
+import lvmcache
 import srmetadata
 import vhdutil
 
@@ -174,7 +174,7 @@ def srlist_toxml(VGs, includeMetadata = False):
         
         if includeMetadata:
             metadataVDI = None
-            lvmCache = LVMCache(VG_PREFIX + val)
+            lvmCache = lvmcache.LVMCache(VG_PREFIX + val)
             
             # add SR name_label
             sr_metadata = getMetadata(VG_PREFIX + val, lvmCache, MDVOLUME_NAME)
