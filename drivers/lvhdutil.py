@@ -21,7 +21,6 @@ import sys
 import time
 
 import util
-import lvutil
 import vhdutil
 import xs_errors
 from lock import Lock
@@ -33,6 +32,7 @@ MSIZE = long(MSIZE_MB * 1024 * 1024)
 
 VG_LOCATION = "/dev"
 VG_PREFIX = "VG_XenStorage-"
+LVM_SIZE_INCREMENT = 4 * 1024 * 1024
 
 LV_PREFIX = { 
         vhdutil.VDI_TYPE_VHD : "VHD-",
@@ -91,7 +91,7 @@ def extractUuid(path):
     return None
 
 def calcSizeLV(sizeVHD):
-    return util.roundup(lvutil.LVM_SIZE_INCREMENT, sizeVHD)
+    return util.roundup(LVM_SIZE_INCREMENT, sizeVHD)
 
 def calcSizeVHDLV(sizeVirt):
     # all LVHD VDIs have the metadata area preallocated for the maximum 
