@@ -775,7 +775,7 @@
         </code>
         <code>
                 <name>CSLGServer</name>
-                <description>Failed to connect to CSLG</description>
+                <description>Failed to connect to Target, Please verify hostname or IP address</description>
                 <value>424</value>
         </code>
         <code>
