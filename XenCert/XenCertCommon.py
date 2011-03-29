@@ -43,6 +43,7 @@ __common__ = [
     ["control", "perform control path tests",                           " : ", None, "optional", "-c", ""],
     ["multipath", "perform multipath configuration verification tests", " : ", None, "optional", "-m", ""],
     ["pool", "perform pool verification tests",                         " : ", None, "optional", "-o", ""],
+    ["data", "perform data verification tests",                         " : ", None, "optional", "-d", ""],
     ["help",    "show this help message and exit",                                  " : ", None,        "optional", "-h", "" ]]
 
 __commonparams__ = [

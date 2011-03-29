@@ -487,7 +487,149 @@ class StorageHandler:
         except Exception, e:
             Print("Could not cleanup the objects created during testing, please destroy the SR manually.")
         XenCertPrint("Checkpoints: %d, totalCheckPoints: %s" % (checkPoint, totalCheckPoints))        
-    
+
+    def DataIntegrityTests(self):
+        retVal = True
+        checkPoint = 0
+        totalCheckPoints = 14
+        
+        vm_uuid = StorageHandlerUtil._get_localhost_uuid()
+        XenCertPrint("Got vm_uuid as %s" % vm_uuid)
+        vm_ref = self.session.xenapi.VM.get_by_uuid(vm_uuid)
+        sr_ref = None
+        vdi_ref = None
+        snap_ref = None
+
+        try:
+            ###  Resize ###
+            #1)Create SR
+            (retVal, sr_ref, dconf) = self.Create_SR()
+            Print("Create SR, status:%s"%(retVal))
+            if retVal:
+                #2)Create a 4GB VDI
+                (retVal, vdi_ref) = self.Create_VDI(sr_ref, 4*StorageHandlerUtil.GiB)
+                Print("Create 4GB VDI, status:%s"%(retVal))
+                if retVal:
+                    #3)Attach the VDI to dom0
+                    checkPoint += 1
+                    retVal = StorageHandlerUtil.Attach_VDI(self.session, vdi_ref, vm_ref)[0]
+                    Print("Attached the VDI to dom0")
+                    if retVal:
+                        checkPoint += 1
+                    else:
+                        # attach VDI failed
+                        displayOperationStatus(False)
+                else:
+                    # create VDI failed
+                    displayOperationStatus(False)
+            else:
+                # create SR failed
+                displayOperationStatus(False)
+        except Exception, e:
+            Print("Exception happened while performing data IO tests. %s"%e)
+            retVal = False
+
+        try:
+            #4)write known pattern to VDI
+            StorageHandlerUtil.WriteDataToVDI(self.session, vdi_ref, 0, 3, skipLevel=0, full=False)
+            Print("Wrote data to VDI")
+            checkPoint += 1
+            
+            #5)detach the VDI
+            StorageHandlerUtil.Detach_VDI(self.session, vdi_ref)
+            Print("Detached from dom0")
+            checkPoint += 1
+
+            #6)resize the vdi to 8GB
+            if self.Resize_VDI(vdi_ref, 8*StorageHandlerUtil.GiB):
+                 Print("Resized the VDI to 8GB")
+                 checkPoint += 1
+            else:
+                Print("VDI resize to 8GB Failed")
+                raise Exception("VDI resize failed")
+
+            #7)attach vdi to dom0
+            retVal = StorageHandlerUtil.Attach_VDI(self.session, vdi_ref, vm_ref)[0]
+            if retVal:
+                checkPoint += 1
+                Print("VDI attached again to Dom0")
+                pass
+            else:
+                Print("VDI attach failed")
+                raise Exception("VDI Attach Failed")
+
+            #8)validate the pattern on first 4GB
+            StorageHandlerUtil.VerifyDataOnVDI(self.session, vdi_ref, 0, 3, skipLevel=0, full=False)
+            Print("Verified data onto the VDI")
+            checkPoint += 1
+
+            #9)write known pattern to second 4GB chunk
+            StorageHandlerUtil.WriteDataToVDI(self.session, vdi_ref, 4, 7, skipLevel=0, full=False)
+            Print("Wrote data onto grown portion of the VDI")
+            checkPoint += 1
+
+            #10)perform online resize of VDI to 12GB
+            ##Not supported
+
+            #11)detach and reattach the VDI
+            StorageHandlerUtil.Detach_VDI(self.session, vdi_ref)
+            retVal = StorageHandlerUtil.Attach_VDI(self.session, vdi_ref, vm_ref)[0]
+            Print("Detached and Attached the VDI to Dom0")
+            if not retVal:
+                raise Exception("VDI Attach Failed") 
+            checkPoint += 1
+
+            #12)validate pattern on first and second 4GB chunks
+            StorageHandlerUtil.VerifyDataOnVDI(self.session, vdi_ref, 0, 7, skipLevel=0, full=False)
+            Print("Verified data on complete VDI")
+            checkPoint += 1
+
+            #13)create clone/snapshot VDI
+            (retVal, snap_ref) = self.Snapshot_VDI(vdi_ref)
+            if not retVal:
+                raise Exception("VDI Snapshot Failed")
+            Print("Snapshot of the VDI created")
+            checkPoint += 1
+
+            #14)verify snapshot data matches original VDI
+            retVal = StorageHandlerUtil.Attach_VDI(self.session, snap_ref, vm_ref)[0]
+            if not retVal:
+                raise Exception("Clone/Snapshot VDI Attach Failed")
+            StorageHandlerUtil.VerifyDataOnVDI(self.session, snap_ref, 0, 7, skipLevel=0, full=False)
+            Print("Verified data on complete VDI")
+            checkPoint += 1
+
+            #15)destroy orignal VDI and check snapshot VDI still valid
+            StorageHandlerUtil.Detach_VDI(self.session, vdi_ref)
+            retVal = self.Destroy_VDI(vdi_ref)
+            if not retVal:
+                raise Exception("VDI Destroy Failed")
+            Print("VDI destroyed successfully")
+            checkPoint += 1
+
+            #16)zero out snapshot VDI and verify
+            StorageHandlerUtil.WriteDataToVDI(self.session, snap_ref, 0, 7, 0, False, True)
+            Print("Zero'ed the snapshot VDI")
+            StorageHandlerUtil.VerifyDataOnVDI(self.session, snap_ref, 0, 7, 0, False, True)
+            Print("Verified zero'ed snapshot VDI successfully")
+            checkPoint += 1
+
+            #17)cleanup here
+            StorageHandlerUtil.Detach_VDI(self.session, snap_ref)
+            retVal = self.Destroy_VDI(snap_ref)
+            if not retVal:
+                raise Exception("snapshot destroy failed")
+            retVal = self.Destroy_SR(sr_ref)
+            if not retVal:
+                raise Exception("SR destroy failed")
+            Print("Cleaned up, Destroyed snapshots, SR used for testing") 
+
+        except Exception, e:
+            Print("Exception happened while performing data IO tests. %s"%e)
+            retVal = False
+        
+        return (retVal, checkPoint, totalCheckPoints)
+
     def PoolTests(self):
         try:
             sr_ref = None

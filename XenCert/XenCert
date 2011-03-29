@@ -57,7 +57,7 @@ def main():
     Print("***********************************************************************")  
     testAll = False
     
-    if not options.functional and not options.control and not options.multipath and not options.pool:
+    if not options.functional and not options.control and not options.multipath and not options.pool and not options.data:
 	testAll = True
     
     if options.multipath or testAll:
@@ -91,7 +91,15 @@ def main():
             pass_all = False
     	Print("***********************************************************************")
 	timeOfCompletionFunctional = time.asctime(time.localtime())
-	    
+
+    if options.data or testAll: 
+    	Print("Performing data IO tests.")
+    	(retValData, checkPointsData, totalCheckPointsData) = handler.DataIntegrityTests()
+        if checkPointsData != checkPointsData:
+            pass_all = False
+    	Print("***********************************************************************")
+	timeOfCompletionData = time.asctime(time.localtime())
+
     # Now display all the results
     if options.multipath or testAll:
 	Print("***********************************************************************")
@@ -126,6 +134,15 @@ def main():
 	else:
             Print("%-50s: FAIL, Pass percentage: %d, Completed: %s" %
 		  ('Functional test results', int((checkPointsFunctional * 100)/totalCheckPointsFunctional), timeOfCompletionFunctional))
+
+    if options.data or testAll:     	
+    	Print("***********************************************************************")
+	if retValData: 
+            Print("%-50s: PASS, Pass percentage: %d, Completed: %s" %
+		  ('Data test results', int((checkPointsData * 100)/totalCheckPointsData), timeOfCompletionData))
+	else:
+            Print("%-50s: FAIL, Pass percentage: %d, Completed: %s" %
+		  ('Data test results', int((checkPointsData * 100)/totalCheckPointsData), timeOfCompletionData))
     	
     Print("***********************************************************************")
     Print("End of XenCert certification suite.")

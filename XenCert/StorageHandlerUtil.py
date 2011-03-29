@@ -33,6 +33,17 @@ timeLimitControlInSec = 18000
 
 MAX_TIMEOUT = 15
 
+KiB = 1024
+MiB = KiB * KiB
+GiB = KiB * KiB * KiB
+
+SECTOR_SIZE = 1 * GiB
+CHAR_SEQ = "".join([chr(x) for x in range(256)])
+CHAR_SEQ_REV = "".join([chr(x) for x in range(255, -1, -1)])
+BUF_PATTERN = CHAR_SEQ + CHAR_SEQ
+BUF_PATTERN_REV = CHAR_SEQ_REV + CHAR_SEQ_REV
+BUF_ZEROS = "\0" * 512
+
 multiPathDefaultsMap = { 'udev_dir':'/dev',
 			    'polling_interval':'5',
 			    'selector': "round-robin 0",
@@ -503,6 +514,54 @@ def CreateMaxSizeVDIAndVBD(session, sr_ref):
 	raise Exception(str(e))
     
     return (retVal, vdi_ref, vbd_ref, vdi_size)
+
+def Attach_VDI(session, vdi_ref, vm_ref):
+    vbd_ref = None
+    retVal = True
+    
+    try:
+	Print("   Create a VBD on the VDI and plug it into VM requested")
+	freedevs = session.xenapi.VM.get_allowed_VBD_devices(vm_ref)
+	XenCertPrint("Got free devs as %s" % freedevs)
+	if not len(freedevs):		
+            XenCertPrint("No free devs found for VM: %s!" % vm_ref)
+            return False
+	XenCertPrint("Allowed devs: %s (using %s)" % (freedevs,freedevs[0]))
+
+	# Populate VBD args
+        args={}
+        args['VM'] = vm_ref
+        args['VDI'] = vdi_ref
+	args['userdevice'] = freedevs[0]
+	args['bootable'] = False
+	args['mode'] = 'RW'
+	args['type'] = 'Disk'
+	args['unpluggable'] = True 
+	args['empty'] = False
+        args['other_config'] = {}
+        args['qos_algorithm_type'] = ''
+        args['qos_algorithm_params'] = {}
+        XenCertPrint("The VBD create parameters are %s" % args)
+        vbd_ref = session.xenapi.VBD.create(args)
+        XenCertPrint("Created new VBD %s" % vbd_ref)
+        session.xenapi.VBD.plug(vbd_ref)
+
+    except Exception, e:
+	Print("   Exception Creating VBD and plugging it into VM: %s" % vm_ref)
+	return False
+    return (retVal, vbd_ref)
+
+def Detach_VDI(session, vdi_ref):
+    try:
+        vbd_ref = session.xenapi.VDI.get_VBDs(vdi_ref)[0]
+        XenCertPrint("vbd_ref is %s"%vbd_ref)
+        if vbd_ref != None:
+            session.xenapi.VBD.unplug(vbd_ref)
+            XenCertPrint("Unplugged VBD %s" % vbd_ref)
+            session.xenapi.VBD.destroy(vbd_ref)
+            XenCertPrint("Destroyed VBD %s" % vbd_ref)
+    except Exception,e:
+        raise e
     
 def FindTimeToWriteData(devicename, sizeInMiB):
     ddOutFile = 'of=' + devicename
@@ -782,3 +841,67 @@ def _find_LUN(svid):
 
     svid_to_use = re.sub("-[0-9]*:[0-9]*:[0-9]*:[0-9]*$","",os.path.basename(path))
     return scsiutil._genReverseSCSIidmap(svid_to_use, pathname="csldev")
+
+def WriteDataToVDI(session, vdi_ref, startSec, endSec, skipLevel=0, zeroOut=False, full=False):
+    XenCertPrint("WriteDataToVDI(vdi_ref=%s, startSec=%s, endSec=%s, skipLevel=%s, full=%s ->Enter)"%(vdi_ref, startSec, endSec, skipLevel, full))
+    try:
+        svid = session.xenapi.VDI.get_sm_config(vdi_ref)['SVID']
+        device = _find_LUN(svid)[0]
+
+        XenCertPrint("about to write onto device: %s"%device)
+
+        if zeroOut:
+            pattern = BUF_ZEROS
+        else:
+            pattern = BUF_PATTERN
+
+        f = open(device, "w+")
+        while startSec <= endSec:
+            f.seek(startSec * SECTOR_SIZE)
+            if full:
+                count = 0
+                while count < SECTOR_SIZE:
+                    f.write(pattern)
+                    count += len(pattern)
+            else:
+                f.write(pattern)
+            startSec += 1 + skipLevel
+        f.close()
+    except Exception,e:
+        raise Exception("Writing data into VDI:%s Failed. Error:%s"%(vdi_ref,e))
+
+    XenCertPrint("WriteDataToVDI() -> Exit")
+
+def VerifyDataOnVDI(session, vdi_ref, startSec, endSec, skipLevel=0, zeroed=False, full=False):
+    XenCertPrint("VerifyDataOnVDI(vdi_ref=%s, startSec=%s, endSec=%s, skipLevel=%s, full=%s ->Enter)"%(vdi_ref, startSec, endSec, skipLevel, full))
+    try:
+        svid = session.xenapi.VDI.get_sm_config(vdi_ref)['SVID']
+        device = _find_LUN(svid)[0]
+
+        XenCertPrint("about to read from device: %s"%device)
+
+        if zeroed:
+            expect = BUF_ZEROS 
+        else:
+            expect = BUF_PATTERN
+
+        f = open(device, "r+")
+        while startSec <= endSec:
+            f.seek(startSec * SECTOR_SIZE)
+            if full:
+                count = 0
+                while count < SECTOR_SIZE:
+                    actual = f.read(len(expect))
+                    if actual != expect:
+                        raise Exception("expected:%s <> actual:%s"%(expect, actual))
+                    count += len(expect)
+            else:
+                actual =f.read(len(expect))
+                if actual != expect:
+                    raise Exception("expected:%s <> actual:%s"%(expect, actual))
+            startSec += 1 + skipLevel
+        f.close()
+    except Exception,e:
+        raise Exception("Verification of data in VDI:%s Failed. Error:%s"%(vdi_ref,e))
+
+    XenCertPrint("VerifyDataOnVDI() -> Exit")
