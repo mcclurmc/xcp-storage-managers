@@ -37,7 +37,8 @@ from ipc import IPCFlag
 from lvmanager import LVActivator
 import XenAPI
 import re
-from srmetadata import NAME_LABEL_TAG, NAME_DESCRIPTION_TAG, requiresUpgrade
+from srmetadata import NAME_LABEL_TAG, NAME_DESCRIPTION_TAG, \
+	SNAPSHOT_TIME_TAG, METADATA_OF_POOL_TAG, requiresUpgrade
 
 geneology = {}
 CAPABILITIES = ["SR_PROBE","SR_UPDATE",
@@ -1820,6 +1821,10 @@ class LVHDVDI(VDI.VDI):
             self.session.xenapi.VDI.get_name_label(vdi_ref)
         update_map[NAME_DESCRIPTION_TAG] = \
             self.session.xenapi.VDI.get_name_description(vdi_ref)
+        update_map[SNAPSHOT_TIME_TAG] = \
+            self.session.xenapi.VDI.get_snapshot_time(vdi_ref)
+        update_map[METADATA_OF_POOL_TAG] = \
+            self.session.xenapi.VDI.get_metadata_of_pool(vdi_ref)
         lvutil.updateMetadata(self.sr.vgname, self.sr.lvmCache,
                         self.sr.MDVOLUME_NAME,
                         update_map)
