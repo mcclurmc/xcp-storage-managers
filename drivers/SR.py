@@ -244,7 +244,7 @@ class SR(object):
           SRUnimplementedMethod
         """
         # no-op unless individual backends implement it
-	return
+        return
     
     def attach(self, uuid):
         """Initiate local access to the SR. Initialises any 
