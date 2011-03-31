@@ -158,9 +158,12 @@ class udevVDI(VDI.VDI):
         self._db_update()
         # also reset the name-label and description since we're a bit of
         # a special SR
-        vdi = self.sr.session.xenapi.VDI.get_by_uuid(self.uuid)        
-        self.sr.session.xenapi.VDI.set_name_label(vdi, self.label)
-        self.sr.session.xenapi.VDI.set_name_description(vdi, self.description)        
+        # this would lead to an infinite loop as VDI.set_name_label now
+        # calls VDI.update 
+        # temporarily commenting this to pass quicktest
+        #vdi = self.sr.session.xenapi.VDI.get_by_uuid(self.uuid)        
+        #self.sr.session.xenapi.VDI.set_name_label(vdi, self.label)
+        #self.sr.session.xenapi.VDI.set_name_description(vdi, self.description)        
 
     def attach(self, sr_uuid, vdi_uuid):
         if self.deleted:
