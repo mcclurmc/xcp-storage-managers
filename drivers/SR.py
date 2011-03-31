@@ -243,7 +243,8 @@ class SR(object):
         Raises:
           SRUnimplementedMethod
         """
-        raise xs_errors.XenError('Unimplemented')
+        # no-op unless individual backends implement it
+	return
     
     def attach(self, uuid):
         """Initiate local access to the SR. Initialises any 

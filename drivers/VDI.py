@@ -133,7 +133,8 @@ class VDI(object):
         on the named VDI. Note the XenAPI VDI object will exist when
         this call is made.
         """
-        raise xs_errors.XenError('Unimplemented')
+        # no-op unless individual backends implement it
+        return
 
     def introduce(self, sr_uuid, vdi_uuid):
         """Explicitly introduce a particular VDI.
