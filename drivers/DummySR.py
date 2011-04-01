@@ -136,7 +136,7 @@ class DummyVDI(VDI.VDI):
 
     def create(self, sr_uuid, vdi_uuid, size):
         self.sr._assertValues(['sr_uuid','args','host_ref','device_config','command','sr_ref','vdi_sm_config'])
-        assert(len(self.sr.srcmd.params['args'])==2)
+        assert(len(self.sr.srcmd.params['args']) == 3)
 
         self.vdi_sm_config = self.sr.srcmd.params['vdi_sm_config']
         for key in self.vdi_sm_config.iterkeys():
