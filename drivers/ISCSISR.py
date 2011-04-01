@@ -92,7 +92,6 @@ class ISCSISR(SR.SR):
                 pass
                 
 
-    @util.transformpasswords
     def load(self, sr_uuid):
         self.sr_vditype = 'phy'
         self.discoverentry = 0

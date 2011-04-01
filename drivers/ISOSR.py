@@ -167,7 +167,6 @@ class ISOSR(SR.SR):
 
         return ISOVDI(self, filename)
 
-    @util.transformpasswords
     def load(self, sr_uuid):
         """Initialises the SR"""
         # First of all, check we've got the correct keys in dconf
