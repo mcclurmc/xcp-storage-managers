@@ -239,6 +239,13 @@ class StorageHandler:
             # make sure there are at least 2 paths for the multipath tests to make any sense.
             if len(self.listPathConfig) < 2:
                 raise Exception("FATAL! At least 2 paths are required for multipath failover testing, please configure your storage accordingly.")
+                
+            
+            # Calculate the number of active paths here
+            self.initialActivePaths = 0
+            for tuple in self.listPathConfig:
+                if tuple[1] == 'active':
+                    self.initialActivePaths += 1
             
             # Now testing failure times for the paths.  
             (retVal, vdi_ref, vbd_ref, vdi_size) = StorageHandlerUtil.CreateMaxSizeVDIAndVBD(self.session, sr_ref)
@@ -743,8 +750,14 @@ class StorageHandler:
             XenCertPrint("listpathconfigNew: %s" % listPathConfigNew)
             if not retVal:                
                 raise Exception("     - Failed to get path status information for SCSI Id: %s" % device_config['SCSIid'])
-            for i in range(0, len(self.listPathConfig)):
-                if listPathConfigNew[i][2] != self.listPathConfig[i][2]:                            
+            
+            # Find new number of active paths
+            newActivePaths = 0
+            for tuple in listPathConfigNew:
+                if tuple[1] == 'active':
+                    newActivePaths += 1
+            
+            if newActivePaths < self.initialActivePaths:                            
                     return False
             return True
         except Exception, e:
