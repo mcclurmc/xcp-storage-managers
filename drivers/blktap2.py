@@ -1585,6 +1585,20 @@ class VDI(object):
         self._updateCacheRecord(session, self.target.vdi.uuid, None, None)
         session.xenapi.session.logout()
 
+    def _is_tapdisk_in_use(self, minor):
+        pids = [pid for pid in os.listdir('/proc') if pid.isdigit()]
+
+        for pid in pids:
+            prog = open(os.path.join('/proc', pid, 'cmdline'), 'rb').read()[:-1]
+            if prog == "tapdisk2":
+                fds = os.listdir(os.path.join('/proc', pid, 'fd'))
+                for fd in fds:
+                    link = os.readlink(os.path.join('/proc', pid, 'fd', fd))
+                    if link.find("tapdev%d" % minor) != -1:
+                        return True
+
+        return False
+
     def _remove_cache(self, session, local_sr_uuid, scratch_mode):
         import SR
         import EXTSR
@@ -1618,8 +1632,18 @@ class VDI(object):
             util.SMlog("Deleting local leaf node %s" % local_leaf_path)
             os.unlink(local_leaf_path)
 
-        # read cache: the parent tapdisks are shut down and the cache files are 
-        # removed during the local SR's background GC run
+
+        read_cache_path = "%s/%s.vhdcache" % (local_sr.path, shared_target.uuid)
+        prt_tapdisk = Tapdisk.find_by_path(read_cache_path)
+        if not self._is_tapdisk_in_use(prt_tapdisk.minor):
+            util.SMlog("Parent tapdisk not in use: shutting down %s" % \
+                    read_cache_path)
+            prt_tapdisk.shutdown()
+        else:
+            util.SMlog("Parent tapdisk still in use: %s" % read_cache_path)
+
+        # the parent cache files are removed during the local SR's background 
+        # GC run
 
         lock.release()
 
