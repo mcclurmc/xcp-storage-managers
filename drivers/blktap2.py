@@ -1628,7 +1628,7 @@ class VDI(object):
         # local write node
         local_leaf_path = "%s/%s.vhdcache" % \
                 (local_sr.path, self.target.vdi.uuid)
-        if scratch_mode and util.pathexists(local_leaf_path):
+        if util.pathexists(local_leaf_path):
             util.SMlog("Deleting local leaf node %s" % local_leaf_path)
             os.unlink(local_leaf_path)
 
