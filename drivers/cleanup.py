@@ -358,6 +358,13 @@ class XAPI:
     def isSnapshot(self, vdi):
         return self.session.xenapi.VDI.get_is_a_snapshot(vdi.getRef())
 
+    def markCacheSRsDirty(self):
+        sr_refs = self.session.xenapi.SR.get_all_records_where( \
+                'field "local_cache_enabled" = "true"')
+        for sr_ref in sr_refs:
+            Util.log("Marking SR %s dirty" % sr_ref)
+            util.set_dirty(self.session, sr_ref)
+
     def srUpdate(self):
         Util.log("Starting asynch srUpdate for SR %s" % self.srRecord["uuid"])
         abortFlag = IPCFlag(self.srRecord["uuid"])
@@ -1832,6 +1839,16 @@ class FileSR(SR):
 
     def getFreeSpace(self):
         return util.get_fs_size(self.path) - util.get_fs_utilisation(self.path)
+
+    def deleteVDIs(self, vdiList):
+        rootDeleted = False
+        for vdi in vdiList:
+            if not vdi.parent:
+                rootDeleted = True
+                break
+        SR.deleteVDIs(self, vdiList)
+        if self.xapi.srRecord["type"] == "nfs" and rootDeleted:
+            self.xapi.markCacheSRsDirty()
 
     def cleanupCache(self):
         cacheFiles = filter(self._isCacheFileName, os.listdir(self.path))
