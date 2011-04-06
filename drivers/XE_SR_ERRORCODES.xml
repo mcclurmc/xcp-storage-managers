@@ -795,7 +795,7 @@
         </code>
         <code>
                 <name>CSLGPoolCreate</name>
-                <description>Failed to create mulitple sub-pools from parent pool</description>
+                <description>Failed to create sub-pools from parent pool</description>
                 <value>428</value>
         </code>
         <code>
