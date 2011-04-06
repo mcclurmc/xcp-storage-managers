@@ -109,11 +109,11 @@ def _getLVsize(path):
 
 def _getVGstats(vgname):
     try:
-        cmd = [CMD_VGS, "--noheadings", "--units", "b", vgname]
+        cmd = [CMD_VGS, "--noheadings", "--nosuffix", "--units", "b", vgname]
         text = util.pread(cmd).split()
-        size = long(text[5].replace("B",""))
-        utilisation = size - long(text[6].replace("B",""))
-        freespace = size - utilisation
+        size = long(text[5])
+        freespace = long(text[6])
+        utilisation = size - freespace
         stats = {}
         stats['physical_size'] = size
         stats['physical_utilisation'] = utilisation
@@ -122,6 +122,24 @@ def _getVGstats(vgname):
     except util.CommandException, inst:
         raise xs_errors.XenError('VDILoad', \
               opterr='rvgstats failed error is %d' % inst.code)
+    except ValueError:
+        raise xs_errors.XenError('VDILoad', opterr='rvgstats failed')
+
+def _getPVstats(dev):
+    try:
+        cmd = [CMD_PVS, "--noheadings", "--nosuffix", "--units", "b", dev]
+        text = util.pread(cmd).split()
+        size = long(text[4])
+        freespace = long(text[5])
+        utilisation = size - freespace
+        stats = {}
+        stats['physical_size'] = size
+        stats['physical_utilisation'] = utilisation
+        stats['freespace'] = freespace
+        return stats
+    except util.CommandException, inst:
+        raise xs_errors.XenError('VDILoad', \
+              opterr='pvstats failed error is %d' % inst.code)
     except ValueError:
         raise xs_errors.XenError('VDILoad', opterr='rvgstats failed')
 
