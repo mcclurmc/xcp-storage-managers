@@ -881,11 +881,11 @@ class FileVDI(VDI):
             self.sr.lock()
             try:
                 os.unlink(self.path)
+                self.sr.xapi.forgetVDI(self.sr.uuid, self.uuid)
             finally:
                 self.sr.unlock()
         except OSError:
             raise util.SMException("os.unlink(%s) failed" % self.path)
-        self.sr.xapi.forgetVDI(self.sr.uuid, self.uuid)
         VDI.delete(self)
 
 
@@ -985,10 +985,10 @@ class LVHDVDI(VDI):
         self.sr.lock()
         try:
             self.sr.lvmCache.remove(self.fileName)
+            self.sr.xapi.forgetVDI(self.sr.uuid, self.uuid, True)
         finally:
             self.sr.unlock()
         RefCounter.reset(self.uuid, lvhdutil.NS_PREFIX_LVM + self.sr.uuid)
-        self.sr.xapi.forgetVDI(self.sr.uuid, self.uuid, True)
         VDI.delete(self)
 
     def getSizeVHD(self):
