@@ -281,6 +281,18 @@ class VDI(object):
     def _db_forget(self):
         self.sr.forget_vdi(self.uuid)
 
+    def _override_sm_config(self, sm_config):
+        for key, val in self.sm_config_override.iteritems():
+            if val == sm_config.get(key):
+                continue
+            if val:
+                util.SMlog("_override_sm_config: %s: %s -> %s" % \
+                        (key, sm_config.get(key), val))
+                sm_config[key] = val
+            elif sm_config.has_key(key):
+                util.SMlog("_override_sm_config: del %s" % key)
+                del sm_config[key]
+
     def _db_update_sm_config(self, ref, sm_config):
         current_sm_config = self.sr.session.xenapi.VDI.get_sm_config(ref)
         for key, val in sm_config.iteritems():
@@ -306,6 +318,7 @@ class VDI(object):
         self.sr.session.xenapi.VDI.set_physical_utilisation(vdi, str(self.utilisation))
         self.sr.session.xenapi.VDI.set_read_only(vdi, self.read_only)
         sm_config = util.default(self, "sm_config", lambda: {})
+        self._override_sm_config(sm_config)
         self._db_update_sm_config(vdi, sm_config)
         
     def in_sync_with_xenapi_record(self, x):

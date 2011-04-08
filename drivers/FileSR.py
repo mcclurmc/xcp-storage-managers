@@ -429,6 +429,8 @@ class FileVDI(VDI.VDI):
 
     def update(self, sr_uuid, vdi_location):
         self.load(vdi_location)
+        vdi_ref = self.sr.srcmd.params['vdi_ref']
+        self.sm_config = self.session.xenapi.VDI.get_sm_config(vdi_ref)
         self._db_update()
 
     def create(self, sr_uuid, vdi_uuid, size):

@@ -499,17 +499,8 @@ class ScanRecord:
                 util.SMlog("missing config for vdi: %s" % vdi.location)
                 vdi.sm_config = {}
 
-            if vdi.sm_config_override:
-                if len(vdi.sm_config_override.keys())>0:
-                    util.SMlog("original sm_config: %s" % repr(vdi.sm_config))
-                for key in vdi.sm_config_override.keys():
-                    if vdi.sm_config_override[key]:
-                        vdi.sm_config[key]=vdi.sm_config_override[key]
-                    else:
-                        if vdi.sm_config.has_key(key):
-                            del vdi.sm_config[key]
-                if len(vdi.sm_config_override.keys())>0:
-                    util.SMlog("overridden sm_config: %s" % repr(vdi.sm_config))
+            vdi._override_sm_config(vdi.sm_config)
+
             self.__sm_records[vdi.location] = vdi
 
         xenapi_locations = set(self.__xenapi_locations.keys())
