@@ -56,6 +56,8 @@ $(SM_STAMP): $(RPM_SRPMSDIR)/$(SM_SRPM)
 	$(RPMBUILD) --rebuild --target $(DOMAIN0_ARCH_OPTIMIZED) $(RPM_SRPMSDIR)/$(SM_SRPM)
 	mkdir -p $(MY_MAIN_PACKAGES)
 	cp $(RPM_RPMSDIR)/$(DOMAIN0_ARCH_OPTIMIZED)/sm-*.rpm $(MY_MAIN_PACKAGES)
+	# Deliberately omit the debuginfo RPM (sm-debuginfo-...)
+	rm -f $(MY_MAIN_PACKAGES)/sm-debuginfo-*.rpm
 	touch $@
 
 $(SM_TESTS): 
