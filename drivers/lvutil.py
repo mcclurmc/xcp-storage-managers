@@ -195,7 +195,7 @@ def srlist_toxml(VGs, includeMetadata = False):
             lvmCache = lvmcache.LVMCache(VG_PREFIX + val)
             
             # add SR name_label
-            sr_metadata = getMetadata(VG_PREFIX + val, lvmCache, MDVOLUME_NAME)
+            sr_metadata = getMetadata(lvmCache, MDVOLUME_NAME)
             subentry = dom.createElement("name_label")
             entry.appendChild(subentry)
             textnode = dom.createTextNode(sr_metadata[srmetadata.NAME_LABEL_TAG])
@@ -208,7 +208,7 @@ def srlist_toxml(VGs, includeMetadata = False):
             subentry.appendChild(textnode)
             
             # add metadata VDI UUID
-            metadataVDI = findMetadataVDI(VG_PREFIX + val, lvmCache, MDVOLUME_NAME)
+            metadataVDI = findMetadataVDI(lvmCache, MDVOLUME_NAME)
             subentry = dom.createElement("pool_metadata_detected")
             entry.appendChild(subentry)
             if metadataVDI != None:
@@ -543,10 +543,10 @@ def _lvmBugCleanup(path):
         os.unlink(path)
         util.SMlog("_lvmBugCleanup: deleted symlink %s" % path)
 
-def getMetadata(vgName, lvmCache, mgtLVName):
+def getMetadata(lvmCache, mgtLVName):
     try:
         try:
-            mgtLVPath = os.path.join(VG_LOCATION, vgName)
+            mgtLVPath = os.path.join(VG_LOCATION, lvmCache.vgName)
             mgtLVPath = os.path.join(mgtLVPath, mgtLVName)        
             lvmCache.activateNoRefcount(mgtLVName)
             try:
@@ -564,10 +564,10 @@ def getMetadata(vgName, lvmCache, mgtLVName):
         
     return Dict
 
-def writeMetadata(vgName, lvmCache, mgtLVName, Dict):
+def writeMetadata(lvmCache, mgtLVName, Dict):
     try:
         try:
-            mgtLVPath = os.path.join(VG_LOCATION, vgName)
+            mgtLVPath = os.path.join(VG_LOCATION, lvmCache.vgName)
             mgtLVPath = os.path.join(mgtLVPath, mgtLVName)        
             lvmCache.activateNoRefcount(mgtLVName)
             srmetadata.writeMetadata(mgtLVPath, Dict)        
@@ -579,10 +579,11 @@ def writeMetadata(vgName, lvmCache, mgtLVName, Dict):
         lvmCache.deactivateNoRefcount(mgtLVName)    
     
 # read metadata for this SR and find if a metadata VDI exists 
-def findMetadataVDI(vgName, lvmCache, mgtLVName):
-    util.SMlog("Checking if metadata for VG %s contains a metadata VDI" % vgName)        
+def findMetadataVDI(lvmCache, mgtLVName):
+    util.SMlog("Checking if metadata for VG %s contains a metadata VDI" % \
+            lvmCache.vgName)        
     try:
-        Dict = getMetadata(vgName, lvmCache, mgtLVName)
+        Dict = getMetadata(lvmCache, mgtLVName)
         for key in Dict.keys():
             if util.exactmatch_uuid(key):
                 if Dict[key]['type'] == 'metadata' and \
@@ -614,10 +615,10 @@ def findMetadataVDI(vgName, lvmCache, mgtLVName):
 #   location
 #   managed
 #   metadata_of_pool
-def updateMetadata(vgName, lvmCache, mgtLVName, update_map = {}):        
+def updateMetadata(lvmCache, mgtLVName, update_map = {}):        
     util.SMlog("Updating metadata : %s" % update_map)
     try:
-        mgtLVPath = os.path.join(VG_LOCATION, vgName)
+        mgtLVPath = os.path.join(VG_LOCATION, lvmCache.vgName)
         mgtLVPath = os.path.join(mgtLVPath, mgtLVName)    
         lvmCache.activateNoRefcount(mgtLVName)
         try:
@@ -636,10 +637,10 @@ def updateMetadata(vgName, lvmCache, mgtLVName, update_map = {}):
     finally:
         lvmCache.deactivateNoRefcount(mgtLVName)
         
-def deleteVdiFromMetadata(vgName, lvmCache, mgtLVName, vdi_uuid):        
+def deleteVdiFromMetadata(lvmCache, mgtLVName, vdi_uuid):        
     util.SMlog("Deleting vdi: %s" % vdi_uuid)
     try:
-        mgtLVPath = os.path.join(VG_LOCATION, vgName)
+        mgtLVPath = os.path.join(VG_LOCATION, lvmCache.vgName)
         mgtLVPath = os.path.join(mgtLVPath, mgtLVName)    
         lvmCache.activateNoRefcount(mgtLVName)
         try:
@@ -652,10 +653,10 @@ def deleteVdiFromMetadata(vgName, lvmCache, mgtLVName, vdi_uuid):
     finally:
         lvmCache.deactivateNoRefcount(mgtLVName)
 
-def addVdi(vgName, lvmCache, mgtLVName, vdi_info = {}):    
+def addVdi(lvmCache, mgtLVName, vdi_info = {}):
     util.SMlog("Adding VDI with info: %s" % vdi_info)
     try:
-        mgtLVPath = os.path.join(VG_LOCATION, vgName)
+        mgtLVPath = os.path.join(VG_LOCATION, lvmCache.vgName)
         mgtLVPath = os.path.join(mgtLVPath, mgtLVName)    
         lvmCache.activateNoRefcount(mgtLVName)
         try:                    
@@ -669,11 +670,11 @@ def addVdi(vgName, lvmCache, mgtLVName, vdi_info = {}):
     finally:
         lvmCache.deactivateNoRefcount(mgtLVName)
         
-def isSpaceAvailableForMetadata(vgName, lvmCache, mgtLVName, count):    
+def isSpaceAvailableForMetadata(lvmCache, mgtLVName, count):    
     util.SMlog("Checking if there is space in the metadata for %d VDI." % \
                count)
     try:
-        mgtLVPath = os.path.join(VG_LOCATION, vgName)
+        mgtLVPath = os.path.join(VG_LOCATION, lvmCache.vgName)
         mgtLVPath = os.path.join(mgtLVPath, mgtLVName)    
         lvmCache.activateNoRefcount(mgtLVName)
         try:                    

@@ -310,20 +310,12 @@ class XAPI:
     def singleSnapshotVDI(self, vdi):
         return self.session.xenapi.VDI.snapshot(vdi.getRef(), {"type":"single"})
 
-    def forgetVDI(self, srUuid, vdiUuid, updateSRMetadata = False):
+    def forgetVDI(self, srUuid, vdiUuid):
         """Forget the VDI, but handle the case where the VDI has already been
         forgotten (i.e. ignore errors)"""
         try:
             vdiRef = self.session.xenapi.VDI.get_by_uuid(vdiUuid)
             self.session.xenapi.VDI.forget(vdiRef)
-            
-            # Now update the SR metadata to reflect this change.
-            if updateSRMetadata:
-                vgName = lvhdutil.VG_PREFIX + srUuid
-                lvmCache = lvmcache.LVMCache(vgName)
-                lvutil.deleteVdiFromMetadata(vgName, lvmCache,
-                        lvutil.MDVOLUME_NAME, vdiUuid)
-            
         except XenAPI.Failure:
             pass
 
@@ -882,7 +874,7 @@ class FileVDI(VDI):
             self.sr.lock()
             try:
                 os.unlink(self.path)
-                self.sr.xapi.forgetVDI(self.sr.uuid, self.uuid)
+                self.sr.forgetVDI(self.uuid)
             finally:
                 self.sr.unlock()
         except OSError:
@@ -986,7 +978,7 @@ class LVHDVDI(VDI):
         self.sr.lock()
         try:
             self.sr.lvmCache.remove(self.fileName)
-            self.sr.xapi.forgetVDI(self.sr.uuid, self.uuid, True)
+            self.sr.forgetVDI(self.uuid)
         finally:
             self.sr.unlock()
         RefCounter.reset(self.uuid, lvhdutil.NS_PREFIX_LVM + self.sr.uuid)
@@ -1451,6 +1443,9 @@ class SR:
             self.vdiTrees.remove(vdi)
         vdi.delete()
 
+    def forgetVDI(self, vdiUuid):
+        self.xapi.forgetVDI(self.uuid, vdiUuid)
+
     def pauseVDIs(self, vdiList):
         paused = []
         failed = False
@@ -1728,7 +1723,7 @@ class SR:
             util.fistpoint.activate("LVHDRT_coaleaf_before_delete", self.uuid)
             self.deleteVDI(vdi)
             util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
-        self.xapi.forgetVDI(self.uuid, origParentUuid, True)
+        self.forgetVDI(origParentUuid)
         self._finishCoalesceLeaf(parent)
         self._updateSlavesOnResize(parent)
 
@@ -1807,9 +1802,9 @@ class FileSR(SR):
         self.path = "/var/run/sr-mount/%s" % self.uuid
         self.journaler = fjournaler.Journaler(self.path)
 
-    def findLeafCoalesceable(self):
-        """Disable leaf-coalesce for File-based SRs"""
-        return None
+    #def findLeafCoalesceable(self):
+    #    """Disable leaf-coalesce for File-based SRs"""
+    #    return None
 
     def scan(self, force = False):
         if not util.pathexists(self.path):
@@ -2003,7 +1998,7 @@ class FileSR(SR):
         if not vdi:
             raise util.SMException("VDI %s not found" % childUuid)
         try:
-            self.xapi.forgetVDI(self.uuid, parentUuid, True)
+            self.forgetVDI(parentUuid)
         except XenAPI.Failure:
             pass
         self._updateSlavesOnResize(vdi)
@@ -2028,6 +2023,11 @@ class LVHDSR(SR):
             self.lvActivator.deactivate(vdi.uuid, False)
         self._checkSlaves(vdi)
         SR.deleteVDI(self, vdi)
+
+    def forgetVDI(self, vdiUuid):
+        SR.forgetVDI(self, vdiUuid)
+        lvutil.deleteVdiFromMetadata(self.lvmCache, lvutil.MDVOLUME_NAME,
+                vdiUuid)
 
     def getFreeSpace(self):
         stats = lvutil._getVGstats(self.vgName)
@@ -2217,7 +2217,7 @@ class LVHDSR(SR):
         vdi.inflateFully()
         util.fistpoint.activate("LVHDRT_coaleaf_finish_after_inflate", self.uuid)
         try:
-            self.xapi.forgetVDI(self.uuid, parentUuid, True)
+            self.forgetVDI(parentUuid)
         except XenAPI.Failure:
             pass
         self._updateSlavesOnResize(vdi)
