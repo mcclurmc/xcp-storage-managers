@@ -321,7 +321,8 @@ class XAPI:
             if updateSRMetadata:
                 vgName = lvhdutil.VG_PREFIX + srUuid
                 lvmCache = lvmcache.LVMCache(vgName)
-                lvutil.deleteVdiFromMetadata(vgName, lvmCache, lvutil.MDVOLUME_NAME, vdiUuid)
+                lvutil.deleteVdiFromMetadata(vgName, lvmCache,
+                        lvutil.MDVOLUME_NAME, vdiUuid)
             
         except XenAPI.Failure:
             pass
@@ -577,7 +578,7 @@ class VDI:
 
         maxChildHeight = 0
         for child in self.children:
-            childHeight = child.getTreeHeight()                
+            childHeight = child.getTreeHeight()
             if childHeight > maxChildHeight:
                 maxChildHeight = childHeight
 
@@ -603,7 +604,7 @@ class VDI:
         self._clearRef()
         oldUuid = self.uuid
         self.uuid = uuid
-        self.children = [] 
+        self.children = []
         # updating the children themselves is the responsiblity of the caller
         del self.sr.vdis[oldUuid]
         self.sr.vdis[self.uuid] = self
