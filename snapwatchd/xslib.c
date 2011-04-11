@@ -6,13 +6,12 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <sys/types.h>
-#include <sys/mount.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <malloc.h>
 #define MAXDIRBUF 4096
-const int READ_SIZE = 16 * 1024;
+const int MIN_BLK_SIZE = 512;
 
 int remove_base_watch(struct xs_handle *h)
 {
@@ -166,76 +165,19 @@ control_handle_event(struct xs_handle *h)
 	return res[XS_WATCH_PATH];
 }
 
-// get minimum block size for writes to the passed in file descriptor
-long get_min_blk_size(int fd)
+char *xs_file_read(char *path, int offset, int bytesToRead)
 {
-	long min_blk_size = 0;
-        ioctl(fd, BLKSSZGET, &min_blk_size);
-	return min_blk_size;
-}
-
-// open file for direct writes
-int open_file_for_write(char *path)
-{	
-	return open( path, O_RDWR | O_DIRECT);
-}
-
-// open file for direct reads
-int open_file_for_read(char *path)
-{
-	return open( path, O_RDONLY | O_DIRECT);	
-}
-
-// write file by allocation memaligned buffers, which are multiples of block size
-// if less, pad with spaces.
-void xs_file_write(int fd, int offset, int blocksize, char* data, int length)
-{
-	int newlength = length, i = 0;
-	if(length % blocksize)
-		newlength = length + (blocksize - length % blocksize);
-	
-	char *value = memalign(blocksize, newlength);
-	memcpy(value, data, length);
-	for(i = length; i < newlength; i++)
-		value[i] = ' ';
-	lseek(fd, offset, 0);	
-	write(fd, value, newlength);
-	free(value);	
-}
-
-// read required number of bytes in 16K chunks. 
-char *xs_file_read(int fd, int offset, int bytesToRead)
-{
-	int min_block_size = get_min_blk_size(fd);
-	if(min_block_size == 0)
-		return "";
-	
-	char *read_value = calloc(bytesToRead + 1, 1);		
-	
-	lseek(fd, offset, 0);		
-	int index = 0;
-        int count = 0;
-	while((index < bytesToRead) && (count != -1))
+	char *value = memalign(MIN_BLK_SIZE,  bytesToRead);
+	int fd = open( path, O_RDONLY | O_DIRECT);
+	if(fd == -1)
 	{
-		char *value = memalign(min_block_size, READ_SIZE);		
-		
-		count = read(fd, value, READ_SIZE);
-		if(count != -1)		
-		{
-			if(index + count > bytesToRead)
-				count = bytesToRead - index;	
-			memcpy(&read_value[index], value, count);
-			index += count;
-		}
-		free(value);
+		printf("File open failed: %d" , errno);
+		return "";
 	}
-	
+	lseek(fd, offset, 0);
+	int count = read(fd, value, bytesToRead);
+	if(count == -1)
+		printf("Error reading file %s, error: %d" , path, errno);
 	close(fd);
-	return read_value;
+	return value;
 }
-
-void close_file(int fd)
-{
-	close(fd);
-}
-
