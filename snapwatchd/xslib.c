@@ -166,7 +166,7 @@ control_handle_event(struct xs_handle *h)
 	return res[XS_WATCH_PATH];
 }
 
-# get minimum block size for writes to the passed in file descriptor
+// get minimum block size for writes to the passed in file descriptor
 long get_min_blk_size(int fd)
 {
 	long min_blk_size = 0;
@@ -174,20 +174,20 @@ long get_min_blk_size(int fd)
 	return min_blk_size;
 }
 
-# open file for direct writes
+// open file for direct writes
 int open_file_for_write(char *path)
 {	
 	return open( path, O_RDWR | O_DIRECT);
 }
 
-# open file for direct reads
+// open file for direct reads
 int open_file_for_read(char *path)
 {
 	return open( path, O_RDONLY | O_DIRECT);	
 }
 
-# write file by allocation memaligned buffers, which are multiples of block size
-# if less, pad with spaces.
+// write file by allocation memaligned buffers, which are multiples of block size
+// if less, pad with spaces.
 void xs_file_write(int fd, int offset, int blocksize, char* data, int length)
 {
 	int newlength = length, i = 0;
@@ -203,7 +203,7 @@ void xs_file_write(int fd, int offset, int blocksize, char* data, int length)
 	free(value);	
 }
 
-# read required number of bytes in 16K chunks. 
+// read required number of bytes in 16K chunks. 
 char *xs_file_read(int fd, int offset, int bytesToRead)
 {
 	int min_block_size = get_min_blk_size(fd);
