@@ -27,7 +27,7 @@ from lock import Lock
 geneology = {}
 CAPABILITIES = ["SR_PROBE","SR_UPDATE", \
                 "VDI_CREATE","VDI_DELETE","VDI_ATTACH","VDI_DETACH", \
-                "VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE","VDI_RESIZE_ONLINE",
+                "VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE",
                 "ATOMIC_PAUSE"]
 
 CONFIGURATION = [ [ 'path', 'path where images are stored (required)' ] ]

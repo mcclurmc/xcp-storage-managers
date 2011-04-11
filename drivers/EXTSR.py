@@ -26,7 +26,7 @@ import cleanup
 CAPABILITIES = ["SR_PROBE","SR_UPDATE", "SR_SUPPORTS_LOCAL_CACHING", \
                 "VDI_CREATE","VDI_DELETE","VDI_ATTACH","VDI_DETACH", \
                 "VDI_UPDATE","VDI_CLONE","VDI_SNAPSHOT","VDI_RESIZE", \
-                "VDI_RESET_ON_BOOT","VDI_RESIZE_ONLINE", "ATOMIC_PAUSE"]
+                "VDI_RESET_ON_BOOT","ATOMIC_PAUSE"]
 
 CONFIGURATION = [ [ 'device', 'local device path (required) (e.g. /dev/sda3)' ] ]
                   
