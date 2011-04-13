@@ -195,7 +195,8 @@ def srlist_toxml(VGs, includeMetadata = False):
             lvmCache = lvmcache.LVMCache(VG_PREFIX + val)
             
             # add SR name_label
-            sr_metadata = getMetadata(lvmCache, MDVOLUME_NAME)
+            sr_metadata = \
+                getMetadata(lvmCache, MDVOLUME_NAME)[0]
             subentry = dom.createElement("name_label")
             entry.appendChild(subentry)
             textnode = dom.createTextNode(sr_metadata[srmetadata.NAME_LABEL_TAG])
@@ -546,14 +547,18 @@ def _lvmBugCleanup(path):
 def getMetadata(lvmCache, mgtLVName):
     try:
         try:
+            sr_info = {}
+            vdi_info = {}
             mgtLVPath = os.path.join(VG_LOCATION, lvmCache.vgName)
             mgtLVPath = os.path.join(mgtLVPath, mgtLVName)        
             lvmCache.activateNoRefcount(mgtLVName)
             try:
-                Dict = srmetadata.getMetadata(mgtLVPath)
+                md = srmetadata.getMetadata(mgtLVPath)
+                sr_info = md['sr_info']
+                vdi_info = md['vdi_info']
             except:
                 # Maybe there is no metadata yet
-                Dict = {}                            
+                pass                            
             
         except Exception, e:
             util.SMlog('Exception getting metadata. Error: %s' % str(e))
@@ -561,16 +566,16 @@ def getMetadata(lvmCache, mgtLVName):
                          opterr='%s' % str(e))
     finally:
         lvmCache.deactivateNoRefcount(mgtLVName)
-        
-    return Dict
+    
+    return (sr_info, vdi_info)
 
-def writeMetadata(lvmCache, mgtLVName, Dict):
+def writeMetadata(lvmCache, mgtLVName, sr_info, vdi_info):
     try:
         try:
             mgtLVPath = os.path.join(VG_LOCATION, lvmCache.vgName)
             mgtLVPath = os.path.join(mgtLVPath, mgtLVName)        
             lvmCache.activateNoRefcount(mgtLVName)
-            srmetadata.writeMetadata(mgtLVPath, Dict)        
+            srmetadata.writeMetadata(mgtLVPath, sr_info, vdi_info)        
         except Exception, e:
             util.SMlog('Exception writing metadata. Error: %s' % str(e))
             raise xs_errors.XenError('MetadataError', \
@@ -583,17 +588,16 @@ def findMetadataVDI(lvmCache, mgtLVName):
     util.SMlog("Checking if metadata for VG %s contains a metadata VDI" % \
             lvmCache.vgName)        
     try:
-        Dict = getMetadata(lvmCache, mgtLVName)
-        for key in Dict.keys():
-            if util.exactmatch_uuid(key):
-                if Dict[key]['type'] == 'metadata' and \
-                Dict[key]['is_a_snapshot'] == '0':
-                    return key        
+        vdi_info = getMetadata(lvmCache, mgtLVName)[1]
+        for offset in vdi_info.keys():
+            if vdi_info[offset]['type'] == 'metadata' and \
+                vdi_info[offset]['is_a_snapshot'] == '0':
+                    return vdi_info[offset][srmetadata.UUID_TAG]    
         
         return None
     except Exception, e:
-        util.SMlog('Checking if SR metadata for at %s contains a metadata VDI. \
-                   Error: %s' % (mgtLVPath, str(e)))
+        util.SMlog('Exception checking if SR metadata a metadata VDI.'\
+                   'Error: %s' % str(e))
         raise xs_errors.XenError('MetadataError', \
                      opterr='%s' % str(e))        
         
@@ -646,8 +650,8 @@ def deleteVdiFromMetadata(lvmCache, mgtLVName, vdi_uuid):
         try:
             srmetadata.deleteVdi(mgtLVPath, vdi_uuid)
         except Exception, e:
-            util.SMlog('Error deleting vdi %s from the metadata. \
-                         Error: %s' % (vdi_uuid, str(e)))
+            util.SMlog('Error deleting vdi %s from the metadata. '\
+                         'Error: %s' % (vdi_uuid, str(e)))
             raise xs_errors.XenError('MetadataError', \
                          opterr='%s' % str(e))
     finally:
