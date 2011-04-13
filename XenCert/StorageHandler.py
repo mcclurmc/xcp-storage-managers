@@ -1814,12 +1814,16 @@ class StorageHandlerISL(StorageHandler):
             # Create an SR
             self.device_config['adapterid'] = self.configuration['adapterid']
             self.device_config['target'] = self.configuration['target']
+            if self.configuration.has_key('port') and self.configuration['port'] != '0':
+                self.device_config['cslport'] = self.configuration['port']
             self.device_config['storageSystemId'] = self.configuration['ssid']
             self.device_config['storagePoolId'] = self.configuration['spid']
             if self.configuration.has_key('username'):
                 self.device_config['username'] = self.configuration['username']
             if self.configuration.has_key('password'):
                 self.device_config['password'] = self.configuration['password']
+            if self.configuration.has_key('protocol') and self.configuration['protocol'] != '':
+                self.device_config['protocol'] = self.configuration['protocol']
 
             # skip chapuser/pass for now (wkc: fixfix)
             #if self.configuration.has_key('chapuser') != None and self.configuration.has_key('chappasswd') != None:
@@ -2021,7 +2025,7 @@ class StorageHandlerISL(StorageHandler):
                 displayOperationStatus(False)
                     
             # same as above, just use clone
-            #    .VDI.clone - as for snapshot.
+            #    .VDI.clone - as for snapshot
             Print ("  >> SR create, VDI create, VDI clone, VDI destroy, VDI destroy (clone), SR destroy")
             totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
@@ -2051,28 +2055,35 @@ class StorageHandlerISL(StorageHandler):
             Print ("  >> SR create, VDI create, [check size], VDI resize, [check size] VDI destroy, SR destroy")
             totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
+            self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
             if retVal:
                 lunsizeBytes = int(self.configuration['lunsize'])
                 (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
-                if retVal:
-                    retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                    Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
-                    # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
-                    newsize = int(retSize)*2
-                    retVal = self.Resize_VDI(vdi_ref, int(newsize))
+                if self.sm_config.has_key('supports_resize') and self.sm_config['supports_resize'] == 'True':
                     if retVal:
-                        # recheck new size wkc: fixfix
                         retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                        Print("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
-                        report(self.Destroy_VDI(vdi_ref), True)
-                        checkPoints += 1
-                        displayOperationStatus(True)
+                        Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
+                        # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
+                        newsize = int(retSize)*2
+                        retVal = self.Resize_VDI(vdi_ref, int(newsize))
+                        if retVal:
+                            # recheck new size wkc: fixfix
+                            retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                            Print("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
+                            report(self.Destroy_VDI(vdi_ref), True)
+                            checkPoints += 1
+                            displayOperationStatus(True)
+                        else:
+                            # resize failed
+                            displayOperationStatus(False)
                     else:
-                        # resize failed
+                        # create VDI failed
                         displayOperationStatus(False)
                 else:
-                    # create VDI failed
-                    displayOperationStatus(False)
+                    # Resize not supported
+                    report(self.Destroy_VDI(vdi_ref), True)
+                    checkPoints += 1
+                    displayOperationStatus(True)
                 report(self.Destroy_SR(sr_ref), True)
             else:
                 # create SR failed
@@ -2107,30 +2118,36 @@ class StorageHandlerISL(StorageHandler):
             Print ("  >> SR create, VDI create, [check size], VDI resize (grow), [check size], repeat, VDI destroy, SR destroy")
             totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
+            self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
             if retVal:
                 lunsizeBytes = int(self.configuration['lunsize'])
                 (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
-                if retVal:
-                    retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                    Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
-                    # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
-                    passed = 1
-                    for i in range(0,10):
-                        newsize = int(retSize)+int(self.configuration['growsize'])
-                        retVal = self.Resize_VDI(vdi_ref, int(newsize))
-                        if retVal:
-                            # recheck new size wkc: fixfix
-                            retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                            Print("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
-                            displayOperationStatus(True)
-                        else:
-                            # resize failed
-                            displayOperationStatus(False)
-                            passed = 0
-                    checkPoints += passed
+                if self.sm_config.has_key('supports_resize') and self.sm_config['supports_resize'] == 'True':
+                    if retVal:
+                        retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                        Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
+                        # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
+                        passed = 1
+                        for i in range(0,10):
+                            newsize = int(retSize)+int(self.configuration['growsize'])
+                            retVal = self.Resize_VDI(vdi_ref, int(newsize))
+                            if retVal:
+                                # recheck new size wkc: fixfix
+                                retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                                Print("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
+                                displayOperationStatus(True)
+                            else:
+                                # resize failed
+                                displayOperationStatus(False)
+                                passed = 0
+                        checkPoints += passed
+                    else:
+                        # create VDI failed
+                        displayOperationStatus(False)
                 else:
-                    # create VDI failed
-                    displayOperationStatus(False)
+                    # VDI resize not supported
+                    checkPoints += 1
+                    displayOperationStatus(True)
                 report(self.Destroy_VDI(vdi_ref), True)
                 report(self.Destroy_SR(sr_ref), True)
             else:
