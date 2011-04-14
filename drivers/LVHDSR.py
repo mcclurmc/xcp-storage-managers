@@ -306,6 +306,40 @@ class LVHDSR(SR.SR):
         except Exception, e:
             raise xs_errors.XenError('MetadataError', \
                 opterr='Error synching SR Metadata and storage: %s' % str(e))
+
+    def syncMetadataAndXapi(self):
+        try:
+            # get metadata
+            (sr_info, vdi_info) = lvutil.getMetadata(self.lvmCache, \
+                self.MDVOLUME_NAME)
+
+            # First synch SR parameters
+            self.update(self.uuid)
+
+            # Now update the VDI information in the metadata if required
+            for vdi_offset in vdi_info.keys():
+                vdi_ref = \
+                    self.session.xenapi.VDI.get_by_uuid(\
+                                        vdi_info[vdi_offset][UUID_TAG])
+                new_name_label = \
+                       self.session.xenapi.VDI.get_name_label(vdi_ref)
+                new_name_description = \
+                       self.session.xenapi.VDI.get_name_description(vdi_ref)
+
+                if vdi_info[vdi_offset][NAME_LABEL_TAG] != new_name_label or \
+                    vdi_info[vdi_offset][NAME_DESCRIPTION_TAG] != \
+                    new_name_description:
+                    update_map = {}
+                    update_map[lvutil.METADATA_UPDATE_OBJECT_TYPE_TAG] = \
+                        lvutil.METADATA_OBJECT_TYPE_VDI
+                    update_map['uuid'] = vdi_info[vdi_offset][UUID_TAG]
+                    update_map[NAME_LABEL_TAG] = new_name_label
+                    update_map[NAME_DESCRIPTION_TAG] = new_name_description
+                    lvutil.updateMetadata(self.lvmCache, self.MDVOLUME_NAME,
+                        update_map)
+        except Exception, e:
+            raise xs_errors.XenError('MetadataError', \
+                opterr='Error synching SR Metadata and XAPI: %s' % str(e))
                
     def _checkMetadataVolume(self, map):        
         util.SMlog("Entering _checkMetadataVolume")
@@ -328,6 +362,7 @@ class LVHDSR(SR.SR):
                         util.SMlog("SR metadata upgrade not required.")
                         util.SMlog("Sync SR metadata and the state on the storage.")
                         self.syncMetadataAndStorage()
+                        self.syncMetadataAndXapi()
                     self.lvmCache.deactivateNoRefcount(self.MDVOLUME_NAME)
                 except Exception, e:
                     util.SMlog("Exception in _checkMetadataVolume, error: %s. Deactivating management volume." % str(e))
