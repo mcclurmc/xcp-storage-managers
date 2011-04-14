@@ -21,6 +21,6 @@ char *control_handle_event(struct xs_handle *h);
 long get_min_blk_size(int fd);
 int open_file_for_write(char *path);
 int open_file_for_read(char *path);
-void xs_file_write(int fd, int offset, int blocksize, char* data, int length);
+int xs_file_write(int fd, int offset, int blocksize, char* data, int length);
 char *xs_file_read(int fd, int offset, int bytesToRead);
 void close_file(int fd);

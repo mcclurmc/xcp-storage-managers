@@ -188,7 +188,7 @@ int open_file_for_read(char *path)
 
 // write file by allocation memaligned buffers, which are multiples of block size
 // if less, pad with spaces.
-void xs_file_write(int fd, int offset, int blocksize, char* data, int length)
+int xs_file_write(int fd, int offset, int blocksize, char* data, int length)
 {
 	int newlength = length, i = 0;
 	if(length % blocksize)
@@ -199,7 +199,10 @@ void xs_file_write(int fd, int offset, int blocksize, char* data, int length)
 	for(i = length; i < newlength; i++)
 		value[i] = ' ';
 	lseek(fd, offset, 0);	
-	write(fd, value, newlength);
+	if (write(fd, value, newlength) != -1)
+		return 0;
+	else
+		return errno;
 	free(value);	
 }
 

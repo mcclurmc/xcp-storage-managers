@@ -356,7 +356,10 @@ def addVdi(path, Dict):
                 value = getMetadataToWrite(md['sr_info'], md['vdi_info'], \
                         md['lower'], md['upper'], Dict, mdlength)    
             
-            xs_file_write(fd, md['lower'], min_block_size, value, len(value))
+            ret = xs_file_write(fd, md['lower'], min_block_size, value, len(value))
+            if ret != 0:
+		util.SMlog("File write failed with error: %s" % ret)
+		raise IOError(ret)
             
             if md.has_key('foundDeleted'):
                 updateLengthInHeader(path, mdlength)     
