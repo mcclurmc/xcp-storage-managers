@@ -26,9 +26,7 @@ from xslib import get_min_blk_size, open_file_for_write, open_file_for_read, \
 
 SECTOR_SIZE = 512
 XML_HEADER = "<?xml version=\"1.0\" ?>"
-SECTOR2_STRUCT = "%ds%ds%ds" % ( len(XML_HEADER),
-                                   49, # UUID
-                                   30) # ALLOCATION
+SECTOR2_FMT= "%s%s%s" 
 MAX_METADATA_LENGTH_SIZE = 10
 LEN_FMT = "%" + "-%ds" % MAX_METADATA_LENGTH_SIZE
 SECTOR_STRUCT = "%-512s" 
@@ -66,7 +64,7 @@ SECTOR_FMT = "%s%s%s%s%s%s%s" % (HDR_STRING,
                                    str(MD_MAJOR),
                                    HEADER_SEP,
                                    str(MD_MINOR)
-                                   )                                   
+                                   )
 
 def open_file(path, write = False):
     fd = -1
@@ -89,7 +87,7 @@ def requiresUpgrade(path):
     try:
         try:
             fd = -1
-            fd = open_file(path)               
+            fd = open_file(path)
             sector1 = xs_file_read(fd, 0, SECTOR_SIZE).strip()
             hdr = unpackHeader(sector1)
             mdmajor = int(hdr[2])
@@ -133,11 +131,11 @@ def getBlockAlignedRange(block_size, offset, length):
     return (lower, upper)
 
 def buildHeader(len):
-    # build the header, which is the first sector    
-    output = SECTOR_FMT % len    
+    # build the header, which is the first sector
+    output = SECTOR_FMT % len
     return output
 
-def unpackHeader(input):    
+def unpackHeader(input):
     vals = input.split(HEADER_SEP)
     return (vals[0], vals[1], vals[2], vals[3])
 
@@ -160,8 +158,8 @@ def updateLengthInHeader(path, length):
         try:
             md = ''
             fd = -1
-            fd = open_file(path)                
-            min_block_size = get_min_blk_size_wrapper(fd)            
+            fd = open_file(path)
+            min_block_size = get_min_blk_size_wrapper(fd)
             md = xs_file_read(fd, 0, min_block_size)
             close(fd)
            
@@ -171,7 +169,7 @@ def updateLengthInHeader(path, length):
             xs_file_write(fd, 0, min_block_size, updated_md, len(updated_md))
         except Exception, e:
             util.SMlog("Exception updating metadata length with length: %d." 
-                       "Error: %s" % (length, str(e)))        
+                       "Error: %s" % (length, str(e)))
             raise
     finally:
         close(fd)
@@ -210,7 +208,7 @@ def getVdiInfo(Dict, generateSector = 0):
                     Dict[NAME_DESCRIPTION_TAG]. \
                     truncate(MAX_VDI_NAME_LABEL_DESC_LENGTH/2)
                    
-            # Fill the open struct and write it           
+            # Fill the open struct and write it
             vdi_info += getSector(VDI_SECTOR_1 % (Dict[NAME_LABEL_TAG], 
                                                   Dict[NAME_DESCRIPTION_TAG]))
        
@@ -223,8 +221,8 @@ def getVdiInfo(Dict, generateSector = 0):
             VDI_INFO_FMT += VDI_CLOSING_TAG
             
             deleted_value = '0'
-            if Dict.has_key(VDI_DELETED_TAG) and Dict[VDI_DELETED_TAG] == '1':               
-                deleted_value = '1'            
+            if Dict.has_key(VDI_DELETED_TAG) and Dict[VDI_DELETED_TAG] == '1':
+                deleted_value = '1'
                
             vdi_info += getSector(VDI_INFO_FMT % (deleted_value,
                                                 Dict['uuid'],
@@ -257,7 +255,7 @@ def spaceAvailableForVdis(path, count):
                         NAME_DESCRIPTION_TAG: 'dummy vdi for space check',
                         'is_a_snapshot': 0,
                         'snapshot_of': '',
-                        'snapshot_time': '',                               
+                        'snapshot_time': '',
                         'type': 'user',
                         'vdi_type': 'vhd',
                         'read_only': 0,
@@ -286,9 +284,9 @@ def generateVDIsForRange(vdi_info, lower, upper, update_map = {}, offset = 0):
         if len(value) >= (upper - lower):
             break
         
-        vdi_map = vdi_info[vdi_offset]                
+        vdi_map = vdi_info[vdi_offset]
         if vdi_offset == offset:
-            # write passed in VDI info                    
+            # write passed in VDI info
             for key in update_map.keys():
                 vdi_map[key] = update_map[key]
                     
@@ -358,11 +356,11 @@ def addVdi(path, Dict):
             
             ret = xs_file_write(fd, md['lower'], min_block_size, value, len(value))
             if ret != 0:
-		util.SMlog("File write failed with error: %s" % ret)
-		raise IOError(ret)
+                util.SMlog("File write failed with error: %s" % ret)
+                raise IOError(ret)
             
             if md.has_key('foundDeleted'):
-                updateLengthInHeader(path, mdlength)     
+                updateLengthInHeader(path, mdlength)
             else:
                 updateLengthInHeader(path, mdlength + \
                         SECTOR_SIZE * VDI_INFO_SIZE_IN_SECTORS)
@@ -379,18 +377,13 @@ def getSRInfoForSectors(sr_info, range):
     
     try:
         # Fill up the first sector 
-        if 0 in range:           
+        if 0 in range:
             srinfo = getSector(buildHeader(SECTOR_SIZE))
            
         if 1 in range:
             uuid = getXMLTag(UUID_TAG) % sr_info['uuid']
             allocation = getXMLTag(ALLOCATION_TAG) % sr_info['allocation']
-            second = struct.pack(SECTOR2_STRUCT,
-                            XML_HEADER,
-                            uuid,
-                            allocation
-                            )
-                            
+            second = SECTOR2_FMT % (XML_HEADER, uuid, allocation)
             srinfo += getSector(second)
        
         if 2 in range:
@@ -421,12 +414,12 @@ def writeMetadata(path, sr_info, vdi_info):
             md = getSRInfoForSectors(sr_info, range(0, SR_INFO_SIZE_IN_SECTORS))
            
             # Go over the VDIs passed and for each
-            for key in vdi_info.keys():           
-                md += getVdiInfo(vdi_info[key])          
+            for key in vdi_info.keys():
+                md += getVdiInfo(vdi_info[key])
            
-            # Now write the metadata on disk.           
-            fd = open_file(path, True)        
-            min_block_size = get_min_blk_size_wrapper(fd)       
+            # Now write the metadata on disk.
+            fd = open_file(path, True)
+            min_block_size = get_min_blk_size_wrapper(fd)
             xs_file_write(fd, 0, min_block_size, md, len(md))
             updateLengthInHeader(path, len(md))
            
@@ -459,7 +452,7 @@ def getMetadata(path, params = {}):
             min_blk_size = get_min_blk_size_wrapper(fd)
            
             # Read in the metadata fil
-            metadata = ''           
+            metadata = ''
             metadata = xs_file_read(fd, 0, length)
            
             # At this point we have the complete metadata in metadata
@@ -480,14 +473,14 @@ def getMetadata(path, params = {}):
             else:
                 upper = length
             
-            # Now look at the VDI objects            
-            while offset < upper:                
+            # Now look at the VDI objects
+            while offset < upper:
                 vdi_info = metadata[offset: 
                                 offset + 
-                                (SECTOR_SIZE * VDI_INFO_SIZE_IN_SECTORS)]                
+                                (SECTOR_SIZE * VDI_INFO_SIZE_IN_SECTORS)]
                 vdi_info = vdi_info.replace('\x00','')
                 parsable_metadata = '%s<%s>%s</%s>' % (XML_HEADER, XML_TAG, 
-                                               vdi_info, XML_TAG)                
+                                               vdi_info, XML_TAG)
                 vdi_info_map = _parseXML(parsable_metadata)[VDI_TAG]
                 vdi_info_map[OFFSET_TAG] = offset
                 
@@ -515,7 +508,7 @@ def getMetadata(path, params = {}):
                 offset += SECTOR_SIZE * VDI_INFO_SIZE_IN_SECTORS
                 
             retmap['lower'] = lower
-            retmap['upper'] = upper                        
+            retmap['upper'] = upper
             retmap['vdi_info'] = vdi_info_by_offset
             return retmap           
         except Exception, e:
@@ -533,7 +526,7 @@ def deleteVdi(path, vdi_uuid, offset = 0):
         if not md.has_key('offset'):
             util.SMlog("Failed to find VDI %s in the metadata, ignoring " \
                        "delete from metadata." % vdi_uuid)
-            return        
+            return
         
         md['vdi_info'][md['offset']][VDI_DELETED_TAG] = '1'
         updateVdi(path, md['vdi_info'][md['offset']])
@@ -576,7 +569,7 @@ def updateSR(path, Dict):
                 # if upper is less than SR header size
                 if upper <= SR_INFO_SIZE_IN_SECTORS * SECTOR_SIZE:
                     for i in range(lower/SECTOR_SIZE, upper/SECTOR_SIZE):
-                        value += getSRInfoForSectors(sr_info, range(i, i + 1))                      
+                        value += getSRInfoForSectors(sr_info, range(i, i + 1))
                 else:
                     for i in range(lower/SECTOR_SIZE, SR_INFO_SIZE_IN_SECTORS):
                         value += getSRInfoForSectors(sr_info, range(i, i + 1))
