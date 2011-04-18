@@ -192,7 +192,6 @@ def srlist_toxml(VGs, includeMetadata = False):
         
         if includeMetadata:
             metadataVDI = None
-            lvmCache = lvmcache.LVMCache(VG_PREFIX + val)
             
             # add SR name_label
             mdpath = os.path.join(VG_LOCATION, VG_PREFIX + val)
@@ -546,9 +545,13 @@ def _lvmBugCleanup(path):
         os.unlink(path)
         util.SMlog("_lvmBugCleanup: deleted symlink %s" % path)
 
+# mdpath is of format /dev/VG-SR-UUID/MGT
+# or in other words /VG_LOCATION/VG_PREFIXSR-UUID/MDVOLUME_NAME
 def ensurePathExists(mdpath):
     if not os.path.exists(mdpath):
-        activateNoRefcount(mdpath)
+        vgname = mdpath.split('/')[2]
+        lvmCache = lvmcache.LVMCache(vgname)
+        lvmCache.activateNoRefcount(MDVOLUME_NAME)
         
 def getMetadata(mdpath):
     try:
