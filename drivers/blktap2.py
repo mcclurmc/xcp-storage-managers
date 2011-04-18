@@ -1469,12 +1469,53 @@ class VDI(object):
             dev_path = self._setup_cache(session, sr_uuid, vdi_uuid,
                     local_sr_uuid, scratch_mode)
 
-        self._updateCacheRecord(session, self.target.vdi.uuid,
-                params.get(self.CONF_KEY_MODE_ON_BOOT),
-                params.get(self.CONF_KEY_ALLOW_CACHING))
+        if dev_path:
+            self._updateCacheRecord(session, self.target.vdi.uuid,
+                    params.get(self.CONF_KEY_MODE_ON_BOOT),
+                    params.get(self.CONF_KEY_ALLOW_CACHING))
 
         session.xenapi.session.logout()
         return dev_path
+
+    def alert_no_cache(self, session, vdi_uuid, cache_sr_uuid, err):
+        vm_uuid = None
+        vm_label = ""
+        try:
+            cache_sr_ref = session.xenapi.SR.get_by_uuid(cache_sr_uuid)
+            cache_sr_rec = session.xenapi.SR.get_record(cache_sr_ref)
+            cache_sr_label = cache_sr_rec.get("name_label")
+
+            host_ref = session.xenapi.host.get_by_uuid(util.get_this_host())
+            host_rec = session.xenapi.host.get_record(host_ref)
+            host_label = host_rec.get("name_label")
+
+            vdi_ref = session.xenapi.VDI.get_by_uuid(vdi_uuid)
+            vbds = session.xenapi.VBD.get_all_records_where( \
+                    "field \"VDI\" = \"%s\"" % vdi_ref)
+            for vbd_rec in vbds.values():
+                vm_ref = vbd_rec.get("VM")
+                vm_rec = session.xenapi.VM.get_record(vm_ref)
+                vm_uuid = vm_rec.get("uuid")
+                vm_label = vm_rec.get("name_label")
+        except:
+            util.logException("alert_no_cache")
+        
+        alert_obj = "SR"
+        alert_uuid = str(cache_sr_uuid)
+        alert_str = "No space left in Local Cache SR %s" % cache_sr_uuid
+        if vm_uuid:
+            alert_obj = "VM"
+            alert_uuid = vm_uuid
+            reason = ""
+            if err == errno.ENOSPC:
+                reason = "because there is no space left"
+            alert_str = "The VM \"%s\" is not using IntelliCache %s on the Local Cache SR (\"%s\") on host \"%s\"" % \
+                    (vm_label, reason, cache_sr_label, host_label)
+
+        util.SMlog("Creating alert: (%s, %s, \"%s\")" % \
+                (alert_obj, alert_uuid, alert_str))
+        session.xenapi.message.create("No space left in local cache", "5",
+                alert_obj, alert_uuid, alert_str)
 
     def _setup_cache(self, session, sr_uuid, vdi_uuid, local_sr_uuid,
             scratch_mode):
@@ -1508,7 +1549,12 @@ class VDI(object):
             util.SMlog("Read cache node (%s) already exists, not creating" % \
                     read_cache_path)
         else:
-            vhdutil.snapshot(read_cache_path, shared_target.path, False)
+            try:
+                vhdutil.snapshot(read_cache_path, shared_target.path, False)
+            except util.CommandException, e:
+                util.SMlog("Error creating parent cache: %s" % e)
+                self.alert_no_cache(session, vdi_uuid, local_sr_uuid, e.code)
+                return None
 
         # local write node
         local_leaf_path = "%s/%s.vhdcache" % \
@@ -1517,8 +1563,13 @@ class VDI(object):
             util.SMlog("Local leaf node (%s) already exists, deleting" % \
                     local_leaf_path)
             os.unlink(local_leaf_path)
-        vhdutil.snapshot(local_leaf_path, read_cache_path, False,
-                checkEmpty = False)
+        try:
+            vhdutil.snapshot(local_leaf_path, read_cache_path, False,
+                    checkEmpty = False)
+        except util.CommandException, e:
+            util.SMlog("Error creating leaf cache: %s" % e)
+            self.alert_no_cache(session, vdi_uuid, local_sr_uuid, e.code)
+            return None
 
         vdi_type = self.target.get_vdi_type()
 
@@ -1635,7 +1686,9 @@ class VDI(object):
 
         read_cache_path = "%s/%s.vhdcache" % (local_sr.path, shared_target.uuid)
         prt_tapdisk = Tapdisk.find_by_path(read_cache_path)
-        if not self._is_tapdisk_in_use(prt_tapdisk.minor):
+        if not prt_tapdisk:
+            util.SMlog("Parent tapdisk not found")
+        elif not self._is_tapdisk_in_use(prt_tapdisk.minor):
             util.SMlog("Parent tapdisk not in use: shutting down %s" % \
                     read_cache_path)
             prt_tapdisk.shutdown()
