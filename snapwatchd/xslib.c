@@ -233,7 +233,6 @@ char *xs_file_read(int fd, int offset, int bytesToRead)
 		free(value);
 	}
 	
-	close(fd);
 	return read_value;
 }
 
