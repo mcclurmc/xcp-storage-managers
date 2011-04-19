@@ -196,27 +196,40 @@ def srlist_toxml(VGs, includeMetadata = False):
             # add SR name_label
             mdpath = os.path.join(VG_LOCATION, VG_PREFIX + val)
             mdpath = os.path.join(mdpath, MDVOLUME_NAME)
-            sr_metadata = \
-                getMetadata(mdpath)[0]
-            subentry = dom.createElement("name_label")
-            entry.appendChild(subentry)
-            textnode = dom.createTextNode(sr_metadata[srmetadata.NAME_LABEL_TAG])
-            subentry.appendChild(textnode)
-            
-            # add SR description
-            subentry = dom.createElement("name_description")
-            entry.appendChild(subentry)
-            textnode = dom.createTextNode(sr_metadata[srmetadata.NAME_DESCRIPTION_TAG])
-            subentry.appendChild(textnode)
-            
-            # add metadata VDI UUID
-            metadataVDI = findMetadataVDI(mdpath)
-            subentry = dom.createElement("pool_metadata_detected")
-            entry.appendChild(subentry)
-            if metadataVDI != None:
-                subentry.appendChild(dom.createTextNode("true"))
-            else:
-                subentry.appendChild(dom.createTextNode("false"))
+            try:
+                mgtVolActivated = False
+                if not os.path.exists(mdpath):
+                    # probe happens out of band with attach so this volume
+                    # may not have been activated at this point
+                    lvmCache = lvmcache.LVMCache(VG_PREFIX + val)
+                    lvmCache.activateNoRefcount(MDVOLUME_NAME)
+                    mgtVolActivated = True
+                
+                sr_metadata = \
+                    getMetadata(mdpath)[0]
+                subentry = dom.createElement("name_label")
+                entry.appendChild(subentry)
+                textnode = dom.createTextNode(sr_metadata[srmetadata.NAME_LABEL_TAG])
+                subentry.appendChild(textnode)
+                
+                # add SR description
+                subentry = dom.createElement("name_description")
+                entry.appendChild(subentry)
+                textnode = dom.createTextNode(sr_metadata[srmetadata.NAME_DESCRIPTION_TAG])
+                subentry.appendChild(textnode)
+                
+                # add metadata VDI UUID
+                metadataVDI = findMetadataVDI(mdpath)
+                subentry = dom.createElement("pool_metadata_detected")
+                entry.appendChild(subentry)
+                if metadataVDI != None:
+                    subentry.appendChild(dom.createTextNode("true"))
+                else:
+                    subentry.appendChild(dom.createTextNode("false"))
+            finally:
+                if mgtVolActivated:
+                    # deactivate only if we activated it
+                    lvmCache.deactivateNoRefcount(MDVOLUME_NAME)
                 
     return dom.toprettyxml()
 
