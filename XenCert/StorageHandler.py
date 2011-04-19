@@ -1030,12 +1030,13 @@ class StorageHandlerISCSI(StorageHandler):
                     
                     pathNo = 0
                     pathPassed = 0
-                    for tuple in scsiToTupleMap[key]:
-                        pathNo += 1                        
-                        # tuple = (portal, iqn, device)
+                    for tuple in scsiToTupleMap[key]:                        
                         # If this is a root device then skip IO tests for this device.
                         if os.path.realpath(util.getrootdev()) == tuple[2]:
                             Print("     -> Skipping IO tests on device %s, as it is the root device." % tuple[2])
+                            continue
+                        
+                        pathNo += 1
         
                         # Execute a disk IO test against each path to the LUN to verify that it is writeable
                         # and there is no apparent disk corruption
@@ -1365,12 +1366,13 @@ class StorageHandlerHBA(StorageHandler):
                     pathNo = 0
                     pathPassed = 0
                     for device in scsiToTupleMap[key]:
-                        pathNo += 1
-                        # tuple = (hostid, device)
                         # If this is a root device then skip IO tests for this device.
                         if os.path.realpath(util.getrootdev()) == device:
                             Print("     -> Skipping IO tests on device %s, as it is the root device." % device)
+                            continue
 
+                        pathNo += 1
+                        
                         # Execute a disk IO test against each path to the LUN to verify that it is writeable
                         # and there is no apparent disk corruption
                         PrintOnSameLine("        Path num: %d. Device: %s" % (pathNo, device))
