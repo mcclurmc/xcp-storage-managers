@@ -1640,7 +1640,13 @@ class VDI(object):
         pids = [pid for pid in os.listdir('/proc') if pid.isdigit()]
 
         for pid in pids:
-            prog = open(os.path.join('/proc', pid, 'cmdline'), 'rb').read()[:-1]
+            try:
+                f = open(os.path.join('/proc', pid, 'cmdline'), 'rb')
+                prog = f.read()[:-1]
+            except IOError, e:
+                if e.errno != errno.ENOENT:
+                    util.SMlog("ERROR %s reading %s, ignore" % (e.errno, pid))
+                continue
             if prog == "tapdisk2":
                 fds = os.listdir(os.path.join('/proc', pid, 'fd'))
                 for fd in fds:
@@ -1691,7 +1697,10 @@ class VDI(object):
         elif not self._is_tapdisk_in_use(prt_tapdisk.minor):
             util.SMlog("Parent tapdisk not in use: shutting down %s" % \
                     read_cache_path)
-            prt_tapdisk.shutdown()
+            try:
+                prt_tapdisk.shutdown()
+            except:
+                util.logException("shutting down parent tapdisk")
         else:
             util.SMlog("Parent tapdisk still in use: %s" % read_cache_path)
 
