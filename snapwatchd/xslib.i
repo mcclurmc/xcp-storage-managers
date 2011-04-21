@@ -1,8 +1,10 @@
 %module xslib
 %{
 #include <xs.h>
+#include "xslib.h"
 %}
 
+%include "xslib.h"
 
 /*Core Xen utilities*/
 struct xs_handle *xs_daemon_open(void);
@@ -18,9 +20,9 @@ char *dirlist(struct xs_handle *h, const char *path);
 int remove_xs_entry(struct xs_handle *h, char *dom_uuid, char *dom_path);
 int generic_remove_xs_entry(struct xs_handle *h, char *path);
 char *control_handle_event(struct xs_handle *h);
-long get_min_blk_size(int fd);
-int open_file_for_write(char *path);
-int open_file_for_read(char *path);
-int xs_file_write(int fd, int offset, int blocksize, char* data, int length);
-char *xs_file_read(int fd, int offset, int bytesToRead);
+struct int_result get_min_blk_size(int fd);
+struct int_result open_file_for_write(char *path);
+struct int_result open_file_for_read(char *path);
+struct int_result xs_file_write(int fd, int offset, int blocksize, char* data, int length);
+struct xs_read_result xs_file_read(int fd, int offset, int bytesToRead, int min_block_size);
 void close_file(int fd);

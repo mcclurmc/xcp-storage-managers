@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <unistd.h>
 #include <xs.h>
+#include "xslib.h"
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -167,29 +168,56 @@ control_handle_event(struct xs_handle *h)
 }
 
 // get minimum block size for writes to the passed in file descriptor
-long get_min_blk_size(int fd)
+struct int_result get_min_blk_size(int fd)
 {
 	long min_blk_size = 0;
-        ioctl(fd, BLKSSZGET, &min_blk_size);
-	return min_blk_size;
+	struct int_result result;
+	memset(&result, 0, sizeof(result));
+	
+	if(ioctl(fd, BLKSSZGET, &min_blk_size) == -1)
+	{
+		result.result = -1;
+		result.err = errno;
+	}
+	else
+	{
+		result.result = min_blk_size;		
+	}
+
+	return result;
 }
 
 // open file for direct writes
-int open_file_for_write(char *path)
-{	
-	return open( path, O_RDWR | O_DIRECT);
+struct int_result open_file_for_write(char *path)
+{
+	struct int_result result;
+	memset(&result, 0, sizeof(result));
+	
+	result.result = open( path, O_RDWR | O_DIRECT);
+	if(result.result == -1)
+		result.err = errno;
+	return result;
 }
 
 // open file for direct reads
-int open_file_for_read(char *path)
+struct int_result open_file_for_read(char *path)
 {
-	return open( path, O_RDONLY | O_DIRECT);	
+	struct int_result result;
+	memset(&result, 0, sizeof(result));
+	
+	result.result = open( path, O_RDONLY | O_DIRECT);
+	if(result.result == -1)
+		result.err = errno;
+	return result;
 }
 
 // write file by allocation memaligned buffers, which are multiples of block size
 // if less, pad with spaces.
-int xs_file_write(int fd, int offset, int blocksize, char* data, int length)
+struct int_result xs_file_write(int fd, int offset, int blocksize, char* data, int length)
 {
+	struct int_result result;
+	memset(&result, 0, sizeof(result));
+	
 	int newlength = length, i = 0;
 	if(length % blocksize)
 		newlength = length + (blocksize - length % blocksize);
@@ -199,41 +227,45 @@ int xs_file_write(int fd, int offset, int blocksize, char* data, int length)
 	for(i = length; i < newlength; i++)
 		value[i] = ' ';
 	lseek(fd, offset, 0);	
-	if (write(fd, value, newlength) != -1)
-		return 0;
-	else
-		return errno;
-	free(value);	
+	result.result = write(fd, value, newlength);
+	if(result.result == -1)
+		result.err = errno;
+	free(value);
+	return result;
 }
 
 // read required number of bytes in 16K chunks. 
-char *xs_file_read(int fd, int offset, int bytesToRead)
+struct xs_read_result xs_file_read(int fd, int offset, int bytesToRead, int min_block_size)
 {
-	int min_block_size = get_min_blk_size(fd);
-	if(min_block_size == 0)
-		return "";
+	struct xs_read_result result;
+	memset(&result, 0, sizeof(result));
 	
 	char *read_value = calloc(bytesToRead + 1, 1);		
 	
 	lseek(fd, offset, 0);		
 	int index = 0;
         int count = 0;
+	char *value = memalign(min_block_size, READ_SIZE);
 	while((index < bytesToRead) && (count != -1))
 	{
-		char *value = memalign(min_block_size, READ_SIZE);		
-		
 		count = read(fd, value, READ_SIZE);
 		if(count != -1)		
 		{
 			if(index + count > bytesToRead)
-				count = bytesToRead - index;	
+				count = bytesToRead - index;
+			result.noOfBytesRead += count;
 			memcpy(&read_value[index], value, count);
 			index += count;
 		}
-		free(value);
+		else
+		{
+			result.result = -1;
+			result.err = errno;
+		}
 	}
-	
-	return read_value;
+	free(value);
+	result.readString = read_value;
+	return result;
 }
 
 void close_file(int fd)
