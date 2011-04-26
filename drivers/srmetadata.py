@@ -486,12 +486,12 @@ def getMetadataInternal(fd, params = {}):
         min_blk_size = get_min_blk_size_wrapper(fd)
        
         # Read in the metadata fil
-        metadata = ''
-        metadata = xs_file_read_wrapper(fd, 0, length, min_blk_size)
+        metadataxml = ''
+        metadataxml = xs_file_read_wrapper(fd, 0, length, min_blk_size)
        
-        # At this point we have the complete metadata in metadata
+        # At this point we have the complete metadata in metadataxml
         offset = SECTOR_SIZE + len(XML_HEADER)
-        sr_info = metadata[offset: SECTOR_SIZE * 4]
+        sr_info = metadataxml[offset: SECTOR_SIZE * 4]
         offset = SECTOR_SIZE * 4
         sr_info = sr_info.replace('\x00','')
        
@@ -509,7 +509,7 @@ def getMetadataInternal(fd, params = {}):
         
         # Now look at the VDI objects
         while offset < upper:
-            vdi_info = metadata[offset: 
+            vdi_info = metadataxml[offset: 
                             offset + 
                             (SECTOR_SIZE * VDI_INFO_SIZE_IN_SECTORS)]
             vdi_info = vdi_info.replace('\x00','')
