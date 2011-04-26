@@ -16,8 +16,7 @@
 from xml.dom import minidom, Node
 import struct
 import util
-from metadata import HDR_STRING, XML_TAG, _parseXML, MD_MAJOR, MD_MINOR, \
-    retrieveXMLfromFile
+import metadata
 import os
 import sys
 sys.path.insert(0,'/opt/xensource/sm/snapwatchd')
@@ -57,13 +56,13 @@ ATOMIC_UPDATE_PARAMS_AND_OFFSET = {NAME_LABEL_TAG: 2,
 SR_INFO_SIZE_IN_SECTORS = 4
 VDI_INFO_SIZE_IN_SECTORS = 2
 HEADER_SEP = ':'
-SECTOR_FMT = "%s%s%s%s%s%s%s" % (HDR_STRING,
+SECTOR_FMT = "%s%s%s%s%s%s%s" % (metadata.HDR_STRING,
                                    HEADER_SEP,
                                    LEN_FMT,
                                    HEADER_SEP,
-                                   str(MD_MAJOR),
+                                   str(metadata.MD_MAJOR),
                                    HEADER_SEP,
-                                   str(MD_MINOR)
+                                   str(metadata.MD_MINOR)
                                    )
 
 def get_min_blk_size_wrapper(fd):
@@ -119,6 +118,18 @@ def close(fd):
         
 def requiresUpgrade(path):
     try:
+        # First check if this is a pre-6.0 pool using the old metadata
+        try:
+            if metadata.requiresUpgrade(path):
+                return True
+            else:
+                return False
+        except Exception, e:
+            util.SMlog("This looks like a 6.0 or later pool, try checking " \
+                       "for upgrade using the new metadata header format. " \
+                        "Error: %s" % str(e))
+        
+        # Now check for upgrade using the header format for 6.0/post-6.0
         try:
             fd = -1
             fd = open_file(path)
@@ -129,10 +140,10 @@ def requiresUpgrade(path):
             mdmajor = int(hdr[2])
             mdminor = int(hdr[3])
                
-            if mdmajor < MD_MAJOR:
+            if mdmajor < metadata.MD_MAJOR:
                 return True
                
-            if mdmajor == MD_MAJOR and mdminor < MD_MINOR:
+            if mdmajor == metadata.MD_MAJOR and mdminor < metadata.MD_MINOR:
                 return True
            
             return False
@@ -484,10 +495,10 @@ def getMetadataInternal(fd, params = {}):
         offset = SECTOR_SIZE * 4
         sr_info = sr_info.replace('\x00','')
        
-        parsable_metadata = '%s<%s>%s</%s>' % (XML_HEADER, XML_TAG, 
-                                               sr_info, XML_TAG)
+        parsable_metadata = '%s<%s>%s</%s>' % (XML_HEADER, metadata.XML_TAG, 
+                                               sr_info, metadata.XML_TAG)
        
-        retmap['sr_info'] = _parseXML(parsable_metadata)
+        retmap['sr_info'] = metadata._parseXML(parsable_metadata)
         
         # At this point we check if an offset has been passed in
         if params.has_key('offset'):
@@ -502,9 +513,9 @@ def getMetadataInternal(fd, params = {}):
                             offset + 
                             (SECTOR_SIZE * VDI_INFO_SIZE_IN_SECTORS)]
             vdi_info = vdi_info.replace('\x00','')
-            parsable_metadata = '%s<%s>%s</%s>' % (XML_HEADER, XML_TAG, 
-                                           vdi_info, XML_TAG)
-            vdi_info_map = _parseXML(parsable_metadata)[VDI_TAG]
+            parsable_metadata = '%s<%s>%s</%s>' % (XML_HEADER, metadata.XML_TAG, 
+                                           vdi_info, metadata.XML_TAG)
+            vdi_info_map = metadata._parseXML(parsable_metadata)[VDI_TAG]
             vdi_info_map[OFFSET_TAG] = offset
             
             if not params.has_key('includeDeletedVdis') and \
