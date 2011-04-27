@@ -108,7 +108,7 @@ def xs_file_read_wrapper(fd, offset, bytesToRead, min_block_size):
                    os.strerror(result.err)))
         
         raise IOError("Failed to read file with params %s. Error: %s" % \
-                          ([fd, offset, blocksize, data, length], \
+                          ([fd, offset, bytesToRead, min_block_size], \
                             os.strerror(result.err)))
     return result.readString
         
@@ -117,18 +117,18 @@ def close(fd):
         close_file(fd)
         
 def requiresUpgrade(path):
+    # First check if this is a pre-6.0 pool using the old metadata
     try:
-        # First check if this is a pre-6.0 pool using the old metadata
-        try:
-            if metadata.requiresUpgrade(path):
-                return True
-            else:
-                return False
-        except Exception, e:
-            util.SMlog("This looks like a 6.0 or later pool, try checking " \
-                       "for upgrade using the new metadata header format. " \
-                        "Error: %s" % str(e))
-        
+        if metadata.requiresUpgrade(path):
+            return True
+        else:
+            return False
+    except Exception, e:
+        util.SMlog("This looks like a 6.0 or later pool, try checking " \
+                   "for upgrade using the new metadata header format. " \
+                    "Error: %s" % str(e))
+      
+    try:  
         # Now check for upgrade using the header format for 6.0/post-6.0
         try:
             fd = -1
