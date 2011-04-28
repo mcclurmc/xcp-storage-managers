@@ -554,7 +554,7 @@ def get_localhost_uuid(session):
     if not domid:
         raise xs_errors.XenError('APILocalhost')
 
-    vms = session.xenapi.VM.get_all_records()
+    vms = session.xenapi.VM.get_all_records_where('field "uuid" = "%s"' % domid)
     for vm in vms:
         record = vms[vm]
         if record["uuid"] == domid:
