@@ -311,9 +311,14 @@ class LVHDSR(SR.SR):
 
             # Now update the VDI information in the metadata if required
             for vdi_offset in vdi_info.keys():
-                vdi_ref = \
-                    self.session.xenapi.VDI.get_by_uuid(\
+                try:
+                    vdi_ref = \
+                        self.session.xenapi.VDI.get_by_uuid(\
                                         vdi_info[vdi_offset][UUID_TAG])
+                except:
+                    # may be the VDI is not in XAPI yet dont bother
+                    continue
+                
                 new_name_label = \
                        self.session.xenapi.VDI.get_name_label(vdi_ref)
                 new_name_description = \
@@ -358,8 +363,8 @@ class LVHDSR(SR.SR):
                         self.syncMetadataAndStorage()
                         self.syncMetadataAndXapi()
                 except Exception, e:
-                    util.SMlog("Exception in _checkMetadataVolume, error: %s."\
-                               "Deactivating management volume." % str(e))
+                    util.SMlog("Exception in _checkMetadataVolume, " \
+                               "Error: %s." % str(e))
             elif not self.mdexists:
                 self._introduceMetaDataVolume(map)
                 
