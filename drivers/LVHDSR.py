@@ -39,6 +39,7 @@ import XenAPI
 import re
 from srmetadata import NAME_LABEL_TAG, NAME_DESCRIPTION_TAG, \
         SNAPSHOT_TIME_TAG, METADATA_OF_POOL_TAG, requiresUpgrade, UUID_TAG
+from metadata import retrieveXMLfromFile, _parseXML
 from xmlrpclib import DateTime
 
 geneology = {}
@@ -346,9 +347,8 @@ class LVHDSR(SR.SR):
                 try:
                     # activate the management volume
                     # will be deactivated at detach time
-                    self.lvmCache.activateNoRefcount(self.MDVOLUME_NAME)
-                    self._synchMetaData(map)
-                    
+                    self.lvmCache.activateNoRefcount(self.MDVOLUME_NAME)                    
+                    self._synchSmConfigWithMetaData()
                     if requiresUpgrade(self.mdpath):
                         util.SMlog("This SR requires metadata upgrade.")
                         self.updateSRMetadata( \
@@ -371,10 +371,28 @@ class LVHDSR(SR.SR):
         if self.mdexists:
             self.legacyMode = False
 
-    def _synchMetaData(self, map):
-        util.SMlog("Synching Metadata volume")
+    def _synchSmConfigWithMetaData(self):
+        util.SMlog("Synching sm-config with metadata volume")
+        
         try:
-            sr_info = lvutil.getMetadata(self.mdpath)[0]
+            # get SR info from metadata
+            sr_info = {}
+            map = {}
+            try:
+                # First try old metadata format
+                # CHECKME: this can be removed once we stop supporting upgrade
+                # from pre-6.0 pools
+                xml = retrieveXMLfromFile(self.mdpath)
+                sr_info = _parseXML(xml)           
+            except Exception, e:
+                # That dint work, try new format valid 6.0 onwards
+                util.SMlog("Could not read SR info from metadata using old " \
+                           "format, trying new format. Error: %s" % str(e))
+                sr_info = lvutil.getMetadata(self.mdpath)[0]
+
+            if sr_info == {}:
+                raise Exception("Failed to get SR information from metadata.")
+        
             if sr_info.get("allocation") == 'thick':
                 self.thinpr = False
                 map['allocation'] = 'thick'
@@ -383,7 +401,8 @@ class LVHDSR(SR.SR):
                 map['allocation'] = 'thin'
         except Exception, e:
             raise xs_errors.XenError('MetadataError', \
-                         opterr='Error synching Metadata Volume: %s' % str(e))
+                         opterr='Error reading SR params from ' \
+                         'metadata Volume: %s' % str(e))
         try:
             map[self.FLAG_USE_VHD] = 'true'
             self.session.xenapi.SR.set_sm_config(self.sr_ref, map)
