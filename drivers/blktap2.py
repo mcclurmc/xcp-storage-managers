@@ -1643,16 +1643,16 @@ class VDI(object):
             try:
                 f = open(os.path.join('/proc', pid, 'cmdline'), 'rb')
                 prog = f.read()[:-1]
+                if prog == "tapdisk2":
+                    fds = os.listdir(os.path.join('/proc', pid, 'fd'))
+                    for fd in fds:
+                        link = os.readlink(os.path.join('/proc', pid, 'fd', fd))
+                        if link.find("tapdev%d" % minor) != -1:
+                            return True
             except IOError, e:
                 if e.errno != errno.ENOENT:
                     util.SMlog("ERROR %s reading %s, ignore" % (e.errno, pid))
                 continue
-            if prog == "tapdisk2":
-                fds = os.listdir(os.path.join('/proc', pid, 'fd'))
-                for fd in fds:
-                    link = os.readlink(os.path.join('/proc', pid, 'fd', fd))
-                    if link.find("tapdev%d" % minor) != -1:
-                        return True
 
         return False
 
