@@ -679,3 +679,15 @@ def ensureSpaceIsAvailableForVdis(mdpath, count):
     except Exception, e:
         raise xs_errors.XenError('MetadataError', \
             opterr='%s' % str(e))
+
+def removeDevMapperEntry(path):
+    try:    
+        # remove devmapper entry using dmsetup
+        cmd = [CMD_DMSETUP, "remove", path]
+        util.pread2(cmd)
+        return True
+    except Exception, e:
+        util.SMlog("removeDevMapperEntry: dmsetup remove failed for file %s " \
+                   "with error %s." % (path, str(e)))
+        return False
+    

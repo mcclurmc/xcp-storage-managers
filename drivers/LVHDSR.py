@@ -41,6 +41,8 @@ from srmetadata import NAME_LABEL_TAG, NAME_DESCRIPTION_TAG, \
         SNAPSHOT_TIME_TAG, METADATA_OF_POOL_TAG, requiresUpgrade, UUID_TAG
 from metadata import retrieveXMLfromFile, _parseXML
 from xmlrpclib import DateTime
+import glob
+DEV_MAPPER_ROOT = os.path.join('/dev/mapper', lvhdutil.VG_PREFIX)
 
 geneology = {}
 CAPABILITIES = ["SR_PROBE","SR_UPDATE",
@@ -520,11 +522,47 @@ class LVHDSR(SR.SR):
     def detach(self, uuid):
         util.SMlog("LVHDSR.detach for %s" % self.uuid)
         cleanup.abort(self.uuid)
-        if not lvutil._checkVG(self.vgname):
-            return
 
-        # Deactivate any active LVs
-        lvutil.setActiveVG(self.path, False)
+        # Do a best effort cleanup of the dev mapper entries
+        # go through all devmapper entries for this VG
+        success = True
+        for fileName in \
+            filter(lambda x: util.extractSRFromDevMapper(x) == self.uuid, \
+                glob.glob(DEV_MAPPER_ROOT + '*')):
+            #   check if any file has open handles
+            if util.doesFileHaveOpenHandles(fileName):
+                #   if yes, log this and signal failure
+                util.SMlog("LVHDSR.detach: The dev mapper entry %s has open " \
+                           "handles" % fileName)
+                success = False
+            
+            # Now attempt to remove the dev mapper entry
+            if not lvutil.removeDevMapperEntry(fileName):
+                success = False
+            
+            # also remove the symlinks from /dev/VG-XenStorage-SRUUID/*
+            try:
+                lvname = fileName[fileName.rfind('-') + 1:]
+                os.unlink(os.path.join(self.path, lvname))
+            except Exception, e:
+                util.SMlog("LVHDSR.detach: failed to remove the symlink for " \
+                           "file %s. Error: %s" % (fileName, str(e)))
+                success = False
+                    
+            # now remove the directory where the symlinks are
+            # this should pass as the directry should be empty by now
+            try:
+                if util.pathexists(self.path):
+                    os.rmdir(self.path)
+            except Exception, e:
+                util.SMlog("LVHDSR.detach: failed to remove the symlink " \
+                           "directory %s. Error: %s" % (self.path, str(e)))
+                success = False
+            
+        if not success:
+            raise Exception("SR detach failed, please refer to the log " \
+                            "for details.")
+            
         # Don't delete lock files on the master as it will break the locking 
         # between SM and any GC thread that survives through SR.detach.  
         # However, we should still delete lock files on slaves as it is the 

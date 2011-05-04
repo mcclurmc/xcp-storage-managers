@@ -1101,3 +1101,88 @@ def set_dirty(session, sr):
         SMlog("set_dirty %s succeeded" % (repr(sr)))
     except:
         SMlog("set_dirty %s failed (flag already set?)" % (repr(sr)))        
+
+def doesFileHaveOpenHandles(fileName):
+    SMlog("Entering doesFileHaveOpenHandles with file: %s" % fileName)
+    (retVal, processAndPidTuples) = \
+        findRunningProcessOrOpenFile(fileName, False)
+    
+    if not retVal:
+        SMlog("Failed to determine if file %s has open handles." % \
+                   fileName)
+        # err on the side of caution
+        return True
+    else:
+        if len(processAndPidTuples) > 0:
+            return True
+        else:
+            return False
+    
+# extract SR uuid from the passed in devmapper entry and return
+# /dev/mapper/VG_XenStorage--c3d82e92--cb25--c99b--b83a--482eebab4a93-MGT
+def extractSRFromDevMapper(path):
+    try:
+        path=os.path.basename(path)
+        path=path.replace('--','-')
+        path=path[len('VG_XenStorage')+1:]
+        return path[0:path.rfind('-')]
+    except:
+        return ''
+
+# Looks at /proc and figures either
+#   If a process is still running (default), returns open file names
+#   If any running process has open handles to the given file (process = False)
+#       returns process names and pids
+def findRunningProcessOrOpenFile(name, process = True):
+    retVal = True
+    try:
+        SMlog("Entering findRunningProcessOrOpenFile with params: %s" % \
+                   [name, process])
+        links = []
+        processandpids = []
+        
+        # Look at all pids
+        pids = [pid for pid in os.listdir('/proc') if pid.isdigit()]
+        for pid in sorted(pids):
+            try:
+                try:
+                    f = None
+                    f = open(os.path.join('/proc', pid, 'cmdline'), 'rb')
+                    prog = f.read()[:-1]
+                except IOError, e:
+                    if e.errno != errno.ENOENT:
+                        SMlog("ERROR %s reading %s, ignore" % (e.errno, pid))
+                    continue
+            finally:
+                if f != None:
+                    f.close()
+            
+            try:
+                fd_dir = os.path.join('/proc', pid, 'fd')
+                files = os.listdir(fd_dir)
+            except Exception, e:
+                raise Exception(str(e))
+            
+            for file in files:
+                try:
+                    link = os.readlink(os.path.join(fd_dir, file))
+                except OSError:
+                    continue
+                
+                if process and name == prog:
+                    links.append(link)
+                else:
+                    # need to return process name and pid tuples
+                    if link == name:
+                        SMlog("File %s has an open handle with process %s "
+                              "with pid %s" % (name, prog, pid))
+                        processandpids.append((prog, pid))
+    except Exception, e:
+        SMlog("Exception checking running process or open file handles. "\
+                   "Error: %s" % str(e))
+        retVal = False
+        
+    if process:
+        return (retVal, links)
+    else:
+        return (retVal, processandpids)

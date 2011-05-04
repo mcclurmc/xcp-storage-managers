@@ -1637,23 +1637,14 @@ class VDI(object):
         session.xenapi.session.logout()
 
     def _is_tapdisk_in_use(self, minor):
-        pids = [pid for pid in os.listdir('/proc') if pid.isdigit()]
-
-        for pid in pids:
-            try:
-                f = open(os.path.join('/proc', pid, 'cmdline'), 'rb')
-                prog = f.read()[:-1]
-                if prog == "tapdisk2":
-                    fds = os.listdir(os.path.join('/proc', pid, 'fd'))
-                    for fd in fds:
-                        link = os.readlink(os.path.join('/proc', pid, 'fd', fd))
-                        if link.find("tapdev%d" % minor) != -1:
-                            return True
-            except IOError, e:
-                if e.errno != errno.ENOENT:
-                    util.SMlog("ERROR %s reading %s, ignore" % (e.errno, pid))
-                continue
-
+        (retVal, links) = util.findRunningProcessOrOpenFile("tapdisk2")
+        if not retVal:
+            # err on the side of caution
+            return True
+        
+        for link in links:
+            if link.find("tapdev%d" % minor) != -1:
+                return True
         return False
 
     def _remove_cache(self, session, local_sr_uuid, scratch_mode):
