@@ -1580,13 +1580,13 @@ class StorageHandlerISL(StorageHandler):
             #commented below line, because snapshot name_label from XAPI is incorrect
             #dest['name_label'] = self.session.xenapi.VDI.get_name_label(vdi_ref)
             is_a_snapshot = str(int(self.session.xenapi.VDI.get_is_a_snapshot(vdi_ref)))
-            if is_a_snapshot == "1":
-                dest['is_a_snapshot'] = is_a_snapshot
-                dest['snapshot_of'] = self.session.xenapi.VDI.get_snapshot_of(vdi_ref)
-                if dest['snapshot_of'] == 'OpaqueRef:NULL':
-                    dest['snapshot_of'] = ''
-                else:
-                    dest['snapshot_of'] = self.session.xenapi.VDI.get_sm_config(dest['snapshot_of'])['SVID']
+            #if is_a_snapshot == "1":
+            #    dest['is_a_snapshot'] = is_a_snapshot
+            #    dest['snapshot_of'] = self.session.xenapi.VDI.get_snapshot_of(vdi_ref)
+            #    if dest['snapshot_of'] == 'OpaqueRef:NULL':
+            #        dest['snapshot_of'] = ''
+            #    else:
+            #        dest['snapshot_of'] = self.session.xenapi.VDI.get_sm_config(dest['snapshot_of'])['SVID']
             dest['type'] = self.session.xenapi.VDI.get_type(vdi_ref)
             #commented below, because not all VDI seems to have this field
             #dest['vdi_type'] = self.session.xenapi.VDI.get_vdi_type(vdi_ref)
@@ -2010,9 +2010,9 @@ class StorageHandlerISL(StorageHandler):
                 if retVal:
                     (retVal, vdi_snap_ref) = self.Snapshot_VDI(vdi_ref)
                     if retVal:
-                        report(self.Destroy_VDI(vdi_ref), True)
+                        self.Destroy_VDI(vdi_ref)
                         # need to test to make sure snap still exists (wkc fixfix)
-                        self.Destroy_VDI(vdi_snap_ref)
+                        report(self.Destroy_VDI(vdi_snap_ref), True)
                         checkPoints += 1
                         displayOperationStatus(True)
                     else:
@@ -2021,7 +2021,7 @@ class StorageHandlerISL(StorageHandler):
                 else:
                     # create VDI failed
                     displayOperationStatus(False)
-                self.Destroy_SR(sr_ref)
+                report(self.Destroy_SR(sr_ref), True)
             else:
                 # create SR failed
                 displayOperationStatus(False)
