@@ -535,22 +535,26 @@ class LVHDSR(SR.SR):
                 util.SMlog("LVHDSR.detach: The dev mapper entry %s has open " \
                            "handles" % fileName)
                 success = False
+                continue
             
             # Now attempt to remove the dev mapper entry
             if not lvutil.removeDevMapperEntry(fileName):
                 success = False
+                continue
             
             # also remove the symlinks from /dev/VG-XenStorage-SRUUID/*
             try:
-                lvname = fileName[fileName.rfind('-') + 1:]
+                lvname = os.path.basename(fileName.replace('-','/').\
+                                          replace('//', '-'))
                 os.unlink(os.path.join(self.path, lvname))
             except Exception, e:
                 util.SMlog("LVHDSR.detach: failed to remove the symlink for " \
                            "file %s. Error: %s" % (fileName, str(e)))
                 success = False
                     
-            # now remove the directory where the symlinks are
-            # this should pass as the directry should be empty by now
+        # now remove the directory where the symlinks are
+        # this should pass as the directry should be empty by now
+        if success:
             try:
                 if util.pathexists(self.path):
                     os.rmdir(self.path)
