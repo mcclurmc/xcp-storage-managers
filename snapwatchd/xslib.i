@@ -18,3 +18,4 @@ char *dirlist(struct xs_handle *h, const char *path);
 int remove_xs_entry(struct xs_handle *h, char *dom_uuid, char *dom_path);
 int generic_remove_xs_entry(struct xs_handle *h, char *path);
 char *control_handle_event(struct xs_handle *h);
+char *xs_file_read(char *path, int offset, int bytesToRead);

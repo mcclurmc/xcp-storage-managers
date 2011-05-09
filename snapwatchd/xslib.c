@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <xs.h>
 #include <errno.h>
@@ -8,8 +9,9 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <fcntl.h>
-
+#include <malloc.h>
 #define MAXDIRBUF 4096
+const int MIN_BLK_SIZE = 512;
 
 int remove_base_watch(struct xs_handle *h)
 {
@@ -161,4 +163,21 @@ control_handle_event(struct xs_handle *h)
 	if (!res)
 		return NULL;
 	return res[XS_WATCH_PATH];
+}
+
+char *xs_file_read(char *path, int offset, int bytesToRead)
+{
+	char *value = memalign(MIN_BLK_SIZE,  bytesToRead);
+	int fd = open( path, O_RDONLY | O_DIRECT);
+	if(fd == -1)
+	{
+		printf("File open failed: %d" , errno);
+		return "";
+	}
+	lseek(fd, offset, 0);
+	int count = read(fd, value, bytesToRead);
+	if(count == -1)
+		printf("Error reading file %s, error: %d" , path, errno);
+	close(fd);
+	return value;
 }

@@ -310,12 +310,19 @@ class XAPI:
     def singleSnapshotVDI(self, vdi):
         return self.session.xenapi.VDI.snapshot(vdi.getRef(), {"type":"single"})
 
-    def forgetVDI(self, vdiUuid):
+    def forgetVDI(self, srUuid, vdiUuid, updateSRMetadata = False):
         """Forget the VDI, but handle the case where the VDI has already been
         forgotten (i.e. ignore errors)"""
         try:
             vdiRef = self.session.xenapi.VDI.get_by_uuid(vdiUuid)
             self.session.xenapi.VDI.forget(vdiRef)
+            
+            # Now update the SR metadata to reflect this change.
+            if updateSRMetadata:
+                vgName = lvhdutil.VG_PREFIX + srUuid
+                lvmCache = lvmcache.LVMCache(vgName)
+                lvutil.deleteVdiFromMetadata(vgName, lvmCache, lvutil.MDVOLUME_NAME, vdiUuid)
+            
         except XenAPI.Failure:
             pass
 
@@ -871,7 +878,7 @@ class FileVDI(VDI):
                 self.sr.unlock()
         except OSError:
             raise util.SMException("os.unlink(%s) failed" % self.path)
-        self.sr.xapi.forgetVDI(self.uuid)
+        self.sr.xapi.forgetVDI(self.sr.uuid, self.uuid)
         VDI.delete(self)
 
 
@@ -974,7 +981,7 @@ class LVHDVDI(VDI):
         finally:
             self.sr.unlock()
         RefCounter.reset(self.uuid, lvhdutil.NS_PREFIX_LVM + self.sr.uuid)
-        self.sr.xapi.forgetVDI(self.uuid)
+        self.sr.xapi.forgetVDI(self.sr.uuid, self.uuid, True)
         VDI.delete(self)
 
     def getSizeVHD(self):
@@ -1713,7 +1720,7 @@ class SR:
             util.fistpoint.activate("LVHDRT_coaleaf_before_delete", self.uuid)
             self.deleteVDI(vdi)
             util.fistpoint.activate("LVHDRT_coaleaf_after_delete", self.uuid)
-        self.xapi.forgetVDI(origParentUuid)
+        self.xapi.forgetVDI(self.uuid, origParentUuid, True)
         self._finishCoalesceLeaf(parent)
         self._updateSlavesOnResize(parent)
 
@@ -1978,7 +1985,7 @@ class FileSR(SR):
         if not vdi:
             raise util.SMException("VDI %s not found" % childUuid)
         try:
-            self.xapi.forgetVDI(parentUuid)
+            self.xapi.forgetVDI(self.uuid, parentUuid, True)
         except XenAPI.Failure:
             pass
         self._updateSlavesOnResize(vdi)
@@ -2192,7 +2199,7 @@ class LVHDSR(SR):
         vdi.inflateFully()
         util.fistpoint.activate("LVHDRT_coaleaf_finish_after_inflate", self.uuid)
         try:
-            self.xapi.forgetVDI(parentUuid)
+            self.xapi.forgetVDI(self.uuid, parentUuid, True)
         except XenAPI.Failure:
             pass
         self._updateSlavesOnResize(vdi)
