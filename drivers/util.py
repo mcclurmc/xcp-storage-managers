@@ -1123,9 +1123,10 @@ def doesFileHaveOpenHandles(fileName):
 def extractSRFromDevMapper(path):
     try:
         path=os.path.basename(path)
-        path=path.replace('--','-')
-        path=path[len('VG_XenStorage')+1:]
-        return path[0:path.rfind('-')]
+        path=path[len('VG_XenStorage-')+1:]
+        path=path.replace('--','/')
+        path=path[0:path.rfind('-')]
+        return path.replace('/','-')
     except:
         return ''
 
