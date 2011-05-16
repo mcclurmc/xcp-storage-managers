@@ -53,9 +53,6 @@ CMD_DMSETUP   = "/sbin/dmsetup"
 LVM_SIZE_INCREMENT = 4 * 1024 * 1024
 LV_TAG_HIDDEN = "hidden"
 LVM_FAIL_RETRIES = 10
-METADATA_UPDATE_OBJECT_TYPE_TAG = 'objtype'
-METADATA_OBJECT_TYPE_SR = 'sr'
-METADATA_OBJECT_TYPE_VDI = 'vdi'
 
 class LVInfo:
     name = ""
@@ -566,120 +563,6 @@ def ensurePathExists(mdpath):
         lvmCache = lvmcache.LVMCache(vgname)
         lvmCache.activateNoRefcount(MDVOLUME_NAME)
         
-def getMetadata(mdpath):
-    try:
-        sr_info = {}
-        vdi_info = {}
-        try:
-            ensurePathExists(mdpath)
-            md = srmetadata.getMetadata(mdpath)
-            sr_info = md['sr_info']
-            vdi_info = md['vdi_info']
-        except:
-            # Maybe there is no metadata yet
-            pass
-        
-    except Exception, e:
-        util.SMlog('Exception getting metadata. Error: %s' % str(e))
-        raise xs_errors.XenError('MetadataError', \
-                     opterr='%s' % str(e))
-    
-    return (sr_info, vdi_info)
-
-def writeMetadata(mdpath, sr_info, vdi_info):
-    try:
-        ensurePathExists(mdpath)
-        srmetadata.writeMetadata(mdpath, sr_info, vdi_info)
-    except Exception, e:
-        util.SMlog('Exception writing metadata. Error: %s' % str(e))
-        raise xs_errors.XenError('MetadataError', \
-                     opterr='%s' % str(e))
-    
-# read metadata for this SR and find if a metadata VDI exists 
-def findMetadataVDI(mdpath):
-    util.SMlog("Checking if metadata at %s contains a metadata VDI" % mdpath)
-    try:
-        ensurePathExists(mdpath)
-        vdi_info = getMetadata(mdpath)[1]
-        for offset in vdi_info.keys():
-            if vdi_info[offset]['type'] == 'metadata' and \
-                vdi_info[offset]['is_a_snapshot'] == '0':
-                    return vdi_info[offset][srmetadata.UUID_TAG]
-        
-        return None
-    except Exception, e:
-        util.SMlog('Exception checking if SR metadata a metadata VDI.'\
-                   'Error: %s' % str(e))
-        raise xs_errors.XenError('MetadataError', \
-                     opterr='%s' % str(e))
-        
-# update the SR information or one of the VDIs information
-# the passed in map would have a key 'objtype', either sr or vdi.
-# if the key is sr, the following might be passed in
-#   SR name-label
-#   SR name_description
-# if the key is vdi, the following information per VDI may be passed in
-#   uuid - mandatory
-#   name-label
-#   name_description
-#   is_a_snapshot
-#   snapshot_of, if snapshot status is true
-#   snapshot time
-#   type: system, user or metadata etc
-#   vdi_type: raw or vhd
-#   read_only
-#   location
-#   managed
-#   metadata_of_pool
-def updateMetadata(mdpath, update_map = {}):
-    util.SMlog("Updating metadata : %s" % update_map)
-    try:
-        ensurePathExists(mdpath)
-        objtype = update_map[METADATA_UPDATE_OBJECT_TYPE_TAG]
-        del update_map[METADATA_UPDATE_OBJECT_TYPE_TAG]
-        
-        if objtype == METADATA_OBJECT_TYPE_SR:
-            srmetadata.updateSR(mdpath, update_map)
-        elif objtype == METADATA_OBJECT_TYPE_VDI: 
-            srmetadata.updateVdi(mdpath, update_map)
-    except Exception, e:
-        util.SMlog('Error updating Metadata Volume with update' \
-                     'map: %s. Error: %s' % (update_map, str(e)))
-        raise xs_errors.XenError('MetadataError', \
-                     opterr='%s' % str(e))
-        
-def deleteVdiFromMetadata(mdpath, vdi_uuid):
-    util.SMlog("Deleting vdi: %s" % vdi_uuid)
-    try:
-        ensurePathExists(mdpath)
-        srmetadata.deleteVdi(mdpath, vdi_uuid)
-    except Exception, e:
-        util.SMlog('Error deleting vdi %s from the metadata. '\
-            'Error: %s' % (vdi_uuid, str(e)))
-        raise xs_errors.XenError('MetadataError', \
-            opterr='%s' % str(e))
-    
-def addVdi(mdpath, vdi_info = {}):
-    util.SMlog("Adding VDI with info: %s" % vdi_info)
-    try:
-        ensurePathExists(mdpath)
-        srmetadata.addVdi(mdpath, vdi_info)
-    except Exception, e:
-        util.SMlog('Error adding VDI to Metadata Volume with '\
-            'update map: %s. Error: %s' % (vdi_info, str(e)))
-        raise xs_errors.XenError('MetadataError', \
-            opterr='%s' % (str(e)))
-        
-def ensureSpaceIsAvailableForVdis(mdpath, count):
-    util.SMlog("Checking if there is space in the metadata for %d VDI." % \
-               count)
-    try:
-        ensurePathExists(mdpath)
-        srmetadata.spaceAvailableForVdis(mdpath, count)
-    except Exception, e:
-        raise xs_errors.XenError('MetadataError', \
-            opterr='%s' % str(e))
-
 def removeDevMapperEntry(path):
     try:    
         # remove devmapper entry using dmsetup

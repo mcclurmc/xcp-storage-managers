@@ -29,6 +29,10 @@ import resource
 import exceptions
 import traceback
 import glob
+import srmetadata
+METADATA_UPDATE_OBJECT_TYPE_TAG = 'objtype'
+METADATA_OBJECT_TYPE_SR = 'sr'
+METADATA_OBJECT_TYPE_VDI = 'vdi'
 
 NO_LOGGING_STAMPFILE='/etc/xensource/no_sm_log'
 ENABLE_SYSLOG_STAMPFILE='/etc/xensource/yes_sm_syslog'
@@ -1187,3 +1191,124 @@ def findRunningProcessOrOpenFile(name, process = True):
         return (retVal, links)
     else:
         return (retVal, processandpids)
+        
+def getMetadata(mdpath, ensurePathExists = None):
+    try:
+        sr_info = {}
+        vdi_info = {}
+        try:
+            if ensurePathExists != None:
+                ensurePathExists(mdpath)
+            md = srmetadata.getMetadata(mdpath)
+            sr_info = md['sr_info']
+            vdi_info = md['vdi_info']
+        except:
+            # Maybe there is no metadata yet
+            pass
+        
+    except Exception, e:
+        SMlog('Exception getting metadata. Error: %s' % str(e))
+        raise xs_errors.XenError('MetadataError', \
+                     opterr='%s' % str(e))
+    
+    return (sr_info, vdi_info)
+
+def writeMetadata(mdpath, sr_info, vdi_info, ensurePathExists = None):
+    try:
+        if ensurePathExists != None:
+            ensurePathExists(mdpath)
+        srmetadata.writeMetadata(mdpath, sr_info, vdi_info)
+    except Exception, e:
+        SMlog('Exception writing metadata. Error: %s' % str(e))
+        raise xs_errors.XenError('MetadataError', \
+                     opterr='%s' % str(e))
+    
+# read metadata for this SR and find if a metadata VDI exists 
+def findMetadataVDI(mdpath, ensurePathExists = None):
+    SMlog("Checking if metadata at %s contains a metadata VDI" % mdpath)
+    try:
+        if ensurePathExists != None:
+            ensurePathExists(mdpath)
+        vdi_info = getMetadata(mdpath)[1]
+        for offset in vdi_info.keys():
+            if vdi_info[offset]['type'] == 'metadata' and \
+                vdi_info[offset]['is_a_snapshot'] == '0':
+                    return vdi_info[offset][srmetadata.UUID_TAG]
+        
+        return None
+    except Exception, e:
+        SMlog('Exception checking if SR metadata a metadata VDI.'\
+                   'Error: %s' % str(e))
+        raise xs_errors.XenError('MetadataError', \
+                     opterr='%s' % str(e))
+        
+# update the SR information or one of the VDIs information
+# the passed in map would have a key 'objtype', either sr or vdi.
+# if the key is sr, the following might be passed in
+#   SR name-label
+#   SR name_description
+# if the key is vdi, the following information per VDI may be passed in
+#   uuid - mandatory
+#   name-label
+#   name_description
+#   is_a_snapshot
+#   snapshot_of, if snapshot status is true
+#   snapshot time
+#   type: system, user or metadata etc
+#   vdi_type: raw or vhd
+#   read_only
+#   location
+#   managed
+#   metadata_of_pool
+def updateMetadata(mdpath, update_map = {}, ensurePathExists = None):
+    SMlog("Updating metadata : %s" % update_map)
+    try:
+        if ensurePathExists != None:
+            ensurePathExists(mdpath)
+        objtype = update_map[METADATA_UPDATE_OBJECT_TYPE_TAG]
+        del update_map[METADATA_UPDATE_OBJECT_TYPE_TAG]
+        
+        if objtype == METADATA_OBJECT_TYPE_SR:
+            srmetadata.updateSR(mdpath, update_map)
+        elif objtype == METADATA_OBJECT_TYPE_VDI: 
+            srmetadata.updateVdi(mdpath, update_map)
+    except Exception, e:
+        SMlog('Error updating Metadata Volume with update' \
+                     'map: %s. Error: %s' % (update_map, str(e)))
+        raise xs_errors.XenError('MetadataError', \
+                     opterr='%s' % str(e))
+        
+def deleteVdiFromMetadata(mdpath, vdi_uuid, ensurePathExists = None):
+    SMlog("Deleting vdi: %s" % vdi_uuid)
+    try:
+        if ensurePathExists != None:
+            ensurePathExists(mdpath)
+        srmetadata.deleteVdi(mdpath, vdi_uuid)
+    except Exception, e:
+        SMlog('Error deleting vdi %s from the metadata. '\
+            'Error: %s' % (vdi_uuid, str(e)))
+        raise xs_errors.XenError('MetadataError', \
+            opterr='%s' % str(e))
+    
+def addVdi(mdpath, vdi_info = {}, ensurePathExists = None):
+    SMlog("Adding VDI with info: %s" % vdi_info)
+    try:
+        if ensurePathExists != None:
+            ensurePathExists(mdpath)
+        srmetadata.addVdi(mdpath, vdi_info)
+    except Exception, e:
+        SMlog('Error adding VDI to Metadata Volume with '\
+            'update map: %s. Error: %s' % (vdi_info, str(e)))
+        raise xs_errors.XenError('MetadataError', \
+            opterr='%s' % (str(e)))
+        
+def ensureSpaceIsAvailableForVdis(mdpath, count, ensurePathExists = None):
+    SMlog("Checking if there is space in the metadata for %d VDI." % \
+               count)
+    try:
+        if ensurePathExists != None:
+            ensurePathExists(mdpath)
+        srmetadata.spaceAvailableForVdis(mdpath, count)
+    except Exception, e:
+        raise xs_errors.XenError('MetadataError', \
+            opterr='%s' % str(e))

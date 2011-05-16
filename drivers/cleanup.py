@@ -2038,7 +2038,7 @@ class LVHDSR(SR):
     def forgetVDI(self, vdiUuid):
         SR.forgetVDI(self, vdiUuid)
         mdpath = os.path.join(self.path, lvutil.MDVOLUME_NAME)
-        lvutil.deleteVdiFromMetadata(mdpath, vdiUuid)
+        util.deleteVdiFromMetadata(mdpath, vdiUuid, lvutil.ensurePathExists)
 
     def getFreeSpace(self):
         stats = lvutil._getVGstats(self.vgName)

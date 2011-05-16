@@ -268,10 +268,12 @@ class LVHDSR(SR.SR):
                     'metadata_of_pool': \
                         self.session.xenapi.VDI.get_metadata_of_pool(vdi),
                     'managed': \
-                        int(self.session.xenapi.VDI.get_managed(vdi))
+                        int(self.session.xenapi.VDI.get_managed(vdi)),
+                    'location': vdi_uuid
                 }
                 
-            lvutil.writeMetadata(self.mdpath, sr_info, vdi_info)
+            util.writeMetadata(self.mdpath, sr_info, vdi_info,
+                               lvutil.ensurePathExists)
             
         except Exception, e:
             raise xs_errors.XenError('MetadataError', \
@@ -281,25 +283,26 @@ class LVHDSR(SR.SR):
         try:
             # if a VDI is present in the metadata but not in the storage
             # then delete it from the metadata
-            vdi_info = lvutil.getMetadata(self.mdpath)[1]
+            vdi_info = util.getMetadata(self.mdpath, lvutil.ensurePathExists)[1]
             for vdi in vdi_info.keys():
                 update_map = {}
                 if not vdi_info[vdi]['uuid'] in set(self.storageVDIs.keys()):
                     # delete this from metadata
-                    lvutil.deleteVdiFromMetadata(self.mdpath, \
-                                                 vdi_info[vdi]['uuid'])
+                    util.deleteVdiFromMetadata(self.mdpath, \
+                                vdi_info[vdi]['uuid'], lvutil.ensurePathExists)
                 else:
                     # search for this in the metadata, compare types
                     # self.storageVDIs is a map of vdi_uuid to vdi_type
                     if vdi_info[vdi]['vdi_type'] != \
                         self.storageVDIs[vdi_info[vdi]['uuid']]:
                         # storage type takes authority
-                        update_map[lvutil.METADATA_UPDATE_OBJECT_TYPE_TAG] \
-                            = lvutil.METADATA_OBJECT_TYPE_VDI
+                        update_map[util.METADATA_UPDATE_OBJECT_TYPE_TAG] \
+                            = util.METADATA_OBJECT_TYPE_VDI
                         update_map['uuid'] = vdi_info[vdi]['uuid'] 
                         update_map['vdi_type'] = \
                             self.storageVDIs[vdi_info[vdi]['uuid']]
-                        lvutil.updateMetadata(self.mdpath, update_map)
+                        util.updateMetadata(self.mdpath, update_map,
+                                            lvutil.ensurePathExists)
                     else:
                         # This should never happen
                         pass
@@ -311,7 +314,8 @@ class LVHDSR(SR.SR):
     def syncMetadataAndXapi(self):
         try:
             # get metadata
-            (sr_info, vdi_info) = lvutil.getMetadata(self.mdpath)
+            (sr_info, vdi_info) = util.getMetadata(self.mdpath,
+                                                   lvutil.ensurePathExists)
 
             # First synch SR parameters
             self.update(self.uuid)
@@ -335,12 +339,13 @@ class LVHDSR(SR.SR):
                     vdi_info[vdi_offset][NAME_DESCRIPTION_TAG] != \
                     new_name_description:
                     update_map = {}
-                    update_map[lvutil.METADATA_UPDATE_OBJECT_TYPE_TAG] = \
-                        lvutil.METADATA_OBJECT_TYPE_VDI
+                    update_map[util.METADATA_UPDATE_OBJECT_TYPE_TAG] = \
+                        util.METADATA_OBJECT_TYPE_VDI
                     update_map['uuid'] = vdi_info[vdi_offset][UUID_TAG]
                     update_map[NAME_LABEL_TAG] = new_name_label
                     update_map[NAME_DESCRIPTION_TAG] = new_name_description
-                    lvutil.updateMetadata(self.mdpath, update_map)
+                    util.updateMetadata(self.mdpath, update_map,
+                                        lvutil.ensurePathExists)
         except Exception, e:
             raise xs_errors.XenError('MetadataError', \
                 opterr='Error synching SR Metadata and XAPI: %s' % str(e))
@@ -394,7 +399,8 @@ class LVHDSR(SR.SR):
                 # That dint work, try new format valid 6.0 onwards
                 util.SMlog("Could not read SR info from metadata using old " \
                            "format, trying new format. Error: %s" % str(e))
-                sr_info = lvutil.getMetadata(self.mdpath)[0]
+                sr_info = util.getMetadata(self.mdpath,
+                                           lvutil.ensurePathExists)[0]
 
             if sr_info == {}:
                 raise Exception("Failed to get SR information from metadata.")
@@ -584,7 +590,8 @@ class LVHDSR(SR.SR):
 
     def forget_vdi(self, uuid):
         if not self.legacyMode:
-            lvutil.deleteVdiFromMetadata(self.mdpath, uuid)
+            util.deleteVdiFromMetadata(self.mdpath, uuid,
+                                       lvutil.ensurePathExists)
         super(LVHDSR, self).forget_vdi(uuid)
 
     def scan(self, uuid):
@@ -611,7 +618,7 @@ class LVHDSR(SR.SR):
                 for vdi in vdis:
                     vdi_uuids.add(self.session.xenapi.VDI.get_uuid(vdi))
                 
-                Dict = lvutil.getMetadata(self.mdpath)[1]
+                Dict = util.getMetadata(self.mdpath, lvutil.ensurePathExists)[1]
                 
                 for vdi in Dict.keys():
                     vdi_uuid = Dict[vdi]['uuid']
@@ -709,14 +716,14 @@ class LVHDSR(SR.SR):
         
         # synch name_label in metadata with XAPI
         update_map = {}
-        update_map = {lvutil.METADATA_UPDATE_OBJECT_TYPE_TAG: \
-                        lvutil.METADATA_OBJECT_TYPE_SR,
+        update_map = {util.METADATA_UPDATE_OBJECT_TYPE_TAG: \
+                        util.METADATA_OBJECT_TYPE_SR,
                         NAME_LABEL_TAG: \
                             self.session.xenapi.SR.get_name_label(self.sr_ref),
                         NAME_DESCRIPTION_TAG: \
                          self.session.xenapi.SR.get_name_description(self.sr_ref)
                         }
-        lvutil.updateMetadata(self.mdpath, update_map)
+        util.updateMetadata(self.mdpath, update_map, lvutil.ensurePathExists)
 
     def _updateStats(self, uuid, virtAllocDelta):
         valloc = int(self.session.xenapi.SR.get_virtual_allocation(self.sr_ref))
@@ -949,7 +956,8 @@ class LVHDSR(SR.SR):
                         "vhd-parent": baseUuid }
 
                 if not self.legacyMode:
-                    lvutil.ensureSpaceIsAvailableForVdis(self.mdpath, 1)
+                    util.ensureSpaceIsAvailableForVdis(self.mdpath, 1,
+                                                       lvutil.ensurePathExists)
                 
                 clon_vdi_ref = clon_vdi._db_introduce()
                 util.SMlog("introduced clon VDI: %s (%s)" % \
@@ -965,11 +973,12 @@ class LVHDSR(SR.SR):
                                 'vdi_type': clon_vdi.sm_config['vdi_type'],
                                 'read_only': int(clon_vdi.read_only),
                                 'managed': int(clon_vdi.managed),
-                                'metadata_of_pool': ''
+                                'metadata_of_pool': '',
+                                'location': clonUuid
                 }
                 
                 if not self.legacyMode:
-                    lvutil.addVdi(self.mdpath, vdi_info)
+                    util.addVdi(self.mdpath, vdi_info, lvutil.ensurePathExists)
 
             except XenAPI.Failure:
                 util.SMlog("ERROR introducing the clon record")
@@ -987,7 +996,8 @@ class LVHDSR(SR.SR):
                     "vhd-parent": baseUuid }
             
             if not self.legacyMode:
-                lvutil.ensureSpaceIsAvailableForVdis(self.mdpath, 1)
+                util.ensureSpaceIsAvailableForVdis(self.mdpath, 1,
+                                                   lvutil.ensurePathExists)
             
             base_vdi_ref = base_vdi._db_introduce()
             util.SMlog("introduced base VDI: %s (%s)" % \
@@ -1003,11 +1013,12 @@ class LVHDSR(SR.SR):
                                 'vdi_type': base_vdi.sm_config['vdi_type'],
                                 'read_only': int(base_vdi.read_only),
                                 'managed': int(base_vdi.managed),
-                                'metadata_of_pool': ''
+                                'metadata_of_pool': '',
+                                'location': baseUuid
                 }
 
             if not self.legacyMode:
-                lvutil.addVdi(self.mdpath, vdi_info)
+                util.addVdi(self.mdpath, vdi_info, lvutil.ensurePathExists)
         except XenAPI.Failure:
             util.SMlog("ERROR introducing the base record")
 
@@ -1235,7 +1246,8 @@ class LVHDVDI(VDI.VDI):
         self.sm_config["vdi_type"] = self.vdi_type
 
         if not self.sr.legacyMode:
-            lvutil.ensureSpaceIsAvailableForVdis(self.sr.mdpath, 1)
+            util.ensureSpaceIsAvailableForVdis(self.sr.mdpath, 1,
+                                               lvutil.ensurePathExists)
         
         self.ref = self._db_introduce()
         self.sr._updateStats(self.sr.uuid, self.size)
@@ -1251,11 +1263,12 @@ class LVHDVDI(VDI.VDI):
                                 'vdi_type': self.vdi_type,
                                 'read_only': int(self.read_only),
                                 'managed': int(self.managed),
-                                'metadata_of_pool': ''
+                                'metadata_of_pool': '',
+                                'location': self.uuid
                 }
 
         if not self.sr.legacyMode:
-            lvutil.addVdi(self.sr.mdpath, vdi_info)
+            util.addVdi(self.sr.mdpath, vdi_info, lvutil.ensurePathExists)
 
         return VDI.VDI.get_params(self)
 
@@ -1661,7 +1674,8 @@ class LVHDVDI(VDI.VDI):
         type = self.session.xenapi.VDI.get_type( \
                                     self.sr.srcmd.params['vdi_ref'])
         if snapVDI2:
-            lvutil.ensureSpaceIsAvailableForVdis(self.sr.mdpath, 1)
+            util.ensureSpaceIsAvailableForVdis(self.sr.mdpath, 1,
+                                               lvutil.ensurePathExists)
             vdiRef = snapVDI2._db_introduce()
             if cloneOp:
                 vdi_info = { 'uuid': snapVDI2.uuid,
@@ -1678,7 +1692,8 @@ class LVHDVDI(VDI.VDI):
                                 'vdi_type': snapVDI2.sm_config['vdi_type'],
                                 'read_only': 0,
                                 'managed': int(snapVDI2.managed),
-                                'metadata_of_pool': ''
+                                'metadata_of_pool': '',
+                                'location': snapVDI2.uuid
                 }
             else:
                 util.SMlog("snapshot VDI params: %s" % \
@@ -1697,15 +1712,17 @@ class LVHDVDI(VDI.VDI):
                                 'vdi_type': snapVDI2.sm_config['vdi_type'],
                                 'read_only': 0,
                                 'managed': int(snapVDI2.managed),
-                                'metadata_of_pool': ''
+                                'metadata_of_pool': '',
+                                'location': snapVDI2.uuid
                 }
 
-            lvutil.addVdi(self.sr.mdpath, vdi_info)
+            util.addVdi(self.sr.mdpath, vdi_info, lvutil.ensurePathExists)
             util.SMlog("vdi_clone: introduced 2nd snap VDI: %s (%s)" % \
                        (vdiRef, snapVDI2.uuid))
 
         if basePresent:
-            lvutil.ensureSpaceIsAvailableForVdis(self.sr.mdpath, 1)
+            util.ensureSpaceIsAvailableForVdis(self.sr.mdpath, 1,
+                                               lvutil.ensurePathExists)
             vdiRef = self._db_introduce()
             vdi_info = { 'uuid': self.uuid,
                                 NAME_LABEL_TAG: self.label,
@@ -1717,10 +1734,11 @@ class LVHDVDI(VDI.VDI):
                                 'vdi_type': self.sm_config['vdi_type'],
                                 'read_only': 1,
                                 'managed': 0,
-                                'metadata_of_pool': ''
+                                'metadata_of_pool': '',
+                                'location': self.uuid
             }
 
-            lvutil.addVdi(self.sr.mdpath, vdi_info)
+            util.addVdi(self.sr.mdpath, vdi_info, lvutil.ensurePathExists)
             util.SMlog("vdi_clone: introduced base VDI: %s (%s)" % \
                     (vdiRef, self.uuid))
 
@@ -1923,8 +1941,8 @@ class LVHDVDI(VDI.VDI):
         #Synch the name_label of this VDI on storage with the name_label in XAPI
         vdi_ref = self.session.xenapi.VDI.get_by_uuid(self.uuid)
         update_map = {}
-        update_map[lvutil.METADATA_UPDATE_OBJECT_TYPE_TAG] = \
-            lvutil.METADATA_OBJECT_TYPE_VDI
+        update_map[util.METADATA_UPDATE_OBJECT_TYPE_TAG] = \
+            util.METADATA_OBJECT_TYPE_VDI
         update_map['uuid'] = self.uuid
         update_map[NAME_LABEL_TAG] = \
             self.session.xenapi.VDI.get_name_label(vdi_ref)
@@ -1934,7 +1952,7 @@ class LVHDVDI(VDI.VDI):
             self.session.xenapi.VDI.get_snapshot_time(vdi_ref)
         update_map[METADATA_OF_POOL_TAG] = \
             self.session.xenapi.VDI.get_metadata_of_pool(vdi_ref)
-        lvutil.updateMetadata(self.sr.mdpath, update_map)
+        util.updateMetadata(self.sr.mdpath, update_map, lvutil.ensurePathExists)
 
 try:
     if __name__ == '__main__':
