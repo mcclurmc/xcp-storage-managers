@@ -1605,14 +1605,14 @@ class StorageHandlerISL(StorageHandler):
             self.md_svid = self.sm_config['md_svid']
             self.metadataVolumePath = StorageHandlerUtil._find_LUN(self.md_svid)[0]
             
-            (sr_info, vdi_info) = util.getMetadata(self.metadataVolumePath)
+            dict = CSLGMetadata.getMetadata(self.metadataVolumePath)
 
         XenCertPrint("getMetaDataRec Exit")
-        return (sr_info, vdi_info)
+        return dict
 
     def checkMetadataSR(self, sr_ref, verifyFields):
         XenCertPrint("checkMetadataSR Enter")
-        (sr_info, vdi_info) = self.getMetaDataRec(sr_ref)
+        dict = self.getMetaDataRec(sr_ref)
 
         XenCertPrint("checkMetadataSR Exit")
         return
@@ -1621,21 +1621,14 @@ class StorageHandlerISL(StorageHandler):
         XenCertPrint("checkMetadataVDI Enter")
         if sr_ref == None:
             sr_ref = self.session.xenapi.VDI.get_SR(vdi_ref)
-        (sr_info, vdi_info) = self.getMetaDataRec(sr_ref)
-        XenCertPrint("sr_info: %s, vdi_info: %s" % (sr_info, vdi_info))
+        dict = self.getMetaDataRec(sr_ref)
+        XenCertPrint("dict is: %s"%dict)
         vdi_uuid = self.session.xenapi.VDI.get_uuid(vdi_ref)
         XenCertPrint("verifyFields is: %s"%verifyFields)
 
-        for offset in vdi_info.keys():
-            if vdi_info[offset]['uuid'] != vdi_uuid:
-                continue
-            
-            for key in verifyFields:            
-                if vdi_info[offset][key] != verifyFields[key]:
-                    raise Exception("VDI:%s key:%s Metadata:%s <> Xapi:%s doesn't" \
-                        " match"%(vdi_uuid, key, \
-                            vdi_info[offset][key], verifyFields[key]))
-            break
+        for key in verifyFields:
+            if dict['vdi_%s'%vdi_uuid][key] != verifyFields[key]:
+                raise Exception("VDI:%s key:%s Metadata:%s <> Xapi:%s doesn't match"%(vdi_uuid, key, dict['vdi_%s'%vdi_uuid][key], verifyFields[key]))
 
         XenCertPrint("checkMetadataVDI Exit")
         return
