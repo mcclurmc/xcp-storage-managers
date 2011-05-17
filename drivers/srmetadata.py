@@ -265,7 +265,6 @@ def getVdiInfo(Dict, generateSector = 0):
                                                 Dict['managed'],
                                                 Dict['metadata_of_pool'])
                                  )
-       
         return vdi_info
    
     except Exception, e:
@@ -409,7 +408,11 @@ def getSRInfoForSectors(sr_info, range):
            
         if 1 in range:
             uuid = getXMLTag(UUID_TAG) % sr_info['uuid']
-            allocation = getXMLTag(ALLOCATION_TAG) % sr_info['allocation']
+            if sr_info.has_key(ALLOCATION_TAG):
+                allocation = getXMLTag(ALLOCATION_TAG) % sr_info[ALLOCATION_TAG]
+            else:
+                allocation = ''
+                
             second = SECTOR2_FMT % (XML_HEADER, uuid, allocation)
             srinfo += getSector(second)
        
