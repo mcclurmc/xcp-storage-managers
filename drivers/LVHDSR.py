@@ -195,8 +195,6 @@ class LVHDSR(SR.SR):
                 self._checkMetadataVolume()
 
         self.mdexists = False
-        if self.legacyMode:
-            return
         
         # get a VDI -> TYPE map from the storage
         contains_uuid_regex = \
@@ -508,8 +506,7 @@ class LVHDSR(SR.SR):
                     opterr='no such volume group: %s' % self.vgname)
 
         # Refresh the metadata status
-        if not self.legacyMode:
-            self._checkMetadataVolume()
+        self._checkMetadataVolume()
 
         if self.isMaster:
             # Probe for LUN resize
