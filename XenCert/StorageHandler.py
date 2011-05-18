@@ -2260,6 +2260,11 @@ class StorageHandlerISL(StorageHandler):
         except Exception, e:
             raise
 
+        if checkPoints != totalCheckPoints:
+            retVal = False
+        else:
+            retVal = True
+
         return (retVal, checkPoints, totalCheckPoints)   
 
     def cleanup(context):
