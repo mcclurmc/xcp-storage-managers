@@ -256,7 +256,7 @@ def match_dev(s):
     return regex.search(s, 0)
 
 def scan(srobj):
-    systemroot = util.getrootdev()
+    systemrootID = util.getrootdevID()
     hbadict = srobj.hbadict
     hbas = srobj.hbas
     dom = xml.dom.minidom.Document()
@@ -281,7 +281,8 @@ def scan(srobj):
             continue
         
         # Test for root dev or existing PBD
-        if realpath == systemroot:
+        if len(obj.SCSIid) and len(systemrootID) and util.match_scsiID(obj.SCSIid, systemrootID):
+            util.SMlog("Ignoring root device %s" % realpath)
             continue
         elif util.test_SCSIid(srobj.session, obj.SCSIid):
             util.SMlog("SCSIid in use, ignoring (%s)" % obj.SCSIid)

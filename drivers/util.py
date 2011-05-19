@@ -526,6 +526,21 @@ def getrootdev():
         raise xs_errors.XenError('NoRootDev')
     return rootdev
 
+def getrootdevID():
+    rootdev = getrootdev()
+    try:
+        rootdevID = scsiutil.getSCSIid(rootdev)
+    except:
+        SMlog("Unable to verify serial or SCSIid of device: %s" \
+                   % rootdev)
+        return ''
+
+    if not len(rootdevID):
+        SMlog("Unable to identify scsi device [%s] via scsiID" \
+                   % rootdev)
+
+    return rootdevID
+
 def get_localAPI_session():
     # First acquire a valid session
     session = XenAPI.xapi_local()
