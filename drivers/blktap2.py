@@ -243,7 +243,7 @@ class TapCtl(object):
 
             row = {}
 
-            for field in line.rstrip().split():
+            for field in line.rstrip().split(' ', 3):
                 key, val = field.split('=')
 
                 if key in ('pid', 'minor'):
