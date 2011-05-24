@@ -682,6 +682,9 @@ class LVHDSR(SR.SR):
                         if bool(int(Dict[vdi]['is_a_snapshot'])):
                             self.session.xenapi.VDI.set_snapshot_time( \
                                 vdi_ref, DateTime(Dict[vdi][SNAPSHOT_TIME_TAG]))
+                        if Dict[vdi]['type'] == 'metadata':
+                            self.session.xenapi.VDI.set_metadata_of_pool( \
+                                vdi_ref, Dict[vdi][METADATA_OF_POOL_TAG])
                         
                 # Now set the snapshot statuses correctly in XAPI
                 for srcvdi in vdiToSnaps.keys():
