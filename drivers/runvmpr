@@ -36,10 +36,20 @@ def protect():
 	return
     
     session = get_API_session()
+    
+    # make sure there is at least one enabled VMPP 
+    call_plugin = False
+    for vmpp in session.xenapi.VMPP.get_all():
+	if session.xenapi.VMPP.get_is_policy_enabled(vmpp):
+	    call_plugin = True
+	    break
+    
+    if not call_plugin:
+	return
+
     # Find the local host uuid
     host_ref = util.get_localhost_uuid(session)
     text = session.xenapi.host.call_plugin( host_ref, "vmpr", "protect", {})            		    
     
 # Test Cmdline args
-Print("In runvmpr")
 protect()
