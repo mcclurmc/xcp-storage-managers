@@ -1713,6 +1713,19 @@ class StorageHandlerISL(StorageHandler):
         except Exception, e:
             XenCertPrint("Getting all PBDs failed. Exception: %s" % str(e))
             return []
+
+    def Create_PBD(self, sr_ref, pbd_device_config):
+        try:
+            XenCertPrint("Creating PBD")
+            Fields = {}
+            Fields['host']=self.session.xenapi.host.get_by_uuid(util.get_localhost_uuid(self.session))
+            Fields['device_config'] = pbd_device_config
+            Fields['SR'] = sr_ref
+            pbd_ref = self.session.xenapi.PBD.create(Fields)
+            return pbd_ref
+        except Exception, e:
+            XenCertPrint("Failed to create pbd. Exception: %s" % str(e))
+            return False
        
     def Unplug_PBD(self, pbd_ref):
         try:
@@ -1790,6 +1803,15 @@ class StorageHandlerISL(StorageHandler):
         except Exception, e:
             XenCertPrint("Failed to Forget SR. Exception: %s" % str(e))
             return False
+
+    def Introduce_SR(self, sr_uuid):
+        XenCertPrint("Introduce SR")
+        try:
+            self.session.xenapi.SR.introduce(sr_uuid, 'XenCertTestSR', '', 'cslg', '', False, {})
+        except Exception, e:
+            XenCertPrint("Failed to Introduce the SR. Exception: %s" % str(e))
+            return False
+            
 
     def Destroy_SR(self, sr_ref):
         XenCertPrint("Destroy SR")
@@ -1923,38 +1945,38 @@ class StorageHandlerISL(StorageHandler):
         #                 multiple resizes in a loop
         #    .VDI-resize on running VM
         #  + .VBD.plug    (covered in other tests)
-        #  + .VBD.unplug  (covered in other tests)
-        #    .VDI.copy between SR and local LVM (slave-master, slave-slave, master-slave)
-        #    .VDI-clone with slow copy should not lock SR
-        #    .Verify sparseness support for source and destination SRs during VDI.copy 
-        #                 for those SRs where it is possible to tell.
-        #
-        # STC0005: Verify stated limits of SR
-        # 
-        #    .verify supported maximum number of VDIs can be created and attached
-        #    .verify supported number of snapshots can be taken and destroyed
-        #    .verify when a VDI is created that it is at least as large as requested 
-        #                 (i.e. odd sizes of VDIs should round up correctly)
-        #    .verify default disk scheduler
-        #
-        # STC0006: Data integrity tests
-        # 
-        #    .data-integrity of resized VM (ref: TC9414) 
-        #    .Create a 4GB VDI on a CVSM SR
-        #    .Attach the VDI to dom0 and write a randomized (but known) pattern to the VDI
-        #    .Detach the VDI from dom0
-        #    .Resize the VDI to 8GB
-        #    .Attach the VDI to dom0 and validate the pattern on the first 4GB
-        #    .Write a pattern to the second 4GB chunk of the VDI
-        #    .Perform an online resize of the VDI to 12GB
-        #    .Detach and reattach the VDI
-        #    .Validate the patterns on the first and second 4GB chunks
-        #    .VDI.clone/snapshot integrity tests 
-        #    .Add known data pattern to VDI
-        #    .trigger clone and snapshot combinations
-        #    .continue to write data to the original node and verify that snapshot and 
-        #                 clone data matches previous known data patterns
-        #    .ensure that deleting original disk does not affect the snapshot.
+            #  + .VBD.unplug  (covered in other tests)
+            #    .VDI.copy between SR and local LVM (slave-master, slave-slave, master-slave)
+            #    .VDI-clone with slow copy should not lock SR
+            #    .Verify sparseness support for source and destination SRs during VDI.copy 
+            #                 for those SRs where it is possible to tell.
+            #
+            # STC0005: Verify stated limits of SR
+            # 
+            #    .verify supported maximum number of VDIs can be created and attached
+            #    .verify supported number of snapshots can be taken and destroyed
+            #    .verify when a VDI is created that it is at least as large as requested 
+            #                 (i.e. odd sizes of VDIs should round up correctly)
+            #    .verify default disk scheduler
+            #
+            # STC0006: Data integrity tests
+            # 
+            #    .data-integrity of resized VM (ref: TC9414) 
+            #    .Create a 4GB VDI on a CVSM SR
+            #    .Attach the VDI to dom0 and write a randomized (but known) pattern to the VDI
+            #    .Detach the VDI from dom0
+            #    .Resize the VDI to 8GB
+            #    .Attach the VDI to dom0 and validate the pattern on the first 4GB
+            #    .Write a pattern to the second 4GB chunk of the VDI
+            #    .Perform an online resize of the VDI to 12GB
+            #    .Detach and reattach the VDI
+            #    .Validate the patterns on the first and second 4GB chunks
+            #    .VDI.clone/snapshot integrity tests 
+            #    .Add known data pattern to VDI
+            #    .trigger clone and snapshot combinations
+            #    .continue to write data to the original node and verify that snapshot and 
+            #                 clone data matches previous known data patterns
+            #    .ensure that deleting original disk does not affect the snapshot.
         #    .Zeroed disk contents: Verify new vdi is zeroed when advertised as being so. (see CA-49609)
         #    .Randomised data integrity tests, covering clone/snapshot.
         # 
@@ -1990,9 +2012,15 @@ class StorageHandlerISL(StorageHandler):
             #    .SR.destroy
             (retVal, sr_ref, dconf) = self.Create_SR()
             if retVal:
+                sr_uuid = self.session.xenapi.SR.get_uuid(sr_ref)
+                pbds = self.session.xenapi.SR.get_PBDs(sr_ref)
+                pbd_device_config = self.session.xenapi.PBD.get_device_config(pbds[0])
                 report(self.Forget_SR(sr_ref), True)
-                #self.Introduce_SR(sr_ref)
-                #self.Destroy_SR(sr_ref)
+                self.Introduce_SR(sr_uuid)
+                sr_ref = self.session.xenapi.SR.get_by_uuid(sr_uuid)
+                pbd_ref = self.Create_PBD(sr_ref, pbd_device_config)
+                self.Plug_PBD(pbd_ref)
+                self.Destroy_SR(sr_ref)
                 checkPoints += 1
             displayOperationStatus(retVal)
 
