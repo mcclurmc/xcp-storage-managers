@@ -231,7 +231,6 @@ rm -rf $RPM_BUILD_ROOT
 /opt/xensource/debug/XenCert/blockunblockhbapaths-qlogic
 /opt/xensource/debug/XenCert/blockunblockiscsipaths
 /opt/xensource/debug/XenCert/blockunblockpaths
-/opt/xensource/debug/XenCert/cslg_config_netapp.conf
 /opt/xensource/debug/XenCert/diskdatatest
 /opt/xensource/debug/XenCert/isl_config_netapp.conf
 
