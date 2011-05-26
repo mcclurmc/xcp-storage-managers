@@ -1581,7 +1581,7 @@ class VDI(object):
                 prt_tapdisk = \
                     Tapdisk.launch_on_tap(blktap,
                                           read_cache_path, 'vhd',
-                                          rdonly=True,
+                                          rdonly=False,
                                           lcache=True)
             except:
                 blktap.free()
