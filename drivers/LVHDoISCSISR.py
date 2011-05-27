@@ -24,10 +24,10 @@ import glob, copy
 import mpp_luncheck
 import scsiutil
 
-CAPABILITIES = ["SR_PROBE", "SR_UPDATE", "VDI_CREATE", "VDI_DELETE",
-                "VDI_ATTACH", "VDI_DETACH", "VDI_GENERATE_CONFIG",
-                "VDI_CLONE", "VDI_SNAPSHOT", "VDI_RESIZE",
-                "ATOMIC_PAUSE", "VDI_RESET_ON_BOOT", "VDI_UPDATE"]
+CAPABILITIES = ["SR_PROBE", "SR_UPDATE", "SR_METADATA", "VDI_CREATE", 
+                "VDI_DELETE", "VDI_ATTACH", "VDI_DETACH", 
+                "VDI_GENERATE_CONFIG", "VDI_CLONE", "VDI_SNAPSHOT", 
+		"VDI_RESIZE", "ATOMIC_PAUSE", "VDI_RESET_ON_BOOT", "VDI_UPDATE"]
 
 CONFIGURATION = [ [ 'SCSIid', 'The scsi_id of the destination LUN' ], \
                   [ 'target', 'IP address or hostname of the iSCSI target' ], \
