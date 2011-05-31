@@ -695,6 +695,8 @@ def test_SCSIid(session, SCSIid):
                     return True;
         elif sm_config.has_key('SCSIid') and sm_config['SCSIid'] == SCSIid:
                     return True;
+	elif sm_config.has_key('scsi-' + SCSIid):
+		    return True;
     return False
 
 def _incr_iscsiSR_refcount(targetIQN, uuid):
