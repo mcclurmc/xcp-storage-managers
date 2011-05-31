@@ -206,7 +206,6 @@ class LVHDoHBAVDI(LVHDSR.LVHDVDI):
         if self.sr.mpath == "true":
             self.sr.mpathmodule.refresh(self.sr.SCSIid,0)
         try:
-            LVHDSR.LVHDSR._cleanup(self.sr)
             return self.attach(sr_uuid, vdi_uuid)
         except:
             util.logException("LVHDoHBAVDI.attach_from_config")

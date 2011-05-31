@@ -368,7 +368,6 @@ class LVHDoISCSIVDI(LVHDSR.LVHDVDI):
             self.sr.iscsi.attach(sr_uuid)
             if not self.sr.iscsi._attach_LUN_bySCSIid(self.sr.SCSIid):
                 raise xs_errors.XenError('InvalidDev')
-            LVHDSR.LVHDSR._cleanup(self.sr)
             return LVHDSR.LVHDVDI.attach(self, sr_uuid, vdi_uuid)
         except:
             util.logException("LVHDoISCSIVDI.attach_from_config")
