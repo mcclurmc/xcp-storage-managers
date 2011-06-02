@@ -688,12 +688,13 @@ class LVHDSR(SR.SR):
                         
                 # Now set the snapshot statuses correctly in XAPI
                 for srcvdi in vdiToSnaps.keys():
+                    srcref = self.session.xenapi.VDI.get_by_uuid(srcvdi)
                     for snapvdi in vdiToSnaps[srcvdi]:
                         try:
                             # this might fail in cases where its already set
                             snapref = \
                                 self.session.xenapi.VDI.get_by_uuid(snapvdi)
-                            self.session.xenapi.VDI.set_snapshot_of(snapref, srcvdi)
+                            self.session.xenapi.VDI.set_snapshot_of(snapref, srcref)
                         except Exception, e:
                             util.SMlog("Setting snapshot failed. "\
                                        "Error: %s" % str(e))
