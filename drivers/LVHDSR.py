@@ -246,10 +246,10 @@ class LVHDSR(SR.SR):
                 vdi_info[vdi_uuid] = \
                 {
                     UUID_TAG: vdi_uuid,
-                   NAME_LABEL_TAG: \
-                        self.session.xenapi.VDI.get_name_label(vdi),
-                   NAME_DESCRIPTION_TAG: \
-                        self.session.xenapi.VDI.get_name_description(vdi),
+                   NAME_LABEL_TAG: util.to_plain_string(\
+                        self.session.xenapi.VDI.get_name_label(vdi)),
+                   NAME_DESCRIPTION_TAG: util.to_plain_string(\
+                        self.session.xenapi.VDI.get_name_description(vdi)),
                    'is_a_snapshot': \
                     int(self.session.xenapi.VDI.get_is_a_snapshot(vdi)),
                    'snapshot_of': \
@@ -328,10 +328,10 @@ class LVHDSR(SR.SR):
                     # may be the VDI is not in XAPI yet dont bother
                     continue
                 
-                new_name_label = \
-                       self.session.xenapi.VDI.get_name_label(vdi_ref)
-                new_name_description = \
-                       self.session.xenapi.VDI.get_name_description(vdi_ref)
+                new_name_label = util.to_plain_string(\
+                       self.session.xenapi.VDI.get_name_label(vdi_ref))
+                new_name_description = util.to_plain_string(\
+                       self.session.xenapi.VDI.get_name_description(vdi_ref))
 
                 if vdi_info[vdi_offset][NAME_LABEL_TAG] != new_name_label or \
                     vdi_info[vdi_offset][NAME_DESCRIPTION_TAG] != \
@@ -363,8 +363,11 @@ class LVHDSR(SR.SR):
                         self.updateSRMetadata( \
                             self.session.xenapi.SR.get_sm_config(self.sr_ref)\
                                 ['allocation'],
-                            self.session.xenapi.SR.get_name_label(self.sr_ref),
-                            self.session.xenapi.SR.get_name_description(self.sr_ref)
+                            util.to_plain_string(\
+                            self.session.xenapi.SR.get_name_label(self.sr_ref)),
+                            util.to_plain_string(\
+                            self.session.xenapi.SR.get_name_description\
+                            (self.sr_ref))
                         )
                     else:
                         util.SMlog("SR metadata upgrade not required.")
@@ -434,9 +437,10 @@ class LVHDSR(SR.SR):
             else:
                 allocstr = "thick"
 
-            name_label = self.session.xenapi.SR.get_name_label(self.sr_ref)
-            name_description = \
-                    self.session.xenapi.SR.get_name_description(self.sr_ref)
+            name_label = util.to_plain_string(\
+                            self.session.xenapi.SR.get_name_label(self.sr_ref))
+            name_description = util.to_plain_string(\
+                    self.session.xenapi.SR.get_name_description(self.sr_ref))
             map[self.FLAG_USE_VHD] = "true"
             map['allocation'] = allocstr
             self.session.xenapi.SR.set_sm_config(self.sr_ref, map)
@@ -719,10 +723,10 @@ class LVHDSR(SR.SR):
         update_map = {}
         update_map = {util.METADATA_UPDATE_OBJECT_TYPE_TAG: \
                         util.METADATA_OBJECT_TYPE_SR,
-                        NAME_LABEL_TAG: \
-                            self.session.xenapi.SR.get_name_label(self.sr_ref),
-                        NAME_DESCRIPTION_TAG: \
-                         self.session.xenapi.SR.get_name_description(self.sr_ref)
+                        NAME_LABEL_TAG: util.to_plain_string(\
+                            self.session.xenapi.SR.get_name_label(self.sr_ref)),
+                        NAME_DESCRIPTION_TAG: util.to_plain_string(\
+                         self.session.xenapi.SR.get_name_description(self.sr_ref))
                         }
         util.updateMetadata(self.mdpath, update_map, lvutil.ensurePathExists)
 
@@ -1254,9 +1258,10 @@ class LVHDVDI(VDI.VDI):
         self.sr._updateStats(self.sr.uuid, self.size)
 
         vdi_info = { 'uuid': self.uuid,
-                                NAME_LABEL_TAG: self.sr.srcmd.params['args'][1],
-                                NAME_DESCRIPTION_TAG: \
-                                    self.sr.srcmd.params['args'][2],
+                                NAME_LABEL_TAG: util.to_plain_string(\
+                                            self.sr.srcmd.params['args'][1]),
+                                NAME_DESCRIPTION_TAG: util.to_plain_string(\
+                                    self.sr.srcmd.params['args'][2]),
                                 'is_a_snapshot': 0,
                                 'snapshot_of': '',
                                 SNAPSHOT_TIME_TAG: '',
@@ -1680,12 +1685,12 @@ class LVHDVDI(VDI.VDI):
             vdiRef = snapVDI2._db_introduce()
             if cloneOp:
                 vdi_info = { 'uuid': snapVDI2.uuid,
-                                NAME_LABEL_TAG: \
+                                NAME_LABEL_TAG: util.to_plain_string(\
                                     self.session.xenapi.VDI.get_name_label( \
-                                    self.sr.srcmd.params['vdi_ref']),
-                                NAME_DESCRIPTION_TAG: \
+                                    self.sr.srcmd.params['vdi_ref'])),
+                                NAME_DESCRIPTION_TAG: util.to_plain_string(\
                                   self.session.xenapi.VDI.get_name_description\
-                                  (self.sr.srcmd.params['vdi_ref']),
+                                  (self.sr.srcmd.params['vdi_ref'])),
                                 'is_a_snapshot': 0,
                                 'snapshot_of': '',
                                 SNAPSHOT_TIME_TAG: '',
@@ -1700,12 +1705,12 @@ class LVHDVDI(VDI.VDI):
                 util.SMlog("snapshot VDI params: %s" % \
                     self.session.xenapi.VDI.get_snapshot_time(vdiRef))
                 vdi_info = { 'uuid': snapVDI2.uuid,
-                                NAME_LABEL_TAG: \
+                                NAME_LABEL_TAG: util.to_plain_string(\
                                     self.session.xenapi.VDI.get_name_label( \
-                                    self.sr.srcmd.params['vdi_ref']),
-                                NAME_DESCRIPTION_TAG: \
+                                    self.sr.srcmd.params['vdi_ref'])),
+                                NAME_DESCRIPTION_TAG: util.to_plain_string(\
                                   self.session.xenapi.VDI.get_name_description\
-                                  (self.sr.srcmd.params['vdi_ref']),
+                                  (self.sr.srcmd.params['vdi_ref'])),
                                 'is_a_snapshot': 1,
                                 'snapshot_of': snapVDI.uuid,
                                 SNAPSHOT_TIME_TAG: '',
@@ -1945,10 +1950,10 @@ class LVHDVDI(VDI.VDI):
         update_map[util.METADATA_UPDATE_OBJECT_TYPE_TAG] = \
             util.METADATA_OBJECT_TYPE_VDI
         update_map['uuid'] = self.uuid
-        update_map[NAME_LABEL_TAG] = \
-            self.session.xenapi.VDI.get_name_label(vdi_ref)
-        update_map[NAME_DESCRIPTION_TAG] = \
-            self.session.xenapi.VDI.get_name_description(vdi_ref)
+        update_map[NAME_LABEL_TAG] = util.to_plain_string(\
+            self.session.xenapi.VDI.get_name_label(vdi_ref))
+        update_map[NAME_DESCRIPTION_TAG] = util.to_plain_string(\
+            self.session.xenapi.VDI.get_name_description(vdi_ref))
         update_map[SNAPSHOT_TIME_TAG] = \
             self.session.xenapi.VDI.get_snapshot_time(vdi_ref)
         update_map[METADATA_OF_POOL_TAG] = \
