@@ -1579,7 +1579,7 @@ class StorageHandlerISL(StorageHandler):
         try:
             XenCertPrint("Creating PBD")
             Fields = {}
-            Fields['host']=self.session.xenapi.host.get_by_uuid(util.get_localhost_uuid(self.session))
+            Fields['host']=util.get_localhost_uuid(self.session)
             Fields['device_config'] = pbd_device_config
             Fields['SR'] = sr_ref
             pbd_ref = self.session.xenapi.PBD.create(Fields)
