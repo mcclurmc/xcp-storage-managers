@@ -23,6 +23,7 @@ from cleanup import LOCK_TYPE_RUNNING
 def exn_on_failure(cmd, message):
     '''Executes via util.doexec the command specified. If the return code is 
     non-zero, raises an ISCSIError with the given message'''
+    _lock = None
     if os.path.basename(cmd[0]) == 'iscsiadm':
         _lock = lock.Lock(LOCK_TYPE_RUNNING, 'iscsiadm')
         _lock.acquire()
