@@ -692,7 +692,12 @@ class LVHDSR(SR.SR):
                         
                 # Now set the snapshot statuses correctly in XAPI
                 for srcvdi in vdiToSnaps.keys():
-                    srcref = self.session.xenapi.VDI.get_by_uuid(srcvdi)
+                    try:
+                        srcref = self.session.xenapi.VDI.get_by_uuid(srcvdi)
+                    except:
+                        # the source VDI no longer exists, continue
+                        continue
+                    
                     for snapvdi in vdiToSnaps[srcvdi]:
                         try:
                             # this might fail in cases where its already set
