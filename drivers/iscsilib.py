@@ -17,11 +17,18 @@ import util,os,scsiutil,time
 import xs_errors, socket, re
 import shutil
 import xs_errors
+import lock
+from cleanup import LOCK_TYPE_RUNNING
 
 def exn_on_failure(cmd, message):
     '''Executes via util.doexec the command specified. If the return code is 
     non-zero, raises an ISCSIError with the given message'''
+    if os.path.basename(cmd[0]) == 'iscsiadm':
+        _lock = lock.Lock(LOCK_TYPE_RUNNING, 'iscsiadm')
+        _lock.acquire()
     (rc,stdout,stderr) = util.doexec(cmd)
+    if _lock <> None and _lock.held():
+        _lock.release()
     if rc==0:
         return (stdout,stderr)
     else:
