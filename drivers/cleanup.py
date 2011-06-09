@@ -40,6 +40,7 @@ from refcounter import RefCounter
 from ipc import IPCFlag
 from lvmanager import LVActivator
 import blktap2
+from srmetadata import LVMMetadataHandler
 
 # Disable automatic leaf-coalescing. Online leaf-coalesce is currently not 
 # possible due to lvhd_stop_using_() not working correctly. However, we leave 
@@ -2037,8 +2038,8 @@ class LVHDSR(SR):
 
     def forgetVDI(self, vdiUuid):
         SR.forgetVDI(self, vdiUuid)
-        mdpath = os.path.join(self.path, lvutil.MDVOLUME_NAME)
-        util.deleteVdiFromMetadata(mdpath, vdiUuid, lvutil.ensurePathExists)
+        mdpath = os.path.join(self.path, lvutil.MDVOLUME_NAME)        
+        LVMMetadataHandler(mdpath).deleteVdiFromMetadata(vdiUuid)
 
     def getFreeSpace(self):
         stats = lvutil._getVGstats(self.vgName)

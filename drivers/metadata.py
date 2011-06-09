@@ -23,7 +23,7 @@ HDR_STRING = "XSSM"
 STRUCT_FMT = "%dsIHH" % len(HDR_STRING)
 STRUCT_SIZE = struct.calcsize(STRUCT_FMT)
 MD_MAJOR = 1
-MD_MINOR = 1
+MD_MINOR = 2
 XML_TAG = "SRMetadata"
 
 def buildHeader(len):

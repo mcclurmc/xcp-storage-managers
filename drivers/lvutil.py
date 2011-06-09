@@ -203,7 +203,8 @@ def srlist_toxml(VGs, includeMetadata = False):
                     mgtVolActivated = True
                 
                 sr_metadata = \
-                    util.getMetadata(mdpath, ensurePathExists)[0]
+                    srmetadata.LVMMetadataHandler(mdpath, \
+                                                        False).getMetadata()[0]
                 subentry = dom.createElement("name_label")
                 entry.appendChild(subentry)
                 textnode = dom.createTextNode(sr_metadata[srmetadata.NAME_LABEL_TAG])
@@ -216,7 +217,8 @@ def srlist_toxml(VGs, includeMetadata = False):
                 subentry.appendChild(textnode)
                 
                 # add metadata VDI UUID
-                metadataVDI = util.findMetadataVDI(mdpath, ensurePathExists)
+                metadataVDI = srmetadata.LVMMetadataHandler(mdpath, \
+                                    False).findMetadataVDI()
                 subentry = dom.createElement("pool_metadata_detected")
                 entry.appendChild(subentry)
                 if metadataVDI != None:
