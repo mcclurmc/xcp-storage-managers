@@ -35,6 +35,7 @@ __isl_args__ = [
 __lvmoiscsi__ = [
     ["target",          "comma separated list of Target names/IP addresses", " : ", None,        "required", "-t", ""      ],
     ["targetIQN",       "comma separated list of target IQNs OR \"*\"", " : ", None,        "required", "-q", ""      ],
+    ["SCSIid",        "SCSIid to use for SR creation",                  " : ", '',          "optional", "-s", ""    ],
     ["chapuser",        "username for CHAP", " : ", '',        "optional", "-x", ""    ],
     ["chappasswd",      "password for CHAP", " : ", '',        "optional", "-w", ""  ] ]
 
@@ -44,6 +45,7 @@ __common__ = [
     ["multipath", "perform multipath configuration verification tests", " : ", None, "optional", "-m", ""],
     ["pool", "perform pool verification tests",                         " : ", None, "optional", "-o", ""],
     ["data", "perform data verification tests",                         " : ", None, "optional", "-d", ""],
+    ["metadata", "perform metadata tests",                              " : ", None, "optional", "-M", ""],
     ["help",    "show this help message and exit",                                  " : ", None,        "optional", "-h", "" ]]
 
 __commonparams__ = [
