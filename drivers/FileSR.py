@@ -699,6 +699,9 @@ class FileVDI(VDI.VDI):
                 base_vdi.size = self.size
                 base_vdi.utilisation = self.utilisation
                 base_vdi.sm_config = {}
+                grandparent = util.ioretry(lambda: self._query_p_uuid(newsrc))
+                if grandparent.find("no parent") == -1:
+                    base_vdi.sm_config['vhd-parent'] = grandparent
 
             try:
                 if snap_type == self.SNAPSHOT_DOUBLE:
