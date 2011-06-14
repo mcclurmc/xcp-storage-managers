@@ -1920,13 +1920,16 @@ class XenbusDevice(BusDevice):
         self._xbt = XenbusDevice.XBT_NIL
 
     def signal_hotplug(self, online=True):
-        path = "/xapi/%d/hotplug/%s/%d/hotplug" % (self.domid, 
+        xapi_path = "/xapi/%d/hotplug/%s/%d/hotplug" % (self.domid, 
                                                    self.XENBUS_DEVTYPE,
                                                    self.devid)
+        upstream_path = self.xs_path("hotplug-status")
         if online:
-            self._xs_write_path(path, "online")
+            self._xs_write_path(xapi_path, "online")
+            self._xs_write_path(upstream_path, "connected")
         else:
-            self._xs_rm_path(path)
+            self._xs_rm_path(xapi_path)
+            self._xs_rm_path(upstream_path)
 
     def sysfs_devname(self):
         return "%s-%d-%d" % (self.XENBUS_DEVTYPE, 
