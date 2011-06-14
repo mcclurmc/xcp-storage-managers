@@ -828,5 +828,10 @@
                 <description>The password is missing</description>
                 <value>434</value>
         </code>
+        <code>
+                <name>CSLGInvalidSSID</name>
+                <description>An invalid storage system ID was specified</description>
+                <value>435</value>
+        </code>
 
 </SM-errorcodes>
