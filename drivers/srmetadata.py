@@ -32,7 +32,7 @@ SECTOR_STRUCT = "%-512s"
 OFFSET_TAG = 'offset'
 
 # define xml tags for metadata 
-ALLOCATION_TAG = 'a'
+ALLOCATION_TAG = 'allocation'
 NAME_LABEL_TAG = 'name_label'
 NAME_DESCRIPTION_TAG = 'name_description'
 VDI_TAG = 'vdi'

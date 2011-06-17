@@ -402,12 +402,17 @@ class LVHDSR(SR.SR):
             if sr_info == {}:
                 raise Exception("Failed to get SR information from metadata.")
         
-            if sr_info.get("allocation") == 'thick':
-                self.thinpr = False
-                map['allocation'] = 'thick'
+            if sr_info.has_key("allocation"):
+		if sr_info.get("allocation") == 'thick':
+                    self.thinpr = False
+                    map['allocation'] = 'thick'
+            	elif sr_info.get("allocation") == 'thin':
+                    self.thinpr = True
+                    map['allocation'] = 'thin'
             else:
-                self.thinpr = True
-                map['allocation'] = 'thin'
+		raise Exception("Allocation key not found in SR metadata. " \
+		    "SR info found: %s" % sr_info)
+
         except Exception, e:
             raise xs_errors.XenError('MetadataError', \
                          opterr='Error reading SR params from ' \
