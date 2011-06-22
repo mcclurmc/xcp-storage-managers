@@ -3277,8 +3277,8 @@ class StorageHandlerISL(StorageHandler):
             Print ("  >> SR create, VDI create, [check size], VDI resize, [check size] VDI destroy, SR destroy")
             totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
-            self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
             if retVal:
+                self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
                 lunsizeBytes = int(self.configuration['lunsize'])
                 (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
                 if self.sm_config.has_key('supports_resize') and self.sm_config['supports_resize'] == 'True':
@@ -3340,8 +3340,8 @@ class StorageHandlerISL(StorageHandler):
             Print ("  >> SR create, VDI create, [check size], VDI resize (grow), [check size], repeat, VDI destroy, SR destroy")
             totalCheckPoints += 1
             (retVal, sr_ref, dconf) = self.Create_SR()
-            self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
             if retVal:
+                self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
                 lunsizeBytes = int(self.configuration['lunsize'])
                 (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
                 if self.sm_config.has_key('supports_resize') and self.sm_config['supports_resize'] == 'True':
