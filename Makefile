@@ -49,6 +49,8 @@ SM_LIBS += updatempppathd
 SM_LIBS += lcache
 SM_LIBS += resetvdis
 
+CRON_JOBS := vmpr
+
 SM_XML := XE_SR_ERRORCODES
 
 SM_DEST := /opt/xensource/sm/
@@ -111,8 +113,7 @@ install:
 	$(MAKE) -C dcopy install DESTDIR=$(SM_STAGING)
 	$(MAKE) -C snapwatchd install DESTDIR=$(SM_STAGING)
 	ln -sf $(SM_DEST)blktap2.py $(SM_STAGING)$(BIN_DEST)/blktap2
-	mkdir -p $(SM_STAGING)$(CRON_DEST)
-	install -m 644 drivers/vmprcron $(SM_STAGING)$(CRON_DEST)
+	install -m 644 $(CRON_JOBS:%=etc/cron.d/%) -t $(SM_STAGING)$(CRON_DEST)
 	install -m 755 drivers/runvmpr $(SM_STAGING)$(SM_DEST)
 	install -m 755 drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
 	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats

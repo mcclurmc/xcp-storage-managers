@@ -28,7 +28,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
-/etc/cron.d/vmprcron
+/etc/cron.d/*
 /etc/rc.d/init.d/snapwatchd
 /etc/xapi.d/plugins/coalesce-leaf
 /etc/xapi.d/plugins/lvhd-thin
