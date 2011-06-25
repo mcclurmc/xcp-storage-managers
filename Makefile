@@ -50,6 +50,7 @@ SM_LIBS += lcache
 SM_LIBS += resetvdis
 
 CRON_JOBS := vmpr
+CRON_JOBS += ringwatch
 
 SM_XML := XE_SR_ERRORCODES
 
