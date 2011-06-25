@@ -114,6 +114,7 @@ install:
 	$(MAKE) -C dcopy install DESTDIR=$(SM_STAGING)
 	$(MAKE) -C snapwatchd install DESTDIR=$(SM_STAGING)
 	ln -sf $(SM_DEST)blktap2.py $(SM_STAGING)$(BIN_DEST)/blktap2
+	install -m 755 -d $(SM_STAGING)$(CRON_DEST)
 	install -m 644 $(CRON_JOBS:%=etc/cron.d/%) -t $(SM_STAGING)$(CRON_DEST)
 	install -m 755 drivers/runvmpr $(SM_STAGING)$(SM_DEST)
 	install -m 755 drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
