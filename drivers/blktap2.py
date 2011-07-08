@@ -1455,17 +1455,22 @@ class VDI(object):
         vhdutil.killData(self.target.vdi.path)
 
     def setup_cache(self, sr_uuid, vdi_uuid, params):
-        if not self.target.has_cap("SR_CACHING") and \
-                not self.target.has_cap("VDI_RESET_ON_BOOT"):
-            return
         caching = False
         scratch_mode = False
+
         if params.get(self.CONF_KEY_ALLOW_CACHING) == "true":
             caching = True
             util.SMlog("Requested local caching")
+            if not self.target.has_cap("SR_CACHING"):
+                util.SMlog("Error: local caching not supported by this SR")
+                return
+
         if params.get(self.CONF_KEY_MODE_ON_BOOT) == "reset":
             scratch_mode = True
             util.SMlog("Requested scratch mode")
+            if not self.target.has_cap("VDI_RESET_ON_BOOT"):
+                util.SMlog("Error: scratch mode not supported by this SR")
+                return
             self.reset_leaf()
 
         if not caching and not scratch_mode:
@@ -1629,12 +1634,10 @@ class VDI(object):
         return leaf_tapdisk.get_devpath()
 
     def remove_cache(self, sr_uuid, vdi_uuid, params):
-        if not self.target.has_cap("SR_CACHING") and \
-                not self.target.has_cap("VDI_RESET_ON_BOOT"):
+        if not self.target.has_cap("SR_CACHING"):
             return
 
         caching = params.get(self.CONF_KEY_ALLOW_CACHING) == "true"
-        scratch_mode = params.get(self.CONF_KEY_MODE_ON_BOOT) == "reset"
 
         local_sr_uuid = params.get(self.CONF_KEY_CACHE_SR)
         if caching and not local_sr_uuid:
@@ -1645,7 +1648,7 @@ class VDI(object):
         session.xenapi.login_with_password('root', '')
 
         if caching:
-            self._remove_cache(session, local_sr_uuid, scratch_mode)
+            self._remove_cache(session, local_sr_uuid)
 
         self._updateCacheRecord(session, self.target.vdi.uuid, None, None)
         session.xenapi.session.logout()
@@ -1661,7 +1664,7 @@ class VDI(object):
                 return True
         return False
 
-    def _remove_cache(self, session, local_sr_uuid, scratch_mode):
+    def _remove_cache(self, session, local_sr_uuid):
         import SR
         import EXTSR
         import NFSSR
