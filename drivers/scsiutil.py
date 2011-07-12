@@ -450,6 +450,10 @@ def refresh_scsi_channel(channel):
         else:
             li.remove(lunID)
 
+        # Check if the device is still present
+        if not os.path.exists(cur):
+            continue
+        
         # Query SCSIid, check it matches, if not, re-probe
         cur_SCSIid = os.path.basename(cur).split("-%s:%s:%s" % (h[0],h[1],h[2]))[0]
         real_SCSIid = getSCSIid(cur)
