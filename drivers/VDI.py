@@ -95,6 +95,7 @@ class VDI(object):
         self.session = sr.session
         self.managed = True
         self.sm_config_override = {}
+        self.sm_config_keep = []
 
         self.load(uuid)
 
@@ -305,7 +306,7 @@ class VDI(object):
                 self.sr.session.xenapi.VDI.add_to_sm_config(ref, key, val)
 
         for key in current_sm_config.keys():
-            if key.startswith("host_") or key == "paused":
+            if key.startswith("host_") or key == "paused" or key in self.sm_config_keep:
                 continue
             if not sm_config.get(key):
                 util.SMlog("_db_update_sm_config: %s del sm-config:%s" % \
