@@ -334,7 +334,9 @@ def _genReverseSCSIidmap(SCSIid, pathname="scsibus"):
 
     devices = []
     for link in glob.glob('/dev/disk/by-%s/%s-*' % (pathname,SCSIid)):
-        devices.append(os.path.realpath(link))
+        realpath = os.path.realpath(link)
+        if os.path.exists(realpath):
+            devices.append(realpath)
     return devices
 
 def _genReverseSCSidtoLUNidmap(SCSIid):
