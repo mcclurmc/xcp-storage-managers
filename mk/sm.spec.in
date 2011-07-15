@@ -26,10 +26,14 @@ DESTDIR=$RPM_BUILD_ROOT make install
 %clean
 rm -rf $RPM_BUILD_ROOT
 
+%post
+[ ! -x /sbin/chkconfig ] || chkconfig --add mpathroot
+
 %files
 %defattr(-,root,root,-)
 /etc/cron.d/*
 /etc/rc.d/init.d/snapwatchd
+/etc/rc.d/init.d/mpathroot
 /etc/xapi.d/plugins/coalesce-leaf
 /etc/xapi.d/plugins/lvhd-thin
 /etc/xapi.d/plugins/nfs-on-slave
