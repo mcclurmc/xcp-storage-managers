@@ -833,5 +833,44 @@
                 <description>An invalid storage system ID was specified</description>
                 <value>435</value>
         </code>
-
+        <code>
+                <name>CSLGSysInfo</name>
+                <description>Failed to collect storage system information</description>
+                <value>436</value>
+        </code>
+        <code>
+                <name>CSLGPoolInfo</name>
+                <description>Failed to collect storage pool information</description>
+                <value>437</value>
+        </code>
+        <code>
+                <name>CSLGPoolDelete</name>
+                <description>Failed to delete storage pool</description>
+                <value>438</value>
+        </code>
+        <code>
+                <name>CSLGLunInfo</name>
+                <description>Failed to collect storage volume information</description>
+                <value>439</value>
+        </code>
+        <code>
+                <name>CSLGLunList</name>
+                <description>Failed to list storage volume</description>
+                <value>440</value>
+        </code>
+        <code>
+                <name>CSLGResizeLun</name>
+                <description>Failed to resize storage volume</description>
+                <value>441</value>
+        </code>
+        <code>
+                <name>CSLGTargetPorts</name>
+                <description>Failed to list storage target ports</description>
+                <value>442</value>
+        </code>
+        <code>
+                <name>CSLGPoolList</name>
+                <description>Failed to list storage pool</description>
+                <value>443</value>
+        </code>
 </SM-errorcodes>
