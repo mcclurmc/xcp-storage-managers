@@ -464,25 +464,39 @@ class ISCSISR(SR.SR):
             path = os.path.join(rec['path'],"LUN%s" % lunid)
             realpath = os.path.realpath(path)
             host = self.adapter[val]
-            if not self.devs.has_key(realpath):
-                l = [realpath, host, 0, 0, lunid]
+            l = [realpath, host, 0, 0, lunid]
+            
+            addDevice = True            
+            if self.devs.has_key(realpath):
+                # if the device is stale remove it before adding again
+                real_SCSIid = None
+                try:
+                    real_SCSIid = scsiutil.getSCSIid(realpath)
+                except:
+                    pass
+                
+                if real_SCSIid != None:
+                    # make sure this is the same scsiid, if not remove the device                    
+                    cur_scsibuspath = glob.glob('/dev/disk/by-scsibus/*-%s:0:0:%s' % (host,lunid))
+                    cur_SCSIid = os.path.basename(cur_scsibuspath[0]).split("-")[0]                    
+                    if cur_SCSIid != real_SCSIid:
+                        # looks stale, remove it
+                        scsiutil.scsi_dev_ctrl(l,"remove")
+                    else:
+                        util.SMlog("Not attaching LUNID %s for adapter %s"\
+                            " since the device exists and the scsi id %s seems"\
+                            " to be valid. " % (lunid, val, real_SCSIid))
+                        addDevice = False
+                else:
+                    # looks stale, remove it
+                    scsiutil.scsi_dev_ctrl(l,"remove")
+
+            if addDevice:
+                # add the device
                 scsiutil.scsi_dev_ctrl(l,"add")
                 if not util.wait_for_path(path, MAX_LUNID_TIMEOUT):
                     util.SMlog("Unable to detect LUN attached to host on path [%s]" % path)
                     continue
-            else:
-                # Verify that we are not seeing a stale LUN map
-                try:
-                    real_SCSIid = scsiutil.getSCSIid(realpath)
-                    cur_scsibuspath = glob.glob('/dev/disk/by-scsibus/*-%s:0:0:%s' % (host,lunid))
-                    cur_SCSIid = os.path.basename(cur_scsibuspath[0]).split("-")[0]
-                    assert(cur_SCSIid == real_SCSIid)
-                except:
-                    scsiutil.rescan([host])
-                    if not os.path.exists('/dev/disk/by-scsibus/%s-%s:0:0:%s' % \
-                                          (real_SCSIid,host,lunid)):
-                        util.SMlog("Unable to detect LUN attached to host after bus re-probe")
-                        continue
             connected.append(path)
         return connected
 
