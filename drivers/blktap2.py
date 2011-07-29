@@ -1576,6 +1576,7 @@ class VDI(object):
                 return None
 
         # local write node
+        leaf_size = vhdutil.getSizeVirt(self.target.vdi.path)
         local_leaf_path = "%s/%s.vhdcache" % \
                 (local_sr.path, self.target.vdi.uuid)
         if util.pathexists(local_leaf_path):
@@ -1584,11 +1585,17 @@ class VDI(object):
             os.unlink(local_leaf_path)
         try:
             vhdutil.snapshot(local_leaf_path, read_cache_path, False,
-                    checkEmpty = False)
+                    msize = leaf_size / 1024 / 1024, checkEmpty = False)
         except util.CommandException, e:
             util.SMlog("Error creating leaf cache: %s" % e)
             self.alert_no_cache(session, vdi_uuid, local_sr_uuid, e.code)
             return None
+
+        local_leaf_size = vhdutil.getSizeVirt(local_leaf_path)
+        if leaf_size > local_leaf_size:
+            util.SMlog("Leaf size %d > local leaf cache size %d, resizing" %
+                    (leaf_size, local_leaf_size))
+            vhdutil.setSizeVirtFast(local_leaf_path, leaf_size)
 
         vdi_type = self.target.get_vdi_type()
 
