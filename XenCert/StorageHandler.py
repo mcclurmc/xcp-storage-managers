@@ -3040,7 +3040,15 @@ class StorageHandlerISL(StorageHandler):
 
     def Create(self, shared=False):
         """ alias to create SR """
-        return self.Create_SR(shared)
+        retVal = True
+        sr_ref = None
+        device_config = {}
+        try:
+            (sr_ref, self.device_config) = (self.Create_SR(shared))
+        except:
+            retVal = False
+
+        return (retVal, sr_ref, self.device_config)
 
     def Create_SR(self, shared=False):
         XenCertPrint("Create SR")
