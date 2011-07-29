@@ -14,7 +14,7 @@ from StorageHandlerUtil import Print
 from StorageHandlerUtil import PrintOnSameLine
 from StorageHandlerUtil import XenCertPrint
 from StorageHandlerUtil import displayOperationStatus
-import CSLGMetadata
+from srmetadata import SLMetadataHandler
 import scsiutil, iscsilib
 import XenAPI
 import util
@@ -733,15 +733,6 @@ class StorageHandler:
     #
     #  SR related
     #       
-    def getAllPBDs(self, sr_ref):
-        try:
-            XenCertPrint("Getting all PBDs")
-            results = self.session.xenapi.SR.get_PBDs(sr_ref)
-            return results
-        except Exception, e:
-            XenCertPrint("Getting all PBDs failed. Exception: %s" % str(e))
-            return []
-
     def Create_PBD(self, sr_ref, pbd_device_config):
         try:
             XenCertPrint("Creating PBD")
@@ -785,7 +776,7 @@ class StorageHandler:
     def Forget_SR(self, sr_ref):
         XenCertPrint("Forget SR")
         try:
-            pbd_list = self.getAllPBDs(sr_ref)
+            pbd_list = self.session.xenapi.SR.get_PBDs(sr_ref)
             for pbd_ref in pbd_list:
                 self.Unplug_PBD(pbd_ref)
             for pbd_ref in pbd_list:
@@ -807,8 +798,10 @@ class StorageHandler:
 
     def Destroy_SR(self, sr_ref):
         XenCertPrint("Destroy SR")
+        if sr_ref == None:
+            return        
         try:
-            pbd_list = self.getAllPBDs(sr_ref)
+            pbd_list = self.session.xenapi.SR.get_PBDs(sr_ref)
             for pbd_ref in pbd_list:
                 self.Unplug_PBD(pbd_ref)
             self.session.xenapi.SR.destroy(sr_ref)
@@ -1716,7 +1709,45 @@ class StorageHandler:
         #return retVal
 
         return True
-    
+
+    def cleanupTestObjs(self, sr_ref, vdi_ref_list = [], vbd_ref_list = [] ):
+        # do a best effort cleanup of these objects
+        # destroy VBDs
+        for vbd in vbd_ref_list:
+            # ignore if VBD is not valid
+            try:
+                vbd_uuid = self.session.xenapi.VBD.get_uuid(vbd)
+            except:
+                continue
+            
+            try:                
+                self.session.xenapi.VBD.destroy(vbd)
+            except Exception, e:
+                XenCertPrint("Failed to destroy VBD: %s. Error: %s" % (vbd_uuid, str(e)))
+            
+        # destroy VDIs
+        for vdi in vdi_ref_list:
+            # ignore if VDI is not valid
+            try:
+                vdi_uuid = self.session.xenapi.VDI.get_uuid(vdi)
+            except:
+                continue
+            try:
+                self.session.xenapi.VDI.destroy(vdi)
+            except Exception, e:
+                XenCertPrint("Failed to destroy VDI: %s. Error:%s" % (vdi_uuid, str(e)))
+        
+        # destroy SR
+        try:
+            # ignore if SR is not valid
+            try:
+                sr_uuid = self.session.xenapi.SR.get_uuid(sr_ref)
+            except:
+                return             
+            self.Destroy_SR(sr_ref)
+        except Exception, e:
+            XenCertPrint("Failed to destroy SR: %s. Error:%s" % (sr_uuid, str(e)))        
+            
     def metadata_scalibility_tests(self):
         return True
     
@@ -2770,7 +2801,7 @@ class StorageHandlerISL(StorageHandler):
         try:
             dest = {}
             #commented below line, because snapshot name_label from XAPI is incorrect
-            #dest['name_label'] = self.session.xenapi.VDI.get_name_label(vdi_ref)
+            dest['name_label'] = self.session.xenapi.VDI.get_name_label(vdi_ref)
             is_a_snapshot = str(int(self.session.xenapi.VDI.get_is_a_snapshot(vdi_ref)))
             #if is_a_snapshot == "1":
             #    dest['is_a_snapshot'] = is_a_snapshot
@@ -2783,48 +2814,42 @@ class StorageHandlerISL(StorageHandler):
             #commented below, because not all VDI seems to have this field
             #dest['vdi_type'] = self.session.xenapi.VDI.get_vdi_type(vdi_ref)
             dest['read_only'] = str(int(self.session.xenapi.VDI.get_read_only(vdi_ref)))
-            dest['managed'] = str(int(self.session.xenapi.VDI.get_managed(vdi_ref)))
-            dest['location'] = self.session.xenapi.VDI.get_sm_config(vdi_ref)['SVID']
-        except:
-            raise Exception("Error while populating VDI metadata values")
+            dest['managed'] = str(int(self.session.xenapi.VDI.get_managed(vdi_ref)))            
+        except Exception, e:
+            raise Exception("Error while populating VDI metadata values. Error: %s" % str(e))
         XenCertPrint("populateVDI_XAPIFields Exit")
         return dest
 
-    def getMetaDataRec(self, sr_ref):
+    def getMetaDataRec(self, sr_ref, params):
         XenCertPrint("getMetaDataRec Enter")
         self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
         if self.sm_config.has_key('md_svid'):
             self.md_svid = self.sm_config['md_svid']
             self.metadataVolumePath = StorageHandlerUtil._find_LUN(self.md_svid)[0]
             
-            dict = CSLGMetadata.getMetadata(self.metadataVolumePath)
+            (sr_info, vdi_info) = SLMetadataHandler(self.metadataVolumePath).getMetadata(params)
 
         XenCertPrint("getMetaDataRec Exit")
-        return dict
+        return (sr_info, vdi_info)
 
-    def checkMetadataSR(self, sr_ref, verifyFields):
-        XenCertPrint("checkMetadataSR Enter")
-        dict = self.getMetaDataRec(sr_ref)
-
-        XenCertPrint("checkMetadataSR Exit")
-        return
-    
     def checkMetadataVDI(self, sr_ref, vdi_ref, verifyFields):
         XenCertPrint("checkMetadataVDI Enter")
         if sr_ref == None:
             sr_ref = self.session.xenapi.VDI.get_SR(vdi_ref)
-        dict = self.getMetaDataRec(sr_ref)
-        XenCertPrint("dict is: %s"%dict)
+            
+        # since the metadata I/O is currently buffered, the metadata takes
+        # a while sometimes to get to the disk, hence wait for sometime. 
+        (sr_info, vdi_info) = self.getMetaDataRec(sr_ref, {'indexByUuid': 1})
+        XenCertPrint("sr_info: %s, vdi_info: %s" %(sr_info, vdi_info))
         vdi_uuid = self.session.xenapi.VDI.get_uuid(vdi_ref)
         XenCertPrint("verifyFields is: %s"%verifyFields)
 
         for key in verifyFields:
-            if dict['vdi_%s'%vdi_uuid][key] != verifyFields[key]:
-                raise Exception("VDI:%s key:%s Metadata:%s <> Xapi:%s doesn't match"%(vdi_uuid, key, dict['vdi_%s'%vdi_uuid][key], verifyFields[key]))
+            if vdi_info[vdi_uuid][key] != verifyFields[key]:
+                raise Exception("VDI:%s key:%s Metadata:%s <> Xapi:%s doesn't match"%(vdi_uuid, key, vdi_info[vdi_uuid][key], verifyFields[key]))
 
         XenCertPrint("checkMetadataVDI Exit")
-        return
-
+        
     #
     #  VDI related
     #
@@ -2845,30 +2870,29 @@ class StorageHandlerISL(StorageHandler):
             results = self.session.xenapi.VDI.create(vdi_rec)
             self.checkMetadataVDI(sr_ref, results, self.populateVDI_XAPIFields(results))
 
-            return (True, results)
+            return results
         except Exception, e:
             XenCertPrint("Failed to create VDI. Exception: %s" % str(e))
-            return (False, "")
+            raise Exception("Failed to create VDI. Exception: %s" % str(e))
        
     def Resize_VDI(self, vdi_ref, size):
         XenCertPrint("Resize VDI")
         try:
-            self.session.xenapi.VDI.resize(vdi_ref, str(size))
-            return True
+            self.session.xenapi.VDI.resize(vdi_ref, str(size))            
         except Exception, e:
             XenCertPrint("Failed to Resize VDI. Exception: %s" % str(e))
-            return False
-       
+            raise Exception("Failed to Resize VDI . Exception: %s" % str(e))
+        
     def Snapshot_VDI(self, vdi_ref):
         XenCertPrint("Snapshot VDI")
         options = {}
         try:
             results = self.session.xenapi.VDI.snapshot(vdi_ref, options)
             self.checkMetadataVDI(None, results, self.populateVDI_XAPIFields(results))
-            return (True, results)
+            return results
         except Exception, e:
             XenCertPrint("Failed to Snapshot VDI. Exception: %s" % str(e))
-            return (False, "")
+            raise Exception("Failed to Snapshot VDI. Exception: %s" % str(e))
        
     def Clone_VDI(self, vdi_ref):
         XenCertPrint("Clone VDI")
@@ -2876,36 +2900,35 @@ class StorageHandlerISL(StorageHandler):
         try:
             results = self.session.xenapi.VDI.clone(vdi_ref, options)
             self.checkMetadataVDI(None, results, self.populateVDI_XAPIFields(results))
-            return (True, results)
+            return results
         except Exception, e:
             XenCertPrint("Failed to Clone VDI. Exception: %s" % str(e))
-            return (False, "")
+            raise Exception("Failed to Clone VDI. Exception: %s" % str(e))
        
-    def Destroy_VDI(self, vdi_ref):
+    def Destroy_VDI(self, vdi_ref, sr_ref):
         XenCertPrint("Destroy VDI")
         try:
-            results = self.session.xenapi.VDI.destroy(vdi_ref)
             try:
-                self.checkMetadataVDI(None, results, self.populateVDI_XAPIFields(results))
+                vdi_uuid = self.session.xenapi.VDI.get_uuid(vdi_ref)
             except:
-                return True
+                return
+            
+            results = self.session.xenapi.VDI.destroy(vdi_ref)
+
+            # now check that the VDI has gone from the metadata
+            vdi_info = self.getMetaDataRec(sr_ref, {'indexByUuid': 1})[1]
+            if vdi_info.has_key(vdi_uuid) and \
+                vdi_info[vdi_uuid]['managed'] == '1':
+                Print(vdi_info)
+                raise Exception("VDI %s still present in the metadata." % vdi_uuid)
+            
         except Exception, e:
             XenCertPrint("Failed to Destroy VDI. Exception: %s" % str(e))
-            return False
-
+            raise Exception("Failed to Destroy VDI. Exception: %s" % str(e))
+            
     #
     #  SR related
     #
-       
-    def getAllPBDs(self, sr_ref):
-        try:
-            XenCertPrint("Getting all PBDs")
-            results = self.session.xenapi.SR.get_PBDs(sr_ref)
-            return results
-        except Exception, e:
-            XenCertPrint("Getting all PBDs failed. Exception: %s" % str(e))
-            return []
-
     def Create_PBD(self, sr_ref, pbd_device_config):
         try:
             XenCertPrint("Creating PBD")
@@ -2917,34 +2940,31 @@ class StorageHandlerISL(StorageHandler):
             return pbd_ref
         except Exception, e:
             XenCertPrint("Failed to create pbd. Exception: %s" % str(e))
-            return False
+            raise Exception("Failed to create pbd. Exception: %s" % str(e))
        
     def Unplug_PBD(self, pbd_ref):
         try:
             XenCertPrint("Unplugging PBD")
-            self.session.xenapi.PBD.unplug(pbd_ref)
-            return True
+            self.session.xenapi.PBD.unplug(pbd_ref)            
         except Exception, e:
             XenCertPrint("Failed to unplug PBD. Exception: %s" % str(e))
-            return False
+            raise Exception("Failed to unplug PBD. Exception: %s" % str(e))
        
     def Plug_PBD(self, pbd_ref):
         try:
             XenCertPrint("Plugging PBD")
-            self.session.xenapi.PBD.plug(pbd_ref)
-            return True
+            self.session.xenapi.PBD.plug(pbd_ref)            
         except Exception, e:
             XenCertPrint("Failed to plug PBD. Exception: %s" % str(e))
-            return False
+            raise Exception("Failed to plug PBD. Exception: %s" % str(e))
        
     def Destroy_PBD(self, pbd_ref):
         try:
             XenCertPrint("destroying PBD")
-            self.session.xenapi.PBD.destroy(pbd_ref)
-            return True
+            self.session.xenapi.PBD.destroy(pbd_ref)            
         except Exception, e:
             XenCertPrint("Failed to Destroy PBD. Exception: %s" % str(e))
-            return False
+            raise Exception("Failed to destroy PBD. Exception: %s" % str(e))
         
     def Probe_SR(self, sr_ref):
         local_dconf = {}
@@ -2985,16 +3005,15 @@ class StorageHandlerISL(StorageHandler):
     def Forget_SR(self, sr_ref):
         XenCertPrint("Forget SR")
         try:
-            pbd_list = self.getAllPBDs(sr_ref)
+            pbd_list = self.session.xenapi.SR.get_PBDs(sr_ref)
             for pbd_ref in pbd_list:
                 self.Unplug_PBD(pbd_ref)
             for pbd_ref in pbd_list:
                 self.Destroy_PBD(pbd_ref)
-            self.session.xenapi.SR.forget(sr_ref)
-            return True
+            self.session.xenapi.SR.forget(sr_ref)            
         except Exception, e:
             XenCertPrint("Failed to Forget SR. Exception: %s" % str(e))
-            return False
+            raise Exception("Failed to forget SR. Exception: %s" % str(e))
 
     def Introduce_SR(self, sr_uuid):
         XenCertPrint("Introduce SR")
@@ -3002,20 +3021,22 @@ class StorageHandlerISL(StorageHandler):
             self.session.xenapi.SR.introduce(sr_uuid, 'XenCertTestSR', '', 'cslg', '', False, {})
         except Exception, e:
             XenCertPrint("Failed to Introduce the SR. Exception: %s" % str(e))
-            return False
+            raise Exception("Failed to introduce SR. Exception: %s" % str(e))
             
 
     def Destroy_SR(self, sr_ref):
         XenCertPrint("Destroy SR")
+        if sr_ref == None:
+            return
+        
         try:
-            pbd_list = self.getAllPBDs(sr_ref)
+            pbd_list = self.session.xenapi.SR.get_PBDs(sr_ref)
             for pbd_ref in pbd_list:
                 self.Unplug_PBD(pbd_ref)
             self.session.xenapi.SR.destroy(sr_ref)
-            return True
         except Exception, e:
             XenCertPrint("Failed to Destroy SR. Exception: %s" % str(e))
-            return False
+            raise Exception("Failed to Destroy SR. Exception: %s" % str(e))
 
     def Create(self, shared=False):
         """ alias to create SR """
@@ -3024,7 +3045,6 @@ class StorageHandlerISL(StorageHandler):
     def Create_SR(self, shared=False):
         XenCertPrint("Create SR")
         self.device_config = {}
-        retVal = True
         sr_ref = None
         try:
             # Create an SR
@@ -3046,20 +3066,14 @@ class StorageHandlerISL(StorageHandler):
             #    device_config['chapuser'] = self.storage_conf['chapuser']
             #    device_config['chappassword'] = self.storage_conf['chappasswd']
             # try to create an SR with one of the LUNs mapped, if all fails throw an exception
-            try:                    
-                XenCertPrint("The SR create parameters are %s, %s" % (util.get_localhost_uuid(self.session), self.device_config))
-                sr_ref = self.session.xenapi.SR.create(util.get_localhost_uuid(self.session), self.device_config, '0', 'XenCertTestSR', '', 'cslg', '', shared, {})
-                XenCertPrint("Created the SR %s using device_config %s" % (sr_ref, self.device_config))
-            except Exception, e:
-                XenCertPrint("Failed to Create SR. Exception: %s" % str(e))
-                    
-            if sr_ref == None:
-                retVal = False
+            XenCertPrint("The SR create parameters are %s, %s" % (util.get_localhost_uuid(self.session), self.device_config))
+            sr_ref = self.session.xenapi.SR.create(util.get_localhost_uuid(self.session), self.device_config, '0', 'XenCertTestSR', '', 'cslg', '', shared, {})
+            XenCertPrint("Created the SR %s using device_config %s" % (sr_ref, self.device_config))            
         except Exception, e:
-            XenCertPrint("Failed to Create SR. Exception: %s" % str(e))
-            retVal = False
+            XenCertPrint("Failed to Create SR. Exception: %s" % str(e))            
+            raise Exception("Failed to Create SR. Exception: %s" % str(e))
         
-        return (retVal, sr_ref, self.device_config)
+        return (sr_ref, self.device_config)
         
     def GetPathStatus(self, device_config):
         # Query DM-multipath status, reporting a) Path checker b) Path Priority handler c) Number of paths d) distribution of active vs passive paths
@@ -3174,311 +3188,315 @@ class StorageHandlerISL(StorageHandler):
         # 
 
         try:
-            Print ("  >> SR create, SR destroy")
+            sr_ref = None
+            vdi_ref = None
+            vdi_snap_ref = None
+            pbd_ref = None
+            vbd_ref = None
+            
             totalCheckPoints += 1
             #  * .SR.create
             #  * .SR.destroy
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            if retVal:
-                self.Destroy_SR(sr_ref)
-                checkPoints += 1
-            displayOperationStatus(retVal)
-
-            Print ("  >> SR create, SR probe, SR destroy")
+            try:
+                try:
+                    PrintOnSameLine("  >> SR create")
+                    (sr_ref, dconf) = self.Create_SR()
+                    Print(", SR destroy")
+                    self.Destroy_SR(sr_ref)
+                    checkPoints += 1
+                    displayOperationStatus(True)
+                except Exception, e:
+                    Print(" Exception: %s" % str(e))
+                    displayOperationStatus(False)
+            finally:
+                self.cleanupTestObjs(sr_ref)
+                
             totalCheckPoints += 1
             #  * .SR.create
             #  * .SR.probe
             #  * .SR.destroy
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            if retVal:
-                report(self.Probe_SR(sr_ref), True)
-                report(self.Destroy_SR(sr_ref), True)
-                checkPoints += 1
-            displayOperationStatus(retVal)
-
-            Print ("  >> SR create, SR forget, SR introduce, SR destroy")
+            try:
+                try:
+                    sr_ref = None
+                    PrintOnSameLine("  >> SR create")
+                    (sr_ref, dconf) = self.Create_SR()
+                    PrintOnSameLine(", SR probe")
+                    report(self.Probe_SR(sr_ref), True)
+                    Print(", SR destroy")
+                    self.Destroy_SR(sr_ref)
+                    checkPoints += 1
+                    displayOperationStatus(True)
+                except Exception, e:
+                    Print(" Exception: %s" % str(e))
+                    displayOperationStatus(False)
+            finally:
+                self.cleanupTestObjs(sr_ref)
+            
             totalCheckPoints += 1
             #  * .SR.create
             #  * .SR.forget
             #    .SR.introduce  (wkc fixfix -- needs to be done)
             #    .SR.destroy
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            if retVal:
-                sr_uuid = self.session.xenapi.SR.get_uuid(sr_ref)
-                pbds = self.session.xenapi.SR.get_PBDs(sr_ref)
-                pbd_device_config = self.session.xenapi.PBD.get_device_config(pbds[0])
-                report(self.Forget_SR(sr_ref), True)
-                self.Introduce_SR(sr_uuid)
-                sr_ref = self.session.xenapi.SR.get_by_uuid(sr_uuid)
-                pbd_ref = self.Create_PBD(sr_ref, pbd_device_config)
-                self.Plug_PBD(pbd_ref)
-                self.Destroy_SR(sr_ref)
-                checkPoints += 1
-            displayOperationStatus(retVal)
+            try:
+                try:
+                    sr_ref = None
+                    PrintOnSameLine("  >> SR create")
+                    (sr_ref, dconf) = self.Create_SR()
+                    sr_uuid = self.session.xenapi.SR.get_uuid(sr_ref)
+                    pbds = self.session.xenapi.SR.get_PBDs(sr_ref)
+                    pbd_device_config = self.session.xenapi.PBD.get_device_config(pbds[0])
+                    PrintOnSameLine(", SR forget")
+                    self.Forget_SR(sr_ref)
+                    PrintOnSameLine(", SR introduce")
+                    self.Introduce_SR(sr_uuid)
+                    sr_ref = self.session.xenapi.SR.get_by_uuid(sr_uuid)
+                    pbd_ref = self.Create_PBD(sr_ref, pbd_device_config)
+                    PrintOnSameLine(", SR attach")
+                    self.Plug_PBD(pbd_ref)
+                    Print(", SR destroy")
+                    self.Destroy_SR(sr_ref)
+                    checkPoints += 1
+                    displayOperationStatus(True)
+                except Exception, e:
+                    Print(" Exception: %s" % str(e))
+                    displayOperationStatus(False)
+            finally:
+                self.cleanupTestObjs(sr_ref)
 
             #    .VDI.create
             #    .VDI.snapshot - particularly testing that the newly created snapshot 
             #                 is independent of the original, such that deleting 
             #                 the original does not delete the snapshot.
-            #    .VDI.destroy
-            Print ("  >> SR create, VDI create, VDI snapshot, VDI destroy, VDI destroy (snapshot), SR destroy")
+            #    .VDI.destroy            
             totalCheckPoints += 1
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            if retVal:
-                lunsizeBytes = int(self.configuration['lunsize'])
-                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
-                if retVal:
-                    (retVal, vdi_snap_ref) = self.Snapshot_VDI(vdi_ref)
-                    if retVal:
-                        self.Destroy_VDI(vdi_ref)
-                        # need to test to make sure snap still exists (wkc fixfix)
-                        report(self.Destroy_VDI(vdi_snap_ref), True)
-                        checkPoints += 1
-                        displayOperationStatus(True)
-                    else:
-                        # snapshot failed
-                        displayOperationStatus(False)
-                else:
-                    # create VDI failed
-                    displayOperationStatus(False)
-                report(self.Destroy_SR(sr_ref), True)
-            else:
-                # create SR failed
-                displayOperationStatus(False)
+            try:
+                try:
+                    PrintOnSameLine("  >> SR create")
+                    sr_ref = None
+                    (sr_ref, dconf) = self.Create_SR()
+                    lunsizeBytes = int(self.configuration['lunsize'])
+                    PrintOnSameLine(", VDI create")
+                    vdi_ref = self.Create_VDI(sr_ref, lunsizeBytes)
+                    PrintOnSameLine(", VDI snapshot")
+                    vdi_snap_ref = self.Snapshot_VDI(vdi_ref)
+                    PrintOnSameLine(", VDI destroy")
+                    self.Destroy_VDI(vdi_ref, sr_ref)
                     
+                    # need to test to make sure snap still exists (wkc fixfix)
+                    PrintOnSameLine(", VDI destroy (snapshot)")
+                    self.Destroy_VDI(vdi_snap_ref, sr_ref)
+                    checkPoints += 1                    
+                    Print(", SR destroy")
+                    self.Destroy_SR(sr_ref)
+                    displayOperationStatus(True)
+                except Exception, e:
+                    Print(" Exception: %s" % str(e))
+                    displayOperationStatus(False)
+            finally:
+                self.cleanupTestObjs(sr_ref, [vdi_ref, vdi_snap_ref])
+                        
             # same as above, just use clone
             #    .VDI.clone - as for snapshot
-            Print ("  >> SR create, VDI create, VDI clone, VDI destroy, VDI destroy (clone), SR destroy")
             totalCheckPoints += 1
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            if retVal:
-                lunsizeBytes = int(self.configuration['lunsize'])
-                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
-                if retVal:
-                    (retVal, vdi_clone_ref) = self.Clone_VDI(vdi_ref)
-                    if retVal:
-                        self.Destroy_VDI(vdi_ref)
-                        # need to test to make sure clone still exists (wkc fixfix)
-                        report(self.Destroy_VDI(vdi_clone_ref), True)
-                        checkPoints += 1
-                        displayOperationStatus(True)
-                    else:
-                        # clone failed
-                        displayOperationStatus(False)
-                else:
-                    # create VDI failed
+            try:
+                try:
+                    PrintOnSameLine("  >> SR create")
+                    sr_ref = None
+                    (sr_ref, dconf) = self.Create_SR()
+                    lunsizeBytes = int(self.configuration['lunsize'])
+                    PrintOnSameLine(", VDI create")
+                    vdi_ref = self.Create_VDI(sr_ref, lunsizeBytes)                
+                    PrintOnSameLine(", VDI clone")
+                    vdi_clone_ref = self.Clone_VDI(vdi_ref)
+                    PrintOnSameLine(", VDI destroy")
+                    self.Destroy_VDI(vdi_ref, sr_ref)
+                    # need to test to make sure clone still exists (wkc fixfix)
+                    PrintOnSameLine(", VDI destroy (clone)")
+                    self.Destroy_VDI(vdi_clone_ref, sr_ref)
+                    checkPoints += 1
+                    Print(", SR destroy")
+                    self.Destroy_SR(sr_ref)
+                    displayOperationStatus(True)
+                except Exception, e:
+                    Print(" Exception: %s" % str(e))
                     displayOperationStatus(False)
-                report(self.Destroy_SR(sr_ref), True)
-            else:
-                # create SR failed
-                displayOperationStatus(False)
-
+            finally:
+                self.cleanupTestObjs(sr_ref, [vdi_ref, vdi_snap_ref])
+            
             #    .VDI.resize 
-            Print ("  >> SR create, VDI create, [check size], VDI resize, [check size] VDI destroy, SR destroy")
             totalCheckPoints += 1
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            if retVal:
-                self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
-                lunsizeBytes = int(self.configuration['lunsize'])
-                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
-                if self.sm_config.has_key('supports_resize') and self.sm_config['supports_resize'] == 'True':
-                    if retVal:
+            try:
+                try:
+                    PrintOnSameLine("  >> SR create")
+                    sr_ref = None
+                    vdi_ref = None
+                    (sr_ref, dconf) = self.Create_SR()
+                    self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
+                    lunsizeBytes = int(self.configuration['lunsize'])
+                    PrintOnSameLine(", VDI create")
+                    vdi_ref = self.Create_VDI(sr_ref, lunsizeBytes)
+                    if self.sm_config.has_key('supports_resize') and self.sm_config['supports_resize'] == 'True':
+                        PrintOnSameLine(", [check size]")
                         retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                        Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
+                        XenCertPrint("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
                         # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
                         newsize = int(retSize)*2
-                        retVal = self.Resize_VDI(vdi_ref, int(newsize))
-                        if retVal:
-                            # recheck new size wkc: fixfix
-                            retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                            Print("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
-                            report(self.Destroy_VDI(vdi_ref), True)
-                            checkPoints += 1
-                            displayOperationStatus(True)
-                        else:
-                            # resize failed
-                            displayOperationStatus(False)
+                        PrintOnSameLine(", VDI resize")
+                        self.Resize_VDI(vdi_ref, int(newsize)) 
+                        # recheck new size wkc: fixfix
+                        PrintOnSameLine(", [check size]")
+                        retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
+                        XenCertPrint("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
+                        PrintOnSameLine(", VDI destroy")
+                        self.Destroy_VDI(vdi_ref, sr_ref)
+                        checkPoints += 1                        
                     else:
-                        # create VDI failed
-                        displayOperationStatus(False)
-                else:
-                    # Resize not supported
-                    report(self.Destroy_VDI(vdi_ref), True)
-                    checkPoints += 1
+                        # Resize not supported
+                        PrintOnSameLine(", VDI destroy")
+                        self.Destroy_VDI(vdi_ref, sr_ref)
+                        checkPoints += 1
+                    Print(", SR destroy")
+                    self.Destroy_SR(sr_ref)
                     displayOperationStatus(True)
-                report(self.Destroy_SR(sr_ref), True)
-            else:
-                # create SR failed
-                displayOperationStatus(False)
-
+                except Exception, e:
+                    Print(" Exception: %s" % str(e))
+                    displayOperationStatus(False)
+            finally:
+                self.cleanupTestObjs(sr_ref, [vdi_ref])
+            
             #    .VDI.resize (shrink) expect an error
-            Print ("  >> SR create, VDI create, VDI resize (shrink), VDI destroy, SR destroy")
             totalCheckPoints += 1
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            if retVal:
-                lunsizeBytes = int(self.configuration['lunsize'])
-                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
-                if retVal:
+            try:
+                try:
+                    PrintOnSameLine("  >> SR create")
+                    sr_ref = None
+                    vdi_ref = None
+                    (sr_ref, dconf) = self.Create_SR()                                        
+                    lunsizeBytes = int(self.configuration['lunsize'])
+                    PrintOnSameLine(", VDI create")
+                    vdi_ref = self.Create_VDI(sr_ref, lunsizeBytes)                
                     retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                    Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
+                    XenCertPrint("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
                     # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
                     newsize = int(retSize)/2
-                    retVal = self.Resize_VDI(vdi_ref, int(newsize))
-                    if retVal == True:
+                    try:
+                        PrintOnSameLine(", VDI resize (shrink)")
+                        self.Resize_VDI(vdi_ref, int(newsize))                    
                         displayOperationStatus(False)
-                    else:
+                    except:
                         checkPoints += 1
-                        displayOperationStatus(True)
-                    report(self.Destroy_VDI(vdi_ref), True)
-                report(self.Destroy_SR(sr_ref), True)
-                retVal = True
-            else:
-                # create SR failed
-                displayOperationStatus(False)
-
+                    PrintOnSameLine(", VDI destroy")
+                    self.Destroy_VDI(vdi_ref, sr_ref)
+                    Print(", SR destroy")
+                    self.Destroy_SR(sr_ref)
+                    displayOperationStatus(True)
+                except Exception, e:
+                    Print(" Exception: %s" % str(e))
+                    displayOperationStatus(False)
+            finally:
+                self.cleanupTestObjs(sr_ref, [vdi_ref])
+            
             #    .VDI.grow
-            Print ("  >> SR create, VDI create, [check size], VDI resize (grow), [check size], repeat, VDI destroy, SR destroy")
-            totalCheckPoints += 1
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            if retVal:
-                self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
-                lunsizeBytes = int(self.configuration['lunsize'])
-                (retVal, vdi_ref) = self.Create_VDI(sr_ref, lunsizeBytes)
-                if self.sm_config.has_key('supports_resize') and self.sm_config['supports_resize'] == 'True':
-                    if retVal:
+            try:
+                try:
+                    PrintOnSameLine("  >> SR create")
+                    sr_ref = None
+                    vdi_ref = None
+                    (sr_ref, dconf) = self.Create_SR()            
+                    self.sm_config =  self.session.xenapi.SR.get_sm_config(sr_ref)
+                    lunsizeBytes = int(self.configuration['lunsize'])
+                    PrintOnSameLine(", VDI create")
+                    vdi_ref = self.Create_VDI(sr_ref, lunsizeBytes)
+                    if self.sm_config.has_key('supports_resize') and self.sm_config['supports_resize'] == 'True':
+                        PrintOnSameLine(", [check size]")
                         retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                        Print("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
+                        XenCertPrint("      Requested size is %d, actually created %d" % (lunsizeBytes, int(retSize)))
                         # checksize wkc: fixfix, newsize should be twice the size of the original, for now simply print
-                        passed = 1
+                        PrintOnSameLine(", VDI resize")
                         for i in range(0,10):
+                            totalCheckPoints += 1
                             newsize = int(retSize)+int(self.configuration['growsize'])
-                            retVal = self.Resize_VDI(vdi_ref, int(newsize))
-                            if retVal:
+                            try:
+                                self.Resize_VDI(vdi_ref, int(newsize))                            
                                 # recheck new size wkc: fixfix
                                 retSize = self.session.xenapi.VDI.get_virtual_size(vdi_ref)
-                                Print("      Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
-                                displayOperationStatus(True)
-                            else:
-                                # resize failed
+                                XenCertPrint("      Repeat: Requested re-size is %s, actually created %s" % (str(newsize), str(retSize)))
+                                checkPoints += 1
+                            except Exception, e:
+                                Print(" Exception: %s" % str(e))
                                 displayOperationStatus(False)
-                                passed = 0
-                        checkPoints += passed
                     else:
-                        # create VDI failed
-                        displayOperationStatus(False)
-                else:
-                    # VDI resize not supported
-                    checkPoints += 1
+                        # VDI resize not supported
+                        checkPoints += 1
+                    PrintOnSameLine(", VDI destroy")
+                    self.Destroy_VDI(vdi_ref, sr_ref)
+                    Print(", SR destroy")
+                    self.Destroy_SR(sr_ref)
                     displayOperationStatus(True)
-                report(self.Destroy_VDI(vdi_ref), True)
-                report(self.Destroy_SR(sr_ref), True)
-            else:
-                # create SR failed
-                displayOperationStatus(False)
-
+                except Exception, e:
+                    Print(" Exception: %s" % str(e))
+                    displayOperationStatus(False)
+            finally:
+                self.cleanupTestObjs(sr_ref, [vdi_ref])            
+            
             # multiple host PBD plug/unplugs - requires a shared SR
-            Print ("  >> Mulitple host tests")
-            try:
-                host_list = self.session.xenapi.host.get_all()
-                if len(host_list) > 1:
-                    Print ("  >> create SR, unplug all PBDs.")
-                    totalCheckPoints += 1
-                    (retVal, sr_ref, dconf) = self.Create_SR(True)
-                    if retVal:
-                        passed = 1
-                        pbd_list = self.getAllPBDs(sr_ref)
-                        for pbd_ref in pbd_list:
-                            if self.Unplug_PBD(pbd_ref) == False:
-                                passed = 0
-                        checkPoints += passed
-                    else:
-                        # unplug failed
-                        displayOperationStatus(False)
-
-                    #    .PBD.plug then PBD.unplug shared SR on master while slave PBD unplugged
-                    Print ("  >> PBD plug and unplug on master with slave PBD unplugged")
-                    totalCheckPoints += 1
+            Print ("  >> Multiple host tests")            
+            host_list = self.session.xenapi.host.get_all()
+            if len(host_list) != 1:
+                try:
                     try:
+                        Print ("  >> create SR, unplug all PBDs.")
+                        totalCheckPoints += 1
+                        sr_ref = None
+                        mpbd = None
+                        spbd = None
+                        (sr_ref, dconf) = self.Create_SR(True)                
                         poolref = self.session.xenapi.pool.get_all()[0]
                         masterref = self.session.xenapi.pool.get_master(poolref)
+                        pbd_list = self.session.xenapi.SR.get_PBDs(sr_ref)
                         passed = 1
                         for pbd_ref in pbd_list:
-                            if self.session.xenapi.PBD.get_host(pbd_ref) == masterref:
-                                mpbd = pbd_ref
-                                if self.Plug_PBD(mpbd) == False:
-                                    passed = 0
-                        if self.Unplug_PBD(mpbd) == False:
-                            passed = 0
-                        checkPoints += passed
-                        displayOperationStatus(passed == 1)
-                    except Exception, e:
-                        # failed to operate on xapi
-                        XenCertPrint("Exception: %s" % str(e))
-                        displayOperationStatus(False)
-                
-                    #    .PBD.plug then PBD.unplug shared SR on slave while master PBD unplugged
-                    Print ("  >> PBD plug and unplug on slave with master PBD unplugged")
-                    totalCheckPoints += 1
-                    try:
-                        poolref = self.session.xenapi.pool.get_all()[0]
-                        masterref = self.session.xenapi.pool.get_master(poolref)
-                        passed = 1
-                        for pbd_ref in pbd_list:
-                            if self.session.xenapi.PBD.get_host(pbd_ref) != masterref:
+                            if mpbd == None and self.session.xenapi.PBD.get_host(pbd_ref) == masterref:
+                                mpdb = pbd_ref
+                            elif spbd == None:
                                 spbd = pbd_ref
-                                if self.Plug_PBD(spbd) == False:
-                                    passed = 0
-                                break
-                        if self.Unplug_PBD(spbd) == False:
-                            passed = 0
-                        checkPoints += passed
-                        displayOperationStatus(passed == 1)
+                            
+                            try:
+                                self.Unplug_PBD(pbd_ref)
+                            except:
+                                passed = 0
+                        checkPoints += passed                
+            
+                        #    .PBD.plug then PBD.unplug shared SR on master while slave PBD unplugged
+                        Print ("  >> PBD plug and unplug on master with slave PBD unplugged")
+                        totalCheckPoints += 1                
+                        self.Plug_PBD(mpbd)
+                        self.Unplug_PBD(mpbd)                    
+                        checkPoints += 1
+                        displayOperationStatus(True)
+                    
+                        #    .PBD.plug then PBD.unplug shared SR on slave while master PBD unplugged
+                        Print ("  >> PBD plug and unplug on slave with master PBD unplugged")
+                        self.Plug_PBD(spbd)                                
+                        self.Unplug_PBD(spbd)
+                        checkPoints += 1
+                        displayOperationStatus(True)
+            
+                        #    .PBD.plug then PBD.unplug shared SR on master while slave PBD missing
+                        Print ("  >> PBD plug and unplug on master with slave PBD missing")
+                        self.session.xenapi.PBD.destroy(spbd)
+                        self.Plug_PBD(mpbd)
+                        self.Unplug_PBD(pbd_ref)
+                        displayOperationStatus(True)
                     except Exception, e:
-                        # failed to operate on xapi
-                        XenCertPrint("Exception: %s" % str(e))
+                        Print(" Exception: %s" % str(e))
                         displayOperationStatus(False)
-
-                    #    .PBD.plug then PBD.unplug shared SR on master while slave PBD missing
-                    Print ("  >> PBD plug and unplug on master with slave PBD missing")
-                    totalCheckPoints += 1
-                    try:
-                        poolref = self.session.xenapi.pool.get_all()[0]
-                        masterref = self.session.xenapi.pool.get_master(poolref)
-                        passed = 1
-                        # delete all but master PBD
-                        for pbd_ref in pbd_list:
-                            if self.session.xenapi.PBD.get_host(pbd_ref) != masterref:
-                                self.session.xenapi.PBD.destroy(pbd_ref)
-                        pbd_list = self.getAllPBDs(sr_ref)
-                        # should only be one left
-                        if len(pbd_list) != 1:
-                            displayOperationStatus(False)
-                        else:
-                            pbd_ref = pbd_list[0]
-                            if self.session.xenapi.PBD.get_host(pbd_ref) != masterref:
-                                displayOperationStatus(False)
-                            else:
-                                if self.Plug_PBD(pbd_ref) == False:
-                                    displayOperationStatus(False)
-                                else:
-                                    if self.Unplug_PBD(pbd_ref) == False:
-                                        displayOperationStatus(False)
-                                    else:
-                                        checkPoints += 1
-                                        displayOperationStatus(True)
-                                        self.session.xenapi.PBD.destroy(pbd_ref)
-                                        report(self.Forget_SR(sr_ref), True)
-                    except Exception, e:
-                        # failed to operate on xapi
-                        XenCertPrint("Exception: %s" % str(e))
-                        displayOperationStatus(False)
-                else:
-                    Print ("  >> Only one host detected, skipping")
-            except:
-                Print ("  >> Failed to get host list, skipping")
-               
+                finally:
+                    self.cleanupTestObjs(sr_ref)
         except Exception, e:
-            raise
+            Print(" Exception: %s" % str(e))
+            displayOperationStatus(False)
+            raise Exception(str(e))
 
         if checkPoints != totalCheckPoints:
             retVal = False
@@ -3584,9 +3602,7 @@ class StorageHandlerISL(StorageHandler):
             checkPoint += 1
 
             #13)create clone/snapshot VDI
-            (retVal, snap_ref) = self.Snapshot_VDI(vdi_ref)
-            if not retVal:
-                raise Exception("VDI Snapshot Failed")
+            snap_ref = self.Snapshot_VDI(vdi_ref)            
             Print("Snapshot of the VDI created")
             checkPoint += 1
 
@@ -3600,7 +3616,7 @@ class StorageHandlerISL(StorageHandler):
 
             #15)destroy orignal VDI and check snapshot VDI still valid
             StorageHandlerUtil.Detach_VDI(self.session, vdi_ref)
-            retVal = self.Destroy_VDI(vdi_ref)
+            retVal = self.Destroy_VDI(vdi_ref, sr_ref)
             if not retVal:
                 raise Exception("VDI Destroy Failed")
             Print("VDI destroyed successfully")
@@ -3615,7 +3631,7 @@ class StorageHandlerISL(StorageHandler):
 
             #17)cleanup here
             StorageHandlerUtil.Detach_VDI(self.session, snap_ref)
-            retVal = self.Destroy_VDI(snap_ref)
+            retVal = self.Destroy_VDI(snap_ref, sr_ref)
             if not retVal:
                 raise Exception("snapshot destroy failed")
             retVal = self.Destroy_SR(sr_ref)
