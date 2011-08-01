@@ -47,7 +47,7 @@ READ_ONLY_TAG = 'read_only'
 MANAGED_TAG = 'managed'
 SNAPSHOT_TIME_TAG = 'snapshot_time'
 METADATA_OF_POOL_TAG = 'metadata_of_pool'
-LOCATION_TAG = 'location'
+SVID_TAG = 'svid'
 LUN_LABEL_TAG = 'll'
 VDI_SECTOR_1 = "<%s><%s>%s</%s><%s>%s</%s>" % (VDI_TAG,
                                                NAME_LABEL_TAG,
