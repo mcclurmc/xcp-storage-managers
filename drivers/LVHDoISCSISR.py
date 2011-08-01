@@ -94,7 +94,11 @@ class LVHDoISCSISR(LVHDSR.LVHDSR):
                             dict[IQN] = ""
                 else:                    
                     for tgt in self.dconf['target'].split(','):
-                        map = iscsilib.discovery(tgt,iscsi.port,iscsi.chapuser,iscsi.chappassword,targetIQN=IQN)
+                        try:
+                            tgt_ip = util._convertDNS(tgt)
+                        except:
+                            raise xs_errors.XenError('DNSError')
+                        map = iscsilib.discovery(tgt_ip,iscsi.port,iscsi.chapuser,iscsi.chappassword,targetIQN=IQN)
                         util.SMlog("Discovery for IP %s returned %s" % (tgt,map))
                         for i in range(0,len(map)):
                             (portal,tpgt,iqn) = map[i]
