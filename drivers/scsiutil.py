@@ -14,7 +14,6 @@
 # Miscellaneous scsi utility functions
 #
 
-import lock
 import util, SR
 import os
 import re
@@ -23,15 +22,10 @@ import base64
 import time
 import errno
 import glob
-from datetime import datetime
-from xmlrpclib import DateTime
 
 PREFIX_LEN = 4
 SUFFIX_LEN = 12
 SECTOR_SHIFT = 9
-HOST_LOCK_NAME_FORMAT = 'host%s'
-RESCAN_LOCK_NAME = 'rescan'
-START_TIME_FILE_PATH_FORMAT = '/var/run/host%s_starttime_%s'
 
 def gen_hash(st, len):
     hs = 0
@@ -482,95 +476,3 @@ def refresh_scsi_channel(channel):
         util.wait_for_path('/dev/disk/by-scsibus/*-%s' % newhbtlstr, DEV_WAIT)
 
     return True
-
-def _rescan_hostID(host):
-    util.SMlog("Performing rescan of host ID %s" % host)
-    path = '/sys/class/scsi_host/host%s/scan' % host
-    if os.path.exists(path):
-        try:
-            scanstring = "- - -"
-            f=open(path, 'w')
-            f.write('%s\n' % scanstring)
-            f.close()
-            # allow some time for undiscovered LUNs/channels to appear
-            time.sleep(2)
-        except Exception, e:
-            util.SMlog("Failed to perform full rescan of host: %s. "\
-                   "Error: %s" % (host, str(e)))
-            rescan(host)
-            
-def safe_host_rescan(hostid):
-    try:
-        try:
-            # get the current time, call it x
-            curr_time = datetime.utcnow()
-            
-            # acquire common lock
-            l = lock.Lock(RESCAN_LOCK_NAME, HOST_LOCK_NAME_FORMAT % hostid)
-            l.acquire()
-            
-            while(1):
-                # check if starttime_anything exists
-                tryRescan = False
-                files = glob.glob(START_TIME_FILE_PATH_FORMAT % (hostid, '*'))
-                if len(files) == 0:
-                    # if not, create starttime_x
-                    path = START_TIME_FILE_PATH_FORMAT % (hostid, str(curr_time))
-                    path = path.replace(' ', '_')
-                    open(path, 'w').close()
-                    
-                    # release common lock
-                    l.release()
-                    
-                    # perform host rescan
-                    _rescan_hostID(hostid)
-                    
-                    # acquire common lock
-                    l.acquire()
-                
-                    # remove starttime_x
-                    os.unlink(path)
-                    
-                    # release common lock and exit 
-                    l.release()
-                    break
-                else:
-                    # if it does
-                    # read the start time 
-                    start_time = files[0].split(START_TIME_FILE_PATH_FORMAT % (hostid, ''))[1]
-                    start_time = DateTime(start_time.replace('__', ' '))                     
-                    
-                    while(1):
-                        # stick around till start_time exists
-                        # drop common lock
-                        l.release()
-                    
-                        # sleep for a sec
-                        time.sleep(1)
-                
-                        # acquire common lock
-                        l.acquire()
-                    
-                        # check if start time exists
-                        if len(glob.glob(START_TIME_FILE_PATH_FORMAT % \
-                                         (hostid, '*'))) == 0:
-                            tryRescan = False
-                            if DateTime(str(curr_time)) < start_time:
-                                # we are cool, this started before the rescan
-                                # drop common lock and go home
-                                l.release()                                
-                            else:
-                                # try to start a rescan
-                                tryRescan = True
-                            break
-                        # else continue by default
-                
-                if not tryRescan:
-                    break
-                
-        except Exception, e:
-            util.SMlog("Failed to perform rescan of host: %s. "\
-                       "Error: %s" % (hostid, str(e)))
-    finally:
-        l.release()
-        
