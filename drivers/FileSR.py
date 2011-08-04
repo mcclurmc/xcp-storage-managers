@@ -800,9 +800,7 @@ class FileVDI(VDI.VDI):
         text = util.pread(cmd)
 
     def _mark_hidden(self, path):
-        cmd = [SR.TAPDISK_UTIL, "set", vhdutil.VDI_TYPE_VHD, path,
-                "hidden", "1"]
-        text = util.pread(cmd)
+        vhdutil.setHidden(path, True)
         self.hidden = 1
 
     def extractUuid(path):
