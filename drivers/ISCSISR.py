@@ -453,10 +453,11 @@ class ISCSISR(SR.SR):
         map.append(("%s:%d" % (self.targetlist,self.port),"0","*"))
         self.print_entries(map)
 
-    def _attach_LUN_bylunid(self, lunid):
+    def _attach_LUN_bylunid(self, lunid, mpath = False):
         if not self.attached:
             raise xs_errors.XenError('SRUnavailable')
         connected = []
+        cur_SCSIid = None
         for val in self.adapter:
             if not self.pathdict.has_key(val):
                 continue
@@ -498,6 +499,14 @@ class ISCSISR(SR.SR):
                     util.SMlog("Unable to detect LUN attached to host on path [%s]" % path)
                     continue
             connected.append(path)
+        
+        # if multipath enabled, refresh the mpath mapper
+        cur_scsibuspath = glob.glob('/dev/disk/by-scsibus/*-%s:0:0:%s' % (host,lunid))
+        cur_SCSIid = os.path.basename(cur_scsibuspath[0]).split("-")[0]
+        if mpath:
+            self._mpathHandle()
+            self.mpathmodule.refresh(cur_SCSIid, len(connected))
+            
         return connected
 
     def _attach_LUN_byserialid(self, serialid):

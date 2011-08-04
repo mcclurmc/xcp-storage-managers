@@ -188,6 +188,9 @@ rm -rf $RPM_BUILD_ROOT
 /opt/xensource/sm/scsiutil.py
 /opt/xensource/sm/scsiutil.pyc
 /opt/xensource/sm/scsiutil.pyo
+/opt/xensource/sm/scsi_host_rescan.py
+/opt/xensource/sm/scsi_host_rescan.pyc
+/opt/xensource/sm/scsi_host_rescan.pyo
 /opt/xensource/sm/snapwatchd/_xslib.so
 /opt/xensource/sm/snapwatchd/snapwatchd
 /opt/xensource/sm/snapwatchd/xslib.py

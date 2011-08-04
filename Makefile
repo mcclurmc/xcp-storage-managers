@@ -20,6 +20,7 @@ SM_LIBS += lvutil
 SM_LIBS += lvmcache
 SM_LIBS += util
 SM_LIBS += scsiutil
+SM_LIBS += scsi_host_rescan
 SM_LIBS += vhdutil
 SM_LIBS += lvhdutil
 SM_LIBS += xs_errors
