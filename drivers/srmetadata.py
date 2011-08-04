@@ -781,7 +781,6 @@ class SLMetadataHandler(MetadataHandler):
     
     # constructor
     def __init__(self, path = None, write = True):
-        lvutil.ensurePathExists(path)
         MetadataHandler.__init__(self, path, write)
     
     def spaceAvailableForVdis(self, count):
