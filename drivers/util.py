@@ -1204,3 +1204,19 @@ def findRunningProcessOrOpenFile(name, process = True):
         return (retVal, links)
     else:
         return (retVal, processandpids)
+
+def retry(f, maxretry=20, period=3):
+    retries = 0
+    while True:
+        try:            
+            return f()
+        except Exception, e:
+            SMlog("Got exception: %s. Retry number: %s" % (str(e),retries))
+
+        retries += 1
+        if retries >= maxretry:
+            break
+
+        time.sleep(period)
+
+    return f()
