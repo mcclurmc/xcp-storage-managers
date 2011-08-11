@@ -22,6 +22,7 @@ import base64
 import time
 import errno
 import glob
+import mpath_cli
 
 PREFIX_LEN = 4
 SUFFIX_LEN = 12
@@ -492,40 +493,42 @@ def remove_stale_luns(hostids, lunid, expectedPath, mpath):
                     util.SMlog("Warning! The lun %s should not be present and" \
                                     " be valid on this system." % lun)
                 except:
-                    # get the HBTL
-                    basename = os.path.basename(lun)
-                    hbtl_list = basename.split(':')
-                    hbtl = basename.split('-')[1]
+                    # Now do the rest.
+                    pass
+                
+                # get the HBTL
+                basename = os.path.basename(lun)
+                hbtl_list = basename.split(':')
+                hbtl = basename.split('-')[1]
+                
+                # the first one in scsiid-hostid
+                hbtl_list[0] = hbtl_list[0].split('-')[1]
+                
+                expectedPath = expectedPath + '*' + hbtl
+                if not os.path.exists(expectedPath):
+                    # wait for sometime and check if the expected path exists
+                    # check if a rescan was done outside of this process
+                    time.sleep(2)
+                
+                if os.path.exists(expectedPath):
+                    # do not remove device, this might be dangerous
+                    util.SMlog("Path %s appeared before checking for "\
+                        "stale LUNs, ignore this LUN %s." (expectedPath, lun))
+                    continue                        
                     
-                    # the first one in scsiid-hostid
-                    hbtl_list[0] = hbtl_list[0].split('-')[1]
-                    
-                    expectedPath = expectedPath + '*' + hbtl
-                    if not os.path.exists(expectedPath):
-                        # wait for sometime and check if the expected path exists
-                        # check if a rescan was done outside of this process
-                        time.sleep(2)
-                    
-                    if os.path.exists(expectedPath):
-                        # do not remove device, this might be dangerous
-                        util.SMlog("Path %s appeared before checking for "\
-                            "stale LUNs, ignore this LUN %s." (expectedPath, lun))
-                        continue                        
-                        
-                    # remove the scsi device
-                    l = [os.path.realpath(lun), hbtl_list[0], hbtl_list[1], \
-                         hbtl_list[2], hbtl_list[3]]
-                    scsi_dev_ctrl(l, 'remove')
-                    
-                    # if multipath is enabled, do a best effort cleanup
-                    if mpath:
-                        try:
-                            path = os.path.basename(os.path.realpath(lun))
-                            mpath_cli.remove_path(path)
-                        except Exception, e:
-                            util.SMlog("Failed to remove path %s, ignoring "\
-                                "exception as path may not be present. "\
-                                "Error: %s" % (path, str(e)))
+                # remove the scsi device
+                l = [os.path.realpath(lun), hbtl_list[0], hbtl_list[1], \
+                     hbtl_list[2], hbtl_list[3]]
+                scsi_dev_ctrl(l, 'remove')
+                
+                # if multipath is enabled, do a best effort cleanup
+                if mpath:
+                    try:
+                        path = os.path.basename(os.path.realpath(lun))
+                        mpath_cli.remove_path(path)
+                    except Exception, e:
+                        util.SMlog("Failed to remove path %s, ignoring "\
+                            "exception as path may not be present." % path)
     except Exception, e:
         util.SMlog("Exception removing stale LUNs, new devices may not come"\
                    " up properly! Error: %s" % str(e))
