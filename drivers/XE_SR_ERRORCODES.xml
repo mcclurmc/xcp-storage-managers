@@ -815,7 +815,7 @@
         </code>
         <code>
                 <name>CSLGConfigAdapterMissing</name>
-                <description>The adapter id is missing</description>
+                <description>The adapter id is missing or unknown</description>
                 <value>432</value>
         </code>
         <code>
