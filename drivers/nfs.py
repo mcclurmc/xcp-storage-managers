@@ -70,9 +70,16 @@ def soft_mount(mountpoint, remoteserver, remotepath, transport):
                                                SOFTMOUNT_RETRANS,
                                                transport)
 
-    # CA-27534: don't cache directory attributes.
-    # so slaves follow snapshot name flips consistently.
-    options += ',acdirmin=0,acdirmax=0'
+    # don't cache attributes.
+    #
+    # acdirmax=0,
+    #   so slaves follow snapshot name flips consistently (CA-27534)
+    #
+    # acregmax=0,
+    #   so new nodes get their mode bits straight (CA-63601)
+    #
+    # this is different from noac. noac implies 'sync', which is gross.
+    options += ',actimeo=0'
 
     try:
         util.ioretry(lambda: 
