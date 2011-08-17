@@ -3465,7 +3465,7 @@ class StorageHandlerISL(StorageHandler):
                         passed = 1
                         for pbd_ref in pbd_list:
                             if mpbd == None and self.session.xenapi.PBD.get_host(pbd_ref) == masterref:
-                                mpdb = pbd_ref
+                                mpbd = pbd_ref
                             elif spbd == None:
                                 spbd = pbd_ref
                             
@@ -3477,7 +3477,7 @@ class StorageHandlerISL(StorageHandler):
             
                         #    .PBD.plug then PBD.unplug shared SR on master while slave PBD unplugged
                         Print ("  >> PBD plug and unplug on master with slave PBD unplugged")
-                        totalCheckPoints += 1                
+                        totalCheckPoints += 1
                         self.Plug_PBD(mpbd)
                         self.Unplug_PBD(mpbd)                    
                         checkPoints += 1
@@ -3485,6 +3485,7 @@ class StorageHandlerISL(StorageHandler):
                     
                         #    .PBD.plug then PBD.unplug shared SR on slave while master PBD unplugged
                         Print ("  >> PBD plug and unplug on slave with master PBD unplugged")
+                        totalCheckPoints += 1
                         self.Plug_PBD(spbd)                                
                         self.Unplug_PBD(spbd)
                         checkPoints += 1
@@ -3494,7 +3495,7 @@ class StorageHandlerISL(StorageHandler):
                         Print ("  >> PBD plug and unplug on master with slave PBD missing")
                         self.session.xenapi.PBD.destroy(spbd)
                         self.Plug_PBD(mpbd)
-                        self.Unplug_PBD(pbd_ref)
+                        self.Unplug_PBD(mpbd)
                         displayOperationStatus(True)
                     except Exception, e:
                         Print(" Exception: %s" % str(e))
