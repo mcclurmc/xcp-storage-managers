@@ -3529,28 +3529,17 @@ class StorageHandlerISL(StorageHandler):
         try:
             ###  Resize ###
             #1)Create SR
-            (retVal, sr_ref, dconf) = self.Create_SR()
-            Print("Create SR, status:%s"%(retVal))
+            (sr_ref, dconf) = self.Create_SR()
+            Print("Created SR")
+            #2)Create a 4GB VDI
+            vdi_ref = self.Create_VDI(sr_ref, 4*StorageHandlerUtil.GiB)
+            Print("Created 4GB VDI")
+            #3)Attach the VDI to dom0
+            checkPoint += 1
+            retVal = StorageHandlerUtil.Attach_VDI(self.session, vdi_ref, vm_ref)[0]
+            Print("Attached the VDI to dom0")
             if retVal:
-                #2)Create a 4GB VDI
-                (retVal, vdi_ref) = self.Create_VDI(sr_ref, 4*StorageHandlerUtil.GiB)
-                Print("Create 4GB VDI, status:%s"%(retVal))
-                if retVal:
-                    #3)Attach the VDI to dom0
-                    checkPoint += 1
-                    retVal = StorageHandlerUtil.Attach_VDI(self.session, vdi_ref, vm_ref)[0]
-                    Print("Attached the VDI to dom0")
-                    if retVal:
-                        checkPoint += 1
-                    else:
-                        # attach VDI failed
-                        displayOperationStatus(False)
-                else:
-                    # create VDI failed
-                    displayOperationStatus(False)
-            else:
-                # create SR failed
-                displayOperationStatus(False)
+                checkPoint += 1            
         except Exception, e:
             Print("Exception happened while performing data IO tests. %s"%e)
             retVal = False
@@ -3567,12 +3556,9 @@ class StorageHandlerISL(StorageHandler):
             checkPoint += 1
 
             #6)resize the vdi to 8GB
-            if self.Resize_VDI(vdi_ref, 8*StorageHandlerUtil.GiB):
-                 Print("Resized the VDI to 8GB")
-                 checkPoint += 1
-            else:
-                Print("VDI resize to 8GB Failed")
-                raise Exception("VDI resize failed")
+            self.Resize_VDI(vdi_ref, 8*StorageHandlerUtil.GiB)
+            Print("Resized the VDI to 8GB")
+            checkPoint += 1
 
             #7)attach vdi to dom0
             retVal = StorageHandlerUtil.Attach_VDI(self.session, vdi_ref, vm_ref)[0]
@@ -3625,9 +3611,7 @@ class StorageHandlerISL(StorageHandler):
 
             #15)destroy orignal VDI and check snapshot VDI still valid
             StorageHandlerUtil.Detach_VDI(self.session, vdi_ref)
-            retVal = self.Destroy_VDI(vdi_ref, sr_ref)
-            if not retVal:
-                raise Exception("VDI Destroy Failed")
+            self.Destroy_VDI(vdi_ref, sr_ref)
             Print("VDI destroyed successfully")
             checkPoint += 1
 
@@ -3640,12 +3624,8 @@ class StorageHandlerISL(StorageHandler):
 
             #17)cleanup here
             StorageHandlerUtil.Detach_VDI(self.session, snap_ref)
-            retVal = self.Destroy_VDI(snap_ref, sr_ref)
-            if not retVal:
-                raise Exception("snapshot destroy failed")
-            retVal = self.Destroy_SR(sr_ref)
-            if not retVal:
-                raise Exception("SR destroy failed")
+            self.Destroy_VDI(snap_ref, sr_ref)
+            self.Destroy_SR(sr_ref)
             Print("Cleaned up, Destroyed snapshots, SR used for testing") 
 
         except Exception, e:
