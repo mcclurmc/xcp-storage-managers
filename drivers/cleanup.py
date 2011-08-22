@@ -2413,6 +2413,7 @@ def _gc(session, srUuid, dryRun):
     finally:
         sr.cleanup()
         sr.logFilter.logState()
+        del sr.xapi
 
 def _abort(srUuid):
     """If successful, we return holding lockRunning; otherwise exception
