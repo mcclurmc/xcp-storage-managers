@@ -24,11 +24,11 @@ REPO := $(call hg_loc,sm)
 
 
 .PHONY: build
-build: $(SM_STAMP) $(SM_TESTS) $(MY_OUTPUT_DIR)/$(ERRORCODES_XML)
+build: sources $(SM_STAMP) $(SM_TESTS) $(MY_OUTPUT_DIR)/$(ERRORCODES_XML)
 
-$(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP) $(RPM_BUILD_COOKIE)
-	( echo "$(COMPONENT) gpl file $(RPM_SRPMSDIR)/$(SM_SRPM)" ; \
-	) >$@
+$(MY_SOURCES)/MANIFEST: $(RPM_SRPMSDIR)/$(SM_SRPM) $(MY_SOURCES_DIRSTAMP) $(RPM_BUILD_COOKIE)
+	rm -f $@
+	/bin/sh ./srpms-to-manifest api-libs $(MY_OUTPUT_DIR)/SRPMS > $@
 
 .PHONY: sources
 sources: $(MY_SOURCES)/MANIFEST
