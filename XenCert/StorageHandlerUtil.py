@@ -61,7 +61,8 @@ multiPathDefaultsMap = { 'udev_dir':'/dev',
 def PrintToLog(message):
     try:
 	global logfile
-	logfile.write(message)	
+	logfile.write(message)
+        logfile.flush()
     except:
 	pass
      
@@ -82,7 +83,7 @@ def PrintOnSameLine(message):
     try:
 	sys.stdout.write(message)
 	global logfile
-	logfile.write(message)
+	logfile.write(message)	
         logfile.flush()
     except:
 	pass
