@@ -73,6 +73,7 @@ def Print(message):
 	global logfile
 	logfile.write(message)
 	logfile.write('\n')
+        logfile.flush()
     except:
 	pass
 
@@ -81,7 +82,8 @@ def PrintOnSameLine(message):
     try:
 	sys.stdout.write(message)
 	global logfile
-	logfile.write(message)	
+	logfile.write(message)
+        logfile.flush()
     except:
 	pass
     
