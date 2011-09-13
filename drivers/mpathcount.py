@@ -157,7 +157,18 @@ def update_config(key, SCSIid, entry, remove, add, mpp_path_update = False):
         else:
             count = get_path_count(SCSIid)
             total = get_path_count(SCSIid, active=False)
-        newentry = [count, total]
+        max = 0
+	if len(entry) != 0:
+            try:
+                p = entry.strip('[')
+                p = p.strip(']')
+                q = p.split(',')
+                max = int(q[1])
+            except:
+                pass
+        if total > max:
+            max = total
+        newentry = [count, max]
         if str(newentry) != entry:
             remove('multipathed')
             remove(key)
