@@ -254,21 +254,29 @@ class TapCtl(object):
         tapctl = cls._call(args, True)
 
         for line in tapctl.stdout:
-
+            # FIXME: tap-ctl writes error messages to stdout and
+            # confuses this parser
+            if line == "blktap kernel module not installed\n":
+                # This isn't pretty but (a) neither is confusing stdout/stderr
+                # and at least causes the error to describe the fix
+                raise Exception, "blktap kernel module not installed: try 'modprobe blktap'"
             row = {}
 
             for field in line.rstrip().split(' ', 3):
-                key, val = field.split('=')
+                bits = field.split('=')
+                if len(bits) == 2:
+                    key, val = field.split('=')
 
-                if key in ('pid', 'minor'):
-                    row[key] = int(val, 10)
+                    if key in ('pid', 'minor'):
+                        row[key] = int(val, 10)
 
-                elif key in ('state'):
-                    row[key] = int(val, 0x10)
+                    elif key in ('state'):
+                        row[key] = int(val, 0x10)
 
+                    else:
+                        row[key] = val
                 else:
-                    row[key] = val
-
+                    util.SMlog("Ignoring unexpected tap-ctl output: %s" % repr(field))
             yield row
 
         tapctl._wait(True)
