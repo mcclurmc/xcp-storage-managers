@@ -69,17 +69,7 @@ def soft_mount(mountpoint, remoteserver, remotepath, transport):
     options = "soft,timeo=%d,retrans=%d,%s" % (SOFTMOUNT_TIMEOUT,
                                                SOFTMOUNT_RETRANS,
                                                transport)
-
-    # don't cache attributes.
-    #
-    # acdirmax=0,
-    #   so slaves follow snapshot name flips consistently (CA-27534)
-    #
-    # acregmax=0,
-    #   so new nodes get their mode bits straight (CA-63601)
-    #
-    # this is different from noac. noac implies 'sync', which is gross.
-    options += ',actimeo=0'
+    options += ',noac' # CA-27534
 
     try:
         util.ioretry(lambda: 
