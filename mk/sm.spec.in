@@ -225,11 +225,11 @@ rm -rf $RPM_BUILD_ROOT
 /opt/xensource/debug/XenCert/StorageHandlerUtil.pyc
 /opt/xensource/debug/XenCert/StorageHandlerUtil.pyo
 /opt/xensource/debug/XenCert/XenCert
-"/opt/xensource/debug/XenCert/XenCert 2.0 Guide_5.6_FeaturePack1.docx"
+"/opt/xensource/debug/XenCert/XenCert 2 0 Guide_6 0.docx"
 /opt/xensource/debug/XenCert/XenCertCommon.py
 /opt/xensource/debug/XenCert/XenCertCommon.pyc
 /opt/xensource/debug/XenCert/XenCertCommon.pyo
-/opt/xensource/debug/XenCert/XenCert_5.6_FeaturePack1_Verification_Results_CheckList.docx
+"/opt/xensource/debug/XenCert/XenCert_6 0_Verification_Results_CheckList.docx"
 /opt/xensource/debug/XenCert/blockunblockHBAPort.sh.brocade
 /opt/xensource/debug/XenCert/blockunblockHBAPort.sh.cisco
 /opt/xensource/debug/XenCert/blockunblockHBAPort.sh.qlogic
