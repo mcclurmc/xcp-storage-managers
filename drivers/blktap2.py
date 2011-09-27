@@ -1937,6 +1937,24 @@ class XenbusDevice(BusDevice):
         assert(ok == True)
         self._xbt = XenbusDevice.XBT_NIL
 
+    def create_physical_device(self):
+        """The standard protocol is: toolstack writes 'params', linux hotplug
+        script translates this into physical-device=%x:%x"""
+        if self.has_key("physical-device"):
+            return
+        try:
+            params = self.read("params")
+            frontend = self.read("frontend")
+            is_cdrom = self._xs_read_path("%s/device-type") == "cdrom"
+            # We don't have PV drivers for CDROM devices, so we prevent blkback
+            # from opening the physical-device
+            if not(is_cdrom):
+                major_minor = os.stat(params).st_rdev
+                major, minor = divmod(major_minor, 256)
+                self.write("physical-device", "%x:%x" % (major, minor))
+        except:
+            util.logException("BLKTAP2:create_physical_device")
+
     def signal_hotplug(self, online=True):
         xapi_path = "/xapi/%d/hotplug/%s/%d/hotplug" % (self.domid, 
                                                    self.XENBUS_DEVTYPE,
@@ -2206,6 +2224,8 @@ class BlkbackEventHandler(UEventHandler):
 
         # Manage blkback transitions
         # self._manage_vbd()
+
+        vbd.create_physical_device()
 
         vbd.signal_hotplug()
 
