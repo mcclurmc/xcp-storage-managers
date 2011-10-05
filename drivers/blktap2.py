@@ -911,6 +911,7 @@ class VDI(object):
             'vhd'  : 'vhd',
             'iso'  : 'aio', # for ISO SR
             'aio'  : 'aio', # for LVHD
+            'file' : 'aio',
             } [vdi_type]
 
     def get_tap_type(self):
