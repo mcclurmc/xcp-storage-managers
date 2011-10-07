@@ -109,7 +109,7 @@ class SHMVDI(VDI.VDI):
         VDI.VDI.__init__(self, mysr, None)
         self.label = filename
         self.location = filename
-        self.vdi_type = "disk"
+        self.vdi_type = 'file'
         self.read_only = True
         self.shareable = True
         self.sm_config = {}
