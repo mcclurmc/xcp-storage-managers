@@ -272,11 +272,12 @@ class VDI(object):
     def _db_introduce(self):
         uuid = util.default(self, "uuid", lambda: util.gen_uuid())
         sm_config = util.default(self, "sm_config", lambda: {})
-        vdi = self.sr.session.xenapi.VDI.db_introduce(uuid, self.label, self.description, self.sr.sr_ref, "user", self.shareable, self.read_only, {}, self.location, {}, {})
-        self.sr.session.xenapi.VDI.set_sm_config(vdi, sm_config)
-        self.sr.session.xenapi.VDI.set_managed(vdi, self.managed)
-        self.sr.session.xenapi.VDI.set_virtual_size(vdi, str(self.size))
-        self.sr.session.xenapi.VDI.set_physical_utilisation(vdi, str(self.utilisation))
+        ty = util.default(self, "ty", lambda: "user")
+        is_a_snapshot = util.default(self, "is_a_snapshot", lambda: False)
+        metadata_of_pool = util.default(self, "metadata_of_pool", lambda: "OpaqueRef:NULL")
+        snapshot_time = util.default(self, "snapshot_time", lambda: "19700101T00:00:00Z")
+        snapshot_of = util.default(self, "snapshot_of", lambda: "OpaqueRef:NULL")
+        vdi = self.sr.session.xenapi.VDI.db_introduce(uuid, self.label, self.description, self.sr.sr_ref, ty, self.shareable, self.read_only, {}, self.location, {}, sm_config, self.managed, str(self.size), str(self.utilisation), metadata_of_pool, is_a_snapshot, xmlrpclib.DateTime(snapshot_time), snapshot_of)
         return vdi
 
     def _db_forget(self):

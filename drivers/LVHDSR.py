@@ -1254,19 +1254,17 @@ class LVHDVDI(VDI.VDI):
 
         if not self.sr.legacyMode:
             LVMMetadataHandler(self.sr.mdpath).ensureSpaceIsAvailableForVdis(1)
-        
+
         self.ref = self._db_introduce()
         self.sr._updateStats(self.sr.uuid, self.size)
 
         vdi_info = { UUID_TAG: self.uuid,
-                                NAME_LABEL_TAG: util.to_plain_string( \
-                                            self.sr.srcmd.params['args'][1]),
-                                NAME_DESCRIPTION_TAG: util.to_plain_string(\
-                                    self.sr.srcmd.params['args'][2]),
+                                NAME_LABEL_TAG: util.to_plain_string(self.label),
+                                NAME_DESCRIPTION_TAG: util.to_plain_string(self.description),
                                 IS_A_SNAPSHOT_TAG: 0,
                                 SNAPSHOT_OF_TAG: '',
                                 SNAPSHOT_TIME_TAG: '',
-                                TYPE_TAG: self.sr.srcmd.params['vdi_type'],
+                                TYPE_TAG: self.ty,
                                 VDI_TYPE_TAG: self.vdi_type,
                                 READ_ONLY_TAG: int(self.read_only),
                                 MANAGED_TAG: int(self.managed),

@@ -145,6 +145,17 @@ class SRCommand:
                  blktap2.VDI.CONF_KEY_CACHE_SR])
 
         if self.cmd == 'vdi_create':
+            # These are the fields owned by the backend, passed on the
+            # commandline:
+            target.label = self.params['args'][1]
+            target.description = self.params['args'][2]
+            target.ty = self.params['vdi_type']
+            target.metadata_of_pool = self.params['args'][3]
+            target.is_a_snapshot = self.params['args'][4] == "true"
+            target.snapshot_time = self.params['args'][5]
+            target.snapshot_of = self.params['args'][6]
+            target.read_only = self.params['args'][7] == "true"
+
             return target.create(self.params['sr_uuid'], self.vdi_uuid, long(self.params['args'][0]))
 
         elif self.cmd == 'vdi_update':
