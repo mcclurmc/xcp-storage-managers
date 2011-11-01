@@ -1229,17 +1229,17 @@ class SR:
     KEY_OFFLINE_COALESCE_NEEDED = "leaf_coalesce_need_offline"
     KEY_OFFLINE_COALESCE_OVERRIDE = "leaf_coalesce_offline_override"
 
-    def getInstance(uuid, xapiSession, createLock = True):
+    def getInstance(uuid, xapiSession, createLock = True, force = False):
         xapi = XAPI(xapiSession, uuid)
         type = normalizeType(xapi.srRecord["type"])
         if type == SR.TYPE_FILE:
-            return FileSR(uuid, xapi, createLock)
+            return FileSR(uuid, xapi, createLock, force)
         elif type == SR.TYPE_LVHD:
-            return LVHDSR(uuid, xapi, createLock)
+            return LVHDSR(uuid, xapi, createLock, force)
         raise util.SMException("SR type %s not recognized" % type)
     getInstance = staticmethod(getInstance)
 
-    def __init__(self, uuid, xapi, createLock):
+    def __init__(self, uuid, xapi, createLock, force):
         self.logFilter = self.LogFilter(self)
         self.uuid = uuid
         self.path = ""
@@ -1258,9 +1258,14 @@ class SR:
         self._failedCoalesceTargets = []
 
         if not self.xapi.isPluggedHere():
-            raise util.SMException("SR %s not attached on this host" % uuid)
+            if force:
+                Util.log("SR %s not attached on this host, ignoring" % uuid)
+            else:
+                raise util.SMException("SR %s not attached on this host" % uuid)
 
-        if not self.xapi.isMaster():
+        if force:
+            Util.log("Not checking if we are Master (SR %s)" % uuid)
+        elif not self.xapi.isMaster():
             raise util.SMException("This host is NOT master, will not run")
 
     def gcEnabled(self, refresh = True):
@@ -1809,8 +1814,8 @@ class FileSR(SR):
     TYPE = SR.TYPE_FILE
     CACHE_FILE_EXT = ".vhdcache"
 
-    def __init__(self, uuid, xapi, createLock):
-        SR.__init__(self, uuid, xapi, createLock)
+    def __init__(self, uuid, xapi, createLock, force):
+        SR.__init__(self, uuid, xapi, createLock, force)
         self.path = "/var/run/sr-mount/%s" % self.uuid
         self.journaler = fjournaler.Journaler(self.path)
 
@@ -2022,8 +2027,8 @@ class LVHDSR(SR):
     TYPE = SR.TYPE_LVHD
     SUBTYPES = ["lvhdoiscsi", "lvhdohba"]
 
-    def __init__(self, uuid, xapi, createLock):
-        SR.__init__(self, uuid, xapi, createLock)
+    def __init__(self, uuid, xapi, createLock, force):
+        SR.__init__(self, uuid, xapi, createLock, force)
         self.vgName = "%s%s" % (lvhdutil.VG_PREFIX, self.uuid)
         self.path = os.path.join(lvhdutil.VG_LOCATION, self.vgName)
         self.lvmCache = lvmcache.LVMCache(self.vgName)
@@ -2528,7 +2533,7 @@ def gc_force(session, srUuid, force = False, dryRun = False, lockSR = False):
     """
     Util.log("=== SR %s: gc_force ===" % srUuid)
     init(srUuid)
-    sr = SR.getInstance(srUuid, session, lockSR)
+    sr = SR.getInstance(srUuid, session, lockSR, True)
     if not lockRunning.acquireNoblock():
         _abort(srUuid)
     else:

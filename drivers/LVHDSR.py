@@ -802,7 +802,7 @@ class LVHDSR(SR.SR):
         entries = self.journaler.getAll(cleanup.VDI.JRN_LEAF)
         if len(entries) > 0:
             util.SMlog("*** INTERRUPTED COALESCE-LEAF OP DETECTED ***")
-            cleanup.gc(self.session, self.uuid, False)
+            cleanup.gc_force(self.session, self.uuid)
             self.lvmCache.refresh()
 
     def _handleInterruptedCloneOp(self, origUuid, jval, forceUndo = False):
