@@ -21,9 +21,9 @@ install: _xslib.so xslib.py snapwatchd
 	mkdir -p $(DESTDIR)$(PREFIX)
 	install -m 644 $^ $(DESTDIR)$(PREFIX)
 	chmod +x $(DESTDIR)$(PREFIX)/snapwatchd
-	mkdir -p $(DESTDIR)$(INITDIR)
-	cp snapwatchd.init $(DESTDIR)$(INITDIR)/snapwatchd
-	chmod +x $(DESTDIR)$(INITDIR)/snapwatchd
+	#mkdir -p $(DESTDIR)$(INITDIR)
+	#cp snapwatchd.init $(DESTDIR)$(INITDIR)/snapwatchd
+	#chmod +x $(DESTDIR)$(INITDIR)/snapwatchd
 
 %.py %_wrap.c: %.i
 	$(SWIG) -python $<

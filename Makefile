@@ -69,7 +69,7 @@ SM_STAMP := $(MY_OBJ_DIR)/.staging_stamp
 .PHONY: build
 	make -C dcopy 
 	make -C snapwatchd
-	make -C mpathroot
+	#make -C mpathroot
 
 .PHONY: install
 install: 
@@ -99,7 +99,7 @@ install:
 	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDSR && ln -sf LVHDSR.py LVMSR
 	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDoISCSISR && ln -sf LVHDoISCSISR.py LVMoISCSISR
 	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDoHBASR && ln -sf LVHDoHBASR.py LVMoHBASR
-	ln -sf $(SM_DEST)mpathutil.py $(SM_STAGING)/sbin/mpathutil
+	#ln -sf $(SM_DEST)mpathutil.py $(SM_STAGING)/sbin/mpathutil
 	install -m 755 drivers/02-vhdcleanup $(SM_STAGING)$(MASTER_SCRIPT_DEST)
 	install -m 755 drivers/lvhd-thin $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
 	install -m 755 drivers/on-slave $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
@@ -114,15 +114,15 @@ install:
 	install -m 755 scripts/local-device-change $(SM_STAGING)$(LIBEXEC)
 	install -m 755 scripts/check-device-sharing $(SM_STAGING)$(LIBEXEC)
 	$(MAKE) -C dcopy install DESTDIR=$(SM_STAGING)
-	$(MAKE) -C snapwatchd install DESTDIR=$(SM_STAGING)
-	$(MAKE) -C mpathroot install DESTDIR=$(SM_STAGING)
+	#$(MAKE) -C snapwatchd install DESTDIR=$(SM_STAGING)
+	#$(MAKE) -C mpathroot install DESTDIR=$(SM_STAGING)
 	ln -sf $(SM_DEST)blktap2.py $(SM_STAGING)$(BIN_DEST)/blktap2
-	install -m 755 -d $(SM_STAGING)$(CRON_DEST)
-	install -m 644 $(CRON_JOBS:%=etc/cron.d/%) -t $(SM_STAGING)$(CRON_DEST)
-	install -m 755 drivers/runvmpr $(SM_STAGING)$(SM_DEST)
-	install -m 755 drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
+	#install -m 755 -d $(SM_STAGING)$(CRON_DEST)
+	#install -m 644 $(CRON_JOBS:%=etc/cron.d/%) -t $(SM_STAGING)$(CRON_DEST)
+	#install -m 755 drivers/runvmpr $(SM_STAGING)$(SM_DEST)
+	#install -m 755 drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
 	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats
-	cp -rf XenCert $(SM_STAGING)$(DEBUG_DEST)
+	#cp -rf XenCert $(SM_STAGING)$(DEBUG_DEST)
 
 .PHONY: clean
 clean:
