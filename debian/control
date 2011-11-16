@@ -1,4 +1,4 @@
-Source: xen-sm
+Source: xcp-storage-managers
 Section: libs
 Priority: extra
 Maintainer: Jon Ludlam <jonathan.ludlam@eu.citrix.com>
@@ -6,13 +6,12 @@ Build-Depends: debhelper (>= 8.0.0), swig, python2.6-dev, libxen-dev
 Standards-Version: 3.9.2
 Homepage: http://www.xen.org/products/cloudxen.html
 
-Package: xen-sm
+Package: xcp-storage-managers
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, uuid-runtime, blktap-utils
 Recommends: lvm2, nfs-common
 Section: libs
 Description: Storage backends for XenAPI
- XCP is a server virtualization platform which provides a rich
- XML-RPC based management API on top of the Xen hypervisor. xen-sm
- provides storage backend plugins for various storage types that XCP
- supports.
+ XCP is a server virtualization platform which provides a rich XML-RPC based
+ management API on top of the Xen hypervisor. xcp-storage-managers provides
+ storage backend plugins for various storage types that XCP supports.
