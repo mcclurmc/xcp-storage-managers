@@ -1,0 +1,11 @@
+--- a/snapwatchd/Makefile
++++ b/snapwatchd/Makefile
+@@ -8,7 +8,7 @@
+ PYTHON_INCLUDE ?= /usr/include/python2.6
+ 
+ CFLAGS ?= -O2
+-CFLAGS += -I$(PYTHON_INCLUDE) -I$(XS_INCLUDE)
++CFLAGS += -I$(PYTHON_INCLUDE) -I$(XS_INCLUDE) -fPIC
+ 
+ SWIG ?= swig
+ 
