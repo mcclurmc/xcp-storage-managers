@@ -1,6 +1,16 @@
+From: Jon Ludlam <jonathan.ludlam@eu.citrix.com>
+Date: Thu, 8 Dec 2011 17:06:01 +0000
+Subject: remove-xencert
+
+---
+ Makefile |    1 -
+ 1 files changed, 0 insertions(+), 1 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index fbe0213..1c15229 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -123,7 +123,6 @@
+@@ -122,7 +122,6 @@ install:
  	install -m 755 drivers/runvmpr $(SM_STAGING)$(SM_DEST)
  	install -m 755 drivers/vmpr $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
  	ln -sf $(SM_DEST)lcache.py $(SM_STAGING)$(BIN_DEST)tapdisk-cache-stats
@@ -8,3 +18,4 @@
  
  .PHONY: clean
  clean:
+-- 

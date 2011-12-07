@@ -1,3 +1,9 @@
+xcp-storage-managers (0.1-2) unstable; urgency=low
+
+  * New FHS compliant layout
+
+ -- Jon Ludlam <jon@frankenelmo.uk.xensource.com>  Wed, 07 Dec 2011 17:25:32 +0000
+
 xcp-storage-managers (0.1-1) unstable; urgency=low
 
   * Initial release (Closes: #646722)
