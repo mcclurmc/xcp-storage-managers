@@ -1,6 +1,16 @@
+From: Jon Ludlam <jonathan.ludlam@eu.citrix.com>
+Date: Thu, 8 Dec 2011 17:06:01 +0000
+Subject: lvm2-path
+
+---
+ drivers/lvutil.py |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/lvutil.py b/drivers/lvutil.py
+index e9bf30a..a6c9914 100755
 --- a/drivers/lvutil.py
 +++ b/drivers/lvutil.py
-@@ -31,7 +31,7 @@
+@@ -31,7 +31,7 @@ import vhdutil
  
  MDVOLUME_NAME = 'MGT'
  VDI_UUID_TAG_PREFIX = 'vdi_'
@@ -9,10 +19,11 @@
  CMD_VGS       = os.path.join(LVM_BIN, "vgs")
  CMD_VGCREATE  = os.path.join(LVM_BIN, "vgcreate")
  CMD_VGREMOVE  = os.path.join(LVM_BIN, "vgremove")
-@@ -575,4 +575,4 @@
+@@ -575,4 +575,4 @@ def removeDevMapperEntry(path):
          util.SMlog("removeDevMapperEntry: dmsetup remove failed for file %s " \
                     "with error %s." % (path, str(e)))
          return False
 -    
 \ No newline at end of file
 +    
+-- 

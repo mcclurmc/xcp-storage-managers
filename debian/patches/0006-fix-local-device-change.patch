@@ -1,15 +1,24 @@
+From: Jon Ludlam <jonathan.ludlam@eu.citrix.com>
+Date: Thu, 8 Dec 2011 17:06:02 +0000
+Subject: fix-local-device-change
+
 # HG changeset patch
 # Parent 48aa86a502ee5df1519d3ea42528c77d8fcf9ff6
+---
+ scripts/local-device-change |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/scripts/local-device-change b/scripts/local-device-change
+index 57fec20..2929bf1 100755
 --- a/scripts/local-device-change
 +++ b/scripts/local-device-change
-@@ -23,7 +23,7 @@
+@@ -23,7 +23,7 @@ CDROMMON="/usr/lib/xcp/lib/cdrommon"
  
- . /etc/xensource-inventory
+ . /etc/xcp/inventory
  
 -function remove_vdi {
 +remove_vdi () {
      local R_VDI=$1
      for VBD in `xe vbd-list params=uuid vdi-uuid=${R_VDI} currently-attached=true --minimal`
        do
+-- 

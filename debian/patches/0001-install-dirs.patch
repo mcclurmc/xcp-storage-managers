@@ -1,0 +1,1135 @@
+From: Jon Ludlam <jonathan.ludlam@eu.citrix.com>
+Date: Thu, 8 Dec 2011 17:06:00 +0000
+Subject: install-dirs
+
+---
+ Makefile                             |   10 +-
+ XenCert/StorageHandlerUtil.py        |    4 +-
+ XenCert/blockunblockhbapaths-brocade |    4 +-
+ XenCert/blockunblockhbapaths-cisco   |    4 +-
+ XenCert/blockunblockhbapaths-qlogic  |    4 +-
+ XenCert/blockunblockiscsipaths       |    4 +-
+ XenCert/blockunblockpaths            |    4 +-
+ dcopy/Makefile                       |    4 +-
+ drivers/02-vhdcleanup                |    4 +-
+ drivers/SR.py                        |    4 +-
+ drivers/VASSR.py                     |    2 +-
+ drivers/blktap2.py                   |    2 +-
+ drivers/coalesce-leaf                |    4 +-
+ drivers/lvhd-thin                    |    2 +-
+ drivers/mpath_dmp.py                 |    6 +-
+ drivers/mpathcount.py                |    2 +-
+ drivers/nfs-on-slave                 |    2 +-
+ drivers/on-slave                     |    2 +-
+ drivers/runvmpr                      |    2 +-
+ drivers/srmetadata.py                |    2 +-
+ drivers/tapdisk-pause                |    2 +-
+ drivers/updatempppathd.py            |    2 +-
+ drivers/util.py                      |   12 +-
+ drivers/vmpr                         |    2 +-
+ drivers/vss_control                  |    4 +-
+ drivers/xs_errors.py                 |    2 +-
+ etc/cron.d/vmpr                      |    2 +-
+ iscsi-mgt/host/XE_ops.sh             |    4 +-
+ mk/sm.spec.in                        |  406 +++++++++++++++++-----------------
+ mpathroot/mpathroot.init             |    2 +-
+ scripts/local-device-change          |    4 +-
+ snapwatchd/Makefile                  |    2 +-
+ snapwatchd/snapwatchd                |    4 +-
+ snapwatchd/snapwatchd.init           |    2 +-
+ tests/XE_api_library.sh              |    6 +-
+ tests/globals.sh                     |    2 +-
+ tests/lvhd_test/snapshot_stress.py   |    4 +-
+ tests/lvhd_test/storagemanager.py    |    6 +-
+ tests/lvhd_test/testsm.py            |    2 +-
+ tests/test1.sh                       |    6 +-
+ tests/test_dcopy.sh                  |   12 +-
+ tests/test_iscsi_refcount.sh         |    2 +-
+ tests/vmprtest                       |    2 +-
+ 43 files changed, 282 insertions(+), 282 deletions(-)
+
+--- a/Makefile
++++ b/Makefile
+@@ -55,12 +55,12 @@
+ 
+ SM_XML := XE_SR_ERRORCODES
+ 
+-SM_DEST := /opt/xensource/sm/
+-DEBUG_DEST := /opt/xensource/debug/
+-BIN_DEST := /opt/xensource/bin/
+-MASTER_SCRIPT_DEST := /etc/xensource/master.d/
+-PLUGIN_SCRIPT_DEST := /etc/xapi.d/plugins/
+-LIBEXEC := /opt/xensource/libexec/
++SM_DEST := /usr/lib/xcp/sm/
++DEBUG_DEST := /usr/lib/xcp/debug/
++BIN_DEST := /usr/lib/xcp/bin
++MASTER_SCRIPT_DEST := /etc/xcp/master.d/
++PLUGIN_SCRIPT_DEST := /usr/lib/xcp/plugins/
++LIBEXEC := /usr/lib/xcp/lib/
+ CRON_DEST := /etc/cron.d/
+ 
+ SM_STAGING := $(DESTDIR)
+--- a/XenCert/StorageHandlerUtil.py
++++ b/XenCert/StorageHandlerUtil.py
+@@ -9,7 +9,7 @@
+ 
+ """Storage handler classes for various storage drivers"""
+ import sys
+-sys.path.insert(0, "/opt/xensource/sm")
++sys.path.insert(0, "/usr/lib/xcp/sm")
+ import scsiutil
+ import util
+ import glob
+@@ -803,7 +803,7 @@
+     return (retVal, list)	
+ 
+ def _get_localhost_uuid():
+-    filename = '/etc/xensource-inventory'
++    filename = '/etc/xcp/inventory'
+     try:
+         f = open(filename, 'r')
+     except:
+--- a/XenCert/blockunblockhbapaths-brocade
++++ b/XenCert/blockunblockhbapaths-brocade
+@@ -7,8 +7,8 @@
+ # by the Free Software Foundation; version 2.1 only.
+ #
+ import sys
+-sys.path.insert(0, "/opt/xensource/sm")
+-sys.path.insert(0, "/opt/xensource/sm/snapwatchd")
++sys.path.insert(0, "/usr/lib/xcp/sm")
++sys.path.insert(0, "/usr/lib/xcp/sm/snapwatchd")
+ import util
+ import xslib
+ import random
+--- a/XenCert/blockunblockhbapaths-cisco
++++ b/XenCert/blockunblockhbapaths-cisco
+@@ -7,8 +7,8 @@
+ # by the Free Software Foundation; version 2.1 only.
+ #
+ import sys
+-sys.path.insert(0, "/opt/xensource/sm")
+-sys.path.insert(0, "/opt/xensource/sm/snapwatchd")
++sys.path.insert(0, "/usr/lib/xcp/sm")
++sys.path.insert(0, "/usr/lib/xcp/sm/snapwatchd")
+ import util
+ import xslib
+ import random
+--- a/XenCert/blockunblockhbapaths-qlogic
++++ b/XenCert/blockunblockhbapaths-qlogic
+@@ -7,8 +7,8 @@
+ # by the Free Software Foundation; version 2.1 only.
+ #
+ import sys
+-sys.path.insert(0, "/opt/xensource/sm")
+-sys.path.insert(0, "/opt/xensource/sm/snapwatchd")
++sys.path.insert(0, "/usr/lib/xcp/sm")
++sys.path.insert(0, "/usr/lib/xcp/sm/snapwatchd")
+ import util
+ import xslib
+ import random
+--- a/XenCert/blockunblockiscsipaths
++++ b/XenCert/blockunblockiscsipaths
+@@ -7,8 +7,8 @@
+ # by the Free Software Foundation; version 2.1 only.
+ #
+ import sys
+-sys.path.insert(0, "/opt/xensource/sm")
+-sys.path.insert(0, "/opt/xensource/sm/snapwatchd")
++sys.path.insert(0, "/usr/lib/xcp/sm")
++sys.path.insert(0, "/usr/lib/xcp/sm/snapwatchd")
+ import util
+ import xslib
+ import random
+--- a/XenCert/blockunblockpaths
++++ b/XenCert/blockunblockpaths
+@@ -12,8 +12,8 @@
+ #     information, then waits until the xenstore flag is set.
+ # or just waits till the flag is set. 
+ import sys
+-sys.path.insert(0, "/opt/xensource/sm")
+-sys.path.insert(0, "/opt/xensource/sm/snapwatchd")
++sys.path.insert(0, "/usr/lib/xcp/sm")
++sys.path.insert(0, "/usr/lib/xcp/sm/snapwatchd")
+ import util
+ import xslib
+ import os
+--- a/dcopy/Makefile
++++ b/dcopy/Makefile
+@@ -1,6 +1,6 @@
+-PREFIX ?= /opt/xensource/libexec
++PREFIX ?= /usr/lib/xcp/lib
+ DESTDIR ?= 
+-DEBUGDIR ?= /opt/xensource/debug
++DEBUGDIR ?= /usr/lib/xcp/debug
+ 
+ 
+ OPTS := -D _GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -Wall
+--- a/drivers/02-vhdcleanup
++++ b/drivers/02-vhdcleanup
+@@ -15,8 +15,8 @@
+ # Source function library.
+ . /etc/init.d/functions
+ 
+-CLEANUP_SCRIPT="/opt/xensource/sm/cleanup.py"
+-LVHD_UTIL_SCRIPT="/opt/xensource/sm/lvhdutil.py"
++CLEANUP_SCRIPT="/usr/lib/xcp/sm/cleanup.py"
++LVHD_UTIL_SCRIPT="/usr/lib/xcp/sm/lvhdutil.py"
+ 
+ start() {
+     echo -n $"Fixing refcounts on new master: "
+--- a/drivers/SR.py
++++ b/drivers/SR.py
+@@ -448,7 +448,7 @@
+                 self.mpath = "false"
+                 self.mpathhandle = "null"
+                 
+-            if not os.path.exists("/opt/xensource/sm/mpath_%s.py" % self.mpathhandle):
++            if not os.path.exists("/usr/lib/xcp/sm/mpath_%s.py" % self.mpathhandle):
+                 raise
+         except:
+             self.mpath = "false"
+@@ -473,7 +473,7 @@
+             self.session.xenapi.SR.set_sm_config(self.sr_ref, sm_config)
+ 
+             if self.mpath == "true" and len(SCSIid):
+-                cmd = ['/opt/xensource/sm/mpathcount.py',SCSIid]
++                cmd = ['/usr/lib/xcp/sm/mpathcount.py',SCSIid]
+                 util.pread2(cmd)
+         except:
+             pass
+--- a/drivers/VASSR.py
++++ b/drivers/VASSR.py
+@@ -68,7 +68,7 @@
+ 
+ # XXX
+ import sys
+-sys.path = ['/opt/xensource/sm'] + sys.path
++sys.path = ['/usr/lib/xcp/sm'] + sys.path
+ 
+ import SR
+ import VDI
+--- a/drivers/blktap2.py
++++ b/drivers/blktap2.py
+@@ -34,7 +34,7 @@
+ 
+ PLUGIN_TAP_PAUSE = "tapdisk-pause"
+ 
+-ENABLE_MULTIPLE_ATTACH = "/etc/xensource/allow_multiple_vdi_attach"
++ENABLE_MULTIPLE_ATTACH = "/etc/xcp/allow_multiple_vdi_attach"
+ NO_MULTIPLE_ATTACH = not (os.path.exists(ENABLE_MULTIPLE_ATTACH)) 
+ 
+ def locking(excType, override=True):
+--- a/drivers/coalesce-leaf
++++ b/drivers/coalesce-leaf
+@@ -16,8 +16,8 @@
+ 
+ import sys
+ import XenAPIPlugin
+-sys.path.append("/opt/xensource/sm/")
+-sys.path.insert(0, "/opt/xensource/sm")
++sys.path.append("/usr/lib/xcp/sm/")
++sys.path.insert(0, "/usr/lib/xcp/sm")
+ import getopt
+ import XenAPI
+ import cleanup
+--- a/drivers/lvhd-thin
++++ b/drivers/lvhd-thin
+@@ -16,7 +16,7 @@
+ 
+ import sys
+ import XenAPIPlugin
+-sys.path.append("/opt/xensource/sm/")
++sys.path.append("/usr/lib/xcp/sm/")
+ import util
+ import vhdutil
+ import lvhdutil
+--- a/drivers/mpath_dmp.py
++++ b/drivers/mpath_dmp.py
+@@ -29,7 +29,7 @@
+ iscsi_mpath_file = "/etc/iscsi/iscsid-mpath.conf"
+ iscsi_default_file = "/etc/iscsi/iscsid-default.conf"
+ iscsi_file = "/etc/iscsi/iscsid.conf"
+-hba_script = "/opt/xensource/sm/mpathHBA"
++hba_script = "/usr/lib/xcp/sm/mpathHBA"
+ 
+ DMPBIN = "/sbin/multipath"
+ DEVMAPPERPATH = "/dev/mapper"
+@@ -40,7 +40,7 @@
+ UMPD_PATH='/var/run/updatempppathd.pid'
+ MP_INUSEDIR = "/dev/disk/mpInuse"
+ 
+-MPPGETAIDLNOBIN = "/opt/xensource/bin/xe-get-arrayid-lunnum"
++MPPGETAIDLNOBIN = "/usr/bin/xe-get-arrayid-lunnum"
+ 
+ def _is_mpath_daemon_running():
+     cmd = ["/sbin/pidof", "-s", "/sbin/multipathd"]
+@@ -48,7 +48,7 @@
+     return (rc==0)
+ 
+ def _is_mpp_daemon_running():
+-    #cmd = ["/sbin/pidof", "-s", "/opt/xensource/sm/updatempppathd.py"]
++    #cmd = ["/sbin/pidof", "-s", "/usr/lib/xcp/sm/updatempppathd.py"]
+     #(rc,stdout,stderr) = util.doexec(cmd)
+     if os.path.exists(UMPD_PATH):
+         return True
+--- a/drivers/mpathcount.py
++++ b/drivers/mpathcount.py
+@@ -83,7 +83,7 @@
+     return regex.search(s, 0)
+ 
+ def get_localhost_uuid():
+-    filename = '/etc/xensource-inventory'
++    filename = '/etc/xcp/inventory'
+     try:
+         f = open(filename, 'r')
+     except:
+--- a/drivers/nfs-on-slave
++++ b/drivers/nfs-on-slave
+@@ -12,7 +12,7 @@
+ #
+ # A plugin for synchronizing slaves when something changes on the Master
+ 
+-import sys; sys.path.append("/opt/xensource/sm/")
++import sys; sys.path.append("/usr/lib/xcp/sm/")
+ import util
+ import os, glob, errno, re
+ 
+--- a/drivers/on-slave
++++ b/drivers/on-slave
+@@ -15,7 +15,7 @@
+ 
+ import sys
+ import XenAPIPlugin
+-sys.path.append("/opt/xensource/sm/")
++sys.path.append("/usr/lib/xcp/sm/")
+ import util
+ import lock
+ from lvmcache import LVMCache
+--- a/drivers/runvmpr
++++ b/drivers/runvmpr
+@@ -15,7 +15,7 @@
+ import util
+ import XenAPI
+ 
+-POOL_CONF_FILE = "/etc/xensource/pool.conf"
++POOL_CONF_FILE = "/etc/xcp/pool.conf"
+ def Print(message):
+     util.VMPRlog(message)
+     
+--- a/drivers/srmetadata.py
++++ b/drivers/srmetadata.py
+@@ -17,7 +17,7 @@
+ import metadata
+ import os
+ import sys
+-sys.path.insert(0,'/opt/xensource/sm/snapwatchd')
++sys.path.insert(0,'/usr/lib/xcp/sm/snapwatchd')
+ from xslib import get_min_blk_size, open_file_for_write, open_file_for_read, \
+     xs_file_write, xs_file_read, close_file
+ import xs_errors
+--- a/drivers/tapdisk-pause
++++ b/drivers/tapdisk-pause
+@@ -5,7 +5,7 @@
+ import os
+ import sys
+ import XenAPIPlugin
+-sys.path.append("/opt/xensource/sm/")
++sys.path.append("/usr/lib/xcp/sm/")
+ import blktap2, util
+ from lock import Lock
+ import xs_errors
+--- a/drivers/updatempppathd.py
++++ b/drivers/updatempppathd.py
+@@ -91,7 +91,7 @@
+ 		    DEBUG("Some path status has changed for SCSI ID %s, updating PBD." % scsiid) 
+ 		    entry = "[" + str(activePaths) + ", " + str(totalPaths) + "]"
+                     DEBUG(entry)
+-                    cmd = ['/opt/xensource/sm/mpathcount.py', scsiid, entry]
++                    cmd = ['/usr/lib/xcp/sm/mpathcount.py', scsiid, entry]
+                     util.pread2(cmd)
+ 
+ 		    # Now update the cache with this updated path status
+--- a/drivers/util.py
++++ b/drivers/util.py
+@@ -30,8 +30,8 @@
+ import traceback
+ import glob
+ 
+-NO_LOGGING_STAMPFILE='/etc/xensource/no_sm_log'
+-ENABLE_SYSLOG_STAMPFILE='/etc/xensource/yes_sm_syslog'
++NO_LOGGING_STAMPFILE='/etc/xcp/no_sm_log'
++ENABLE_SYSLOG_STAMPFILE='/etc/xcp/yes_sm_syslog'
+ 
+ IORETRY_MAX = 20 # retries
+ IORETRY_PERIOD = 1.0 # seconds
+@@ -509,7 +509,7 @@
+     return regex.search(s, 0)
+ 
+ def getrootdev():
+-    filename = '/etc/xensource-inventory'
++    filename = '/etc/xcp/inventory'
+     try:
+         f = open(filename, 'r')
+     except:
+@@ -548,7 +548,7 @@
+ 
+ def get_this_host():
+     uuid = None
+-    f = open("/etc/xensource-inventory", 'r')
++    f = open("/etc/xcp/inventory", 'r')
+     for line in f.readlines():
+         if line.startswith("INSTALLATION_UUID"):
+             uuid = line.split("'")[1]
+@@ -557,7 +557,7 @@
+ 
+ # XXX: this function doesn't do what it claims to do
+ def get_localhost_uuid(session):
+-    filename = '/etc/xensource-inventory'
++    filename = '/etc/xcp/inventory'
+     try:
+         f = open(filename, 'r')
+     except:
+@@ -967,7 +967,7 @@
+             print "Fork failed: %s (%d)" % (e.strerror,e.errno)
+             sys.exit(-1)
+         if (p_id == 0):
+-            os.chdir('/opt/xensource/sm')
++            os.chdir('/usr/lib/xcp/sm')
+             os.umask(0)
+         else:
+             os._exit(0)                             
+--- a/drivers/vmpr
++++ b/drivers/vmpr
+@@ -16,7 +16,7 @@
+ import os
+ import sys
+ import XenAPIPlugin
+-sys.path.append("/opt/xensource/sm/")
++sys.path.append("/usr/lib/xcp/sm/")
+ import util
+ import time
+ from threading import Thread
+--- a/drivers/vss_control
++++ b/drivers/vss_control
+@@ -15,8 +15,8 @@
+ import os
+ import sys
+ import XenAPIPlugin
+-sys.path.append("/opt/xensource/sm/")
+-sys.path.append("/opt/xensource/sm/snapwatchd/")
++sys.path.append("/usr/lib/xcp/sm/")
++sys.path.append("/usr/lib/xcp/sm/snapwatchd/")
+ import util
+ import xslib
+ import time 
+--- a/drivers/xs_errors.py
++++ b/drivers/xs_errors.py
+@@ -19,7 +19,7 @@
+ import SR
+ import util
+ 
+-XML_DEFS = '/opt/xensource/sm/XE_SR_ERRORCODES.xml'
++XML_DEFS = '/usr/lib/xcp/sm/XE_SR_ERRORCODES.xml'
+ class XenError(object):
+     def __init__(self, key, opterr=None):
+         # Check the XML definition file exists
+--- a/etc/cron.d/vmpr
++++ b/etc/cron.d/vmpr
+@@ -1 +1 @@
+-*/15 * * * * root /opt/xensource/sm/runvmpr
++*/15 * * * * root /usr/lib/xcp/sm/runvmpr
+--- a/iscsi-mgt/host/XE_ops.sh
++++ b/iscsi-mgt/host/XE_ops.sh
+@@ -1,12 +1,12 @@
+ #!/bin/sh
+ 
+ ## global variables
+-. /etc/xensource-inventory
++. /etc/xcp/inventory
+ . iscsi_ctrl.sh
+ #. iscsi_new.sh
+ 
+ if [ -z ${CMD} ]; then
+-    CMD="/opt/xensource/bin/xe"
++    CMD="/usr/bin/xe"
+ fi
+ 
+ LINE_LEN=40
+--- a/mk/sm.spec.in
++++ b/mk/sm.spec.in
+@@ -34,212 +34,212 @@
+ /etc/cron.d/*
+ /etc/rc.d/init.d/snapwatchd
+ /etc/rc.d/init.d/mpathroot
+-/etc/xapi.d/plugins/coalesce-leaf
+-/etc/xapi.d/plugins/lvhd-thin
+-/etc/xapi.d/plugins/nfs-on-slave
+-/etc/xapi.d/plugins/on-slave
+-/etc/xapi.d/plugins/tapdisk-pause
+-/etc/xapi.d/plugins/testing-hooks
+-/etc/xapi.d/plugins/vmpr
+-/etc/xapi.d/plugins/vss_control
+-/etc/xensource/master.d/02-vhdcleanup
++/usr/lib/xcp/plugins/coalesce-leaf
++/usr/lib/xcp/plugins/lvhd-thin
++/usr/lib/xcp/plugins/nfs-on-slave
++/usr/lib/xcp/plugins/on-slave
++/usr/lib/xcp/plugins/tapdisk-pause
++/usr/lib/xcp/plugins/testing-hooks
++/usr/lib/xcp/plugins/vmpr
++/usr/lib/xcp/plugins/vss_control
++/etc/xcp/master.d/02-vhdcleanup
+ /opt/xensource/bin/blktap2
+ /opt/xensource/bin/tapdisk-cache-stats
+-/opt/xensource/debug/tp
+-/opt/xensource/libexec/check-device-sharing
+-/opt/xensource/libexec/dcopy
+-/opt/xensource/libexec/local-device-change
+-/opt/xensource/sm/DummySR
+-/opt/xensource/sm/DummySR.py
+-/opt/xensource/sm/DummySR.pyc
+-/opt/xensource/sm/DummySR.pyo
+-/opt/xensource/sm/EXTSR
+-/opt/xensource/sm/EXTSR.py
+-/opt/xensource/sm/EXTSR.pyc
+-/opt/xensource/sm/EXTSR.pyo
+-/opt/xensource/sm/FileSR
+-/opt/xensource/sm/FileSR.py
+-/opt/xensource/sm/FileSR.pyc
+-/opt/xensource/sm/FileSR.pyo
+-/opt/xensource/sm/HBASR
+-/opt/xensource/sm/HBASR.py
+-/opt/xensource/sm/HBASR.pyc
+-/opt/xensource/sm/HBASR.pyo
+-/opt/xensource/sm/ISCSISR
+-/opt/xensource/sm/ISCSISR.py
+-/opt/xensource/sm/ISCSISR.pyc
+-/opt/xensource/sm/ISCSISR.pyo
+-/opt/xensource/sm/ISOSR
+-/opt/xensource/sm/ISOSR.py
+-/opt/xensource/sm/ISOSR.pyc
+-/opt/xensource/sm/ISOSR.pyo
+-/opt/xensource/sm/LUNperVDI.py
+-/opt/xensource/sm/LUNperVDI.pyc
+-/opt/xensource/sm/LUNperVDI.pyo
+-/opt/xensource/sm/LVHDSR.py
+-/opt/xensource/sm/LVHDSR.pyc
+-/opt/xensource/sm/LVHDSR.pyo
+-/opt/xensource/sm/LVHDoHBASR.py
+-/opt/xensource/sm/LVHDoHBASR.pyc
+-/opt/xensource/sm/LVHDoHBASR.pyo
+-/opt/xensource/sm/LVHDoISCSISR.py
+-/opt/xensource/sm/LVHDoISCSISR.pyc
+-/opt/xensource/sm/LVHDoISCSISR.pyo
+-/opt/xensource/sm/LVMSR
+-/opt/xensource/sm/LVMoHBASR
+-/opt/xensource/sm/LVMoISCSISR
+-/opt/xensource/sm/NFSSR
+-/opt/xensource/sm/NFSSR.py
+-/opt/xensource/sm/NFSSR.pyc
+-/opt/xensource/sm/NFSSR.pyo
+-/opt/xensource/sm/SHMSR.py
+-/opt/xensource/sm/SHMSR.pyc
+-/opt/xensource/sm/SHMSR.pyo
+-/opt/xensource/sm/SR.py
+-/opt/xensource/sm/SR.pyc
+-/opt/xensource/sm/SR.pyo
+-/opt/xensource/sm/SRCommand.py
+-/opt/xensource/sm/SRCommand.pyc
+-/opt/xensource/sm/SRCommand.pyo
+-/opt/xensource/sm/VDI.py
+-/opt/xensource/sm/VDI.pyc
+-/opt/xensource/sm/VDI.pyo
+-/opt/xensource/sm/XE_SR_ERRORCODES.xml
+-/opt/xensource/sm/blktap2.py
+-/opt/xensource/sm/blktap2.pyc
+-/opt/xensource/sm/blktap2.pyo
+-/opt/xensource/sm/cleanup.py
+-/opt/xensource/sm/cleanup.pyc
+-/opt/xensource/sm/cleanup.pyo
+-/opt/xensource/sm/devscan.py
+-/opt/xensource/sm/devscan.pyc
+-/opt/xensource/sm/devscan.pyo
+-/opt/xensource/sm/fjournaler.py
+-/opt/xensource/sm/fjournaler.pyc
+-/opt/xensource/sm/fjournaler.pyo
+-/opt/xensource/sm/flock.py
+-/opt/xensource/sm/flock.pyc
+-/opt/xensource/sm/flock.pyo
+-/opt/xensource/sm/ipc.py
+-/opt/xensource/sm/ipc.pyc
+-/opt/xensource/sm/ipc.pyo
+-/opt/xensource/sm/iscsilib.py
+-/opt/xensource/sm/iscsilib.pyc
+-/opt/xensource/sm/iscsilib.pyo
+-/opt/xensource/sm/journaler.py
+-/opt/xensource/sm/journaler.pyc
+-/opt/xensource/sm/journaler.pyo
+-/opt/xensource/sm/lcache.py
+-/opt/xensource/sm/lcache.pyc
+-/opt/xensource/sm/lcache.pyo
+-/opt/xensource/sm/lock.py
+-/opt/xensource/sm/lock.pyc
+-/opt/xensource/sm/lock.pyo
+-/opt/xensource/sm/lvhdutil.py
+-/opt/xensource/sm/lvhdutil.pyc
+-/opt/xensource/sm/lvhdutil.pyo
+-/opt/xensource/sm/lvmanager.py
+-/opt/xensource/sm/lvmanager.pyc
+-/opt/xensource/sm/lvmanager.pyo
+-/opt/xensource/sm/lvmcache.py
+-/opt/xensource/sm/lvmcache.pyc
+-/opt/xensource/sm/lvmcache.pyo
+-/opt/xensource/sm/lvutil.py
+-/opt/xensource/sm/lvutil.pyc
+-/opt/xensource/sm/lvutil.pyo
+-/opt/xensource/sm/metadata.py
+-/opt/xensource/sm/metadata.pyc
+-/opt/xensource/sm/metadata.pyo
+-/opt/xensource/sm/srmetadata.py
+-/opt/xensource/sm/srmetadata.pyc
+-/opt/xensource/sm/srmetadata.pyo
+-/opt/xensource/sm/mpathHBA
+-/opt/xensource/sm/mpath_cli.py
+-/opt/xensource/sm/mpath_cli.pyc
+-/opt/xensource/sm/mpath_cli.pyo
+-/opt/xensource/sm/mpath_dmp.py
+-/opt/xensource/sm/mpath_dmp.pyc
+-/opt/xensource/sm/mpath_dmp.pyo
+-/opt/xensource/sm/mpath_null.py
+-/opt/xensource/sm/mpath_null.pyc
+-/opt/xensource/sm/mpath_null.pyo
+-/opt/xensource/sm/mpathcount.py
+-/opt/xensource/sm/mpathcount.pyc
+-/opt/xensource/sm/mpathcount.pyo
+-/opt/xensource/sm/mpathutil.py
+-/opt/xensource/sm/mpathutil.pyc
+-/opt/xensource/sm/mpathutil.pyo
+-/opt/xensource/sm/mpp_luncheck.py
+-/opt/xensource/sm/mpp_luncheck.pyc
+-/opt/xensource/sm/mpp_luncheck.pyo
+-/opt/xensource/sm/mpp_mpathutil.py
+-/opt/xensource/sm/mpp_mpathutil.pyc
+-/opt/xensource/sm/mpp_mpathutil.pyo
+-/opt/xensource/sm/nfs.py
+-/opt/xensource/sm/nfs.pyc
+-/opt/xensource/sm/nfs.pyo
+-/opt/xensource/sm/refcounter.py
+-/opt/xensource/sm/refcounter.pyc
+-/opt/xensource/sm/refcounter.pyo
+-/opt/xensource/sm/resetvdis.py
+-/opt/xensource/sm/resetvdis.pyc
+-/opt/xensource/sm/resetvdis.pyo
+-/opt/xensource/sm/runvmpr
+-/opt/xensource/sm/scsiutil.py
+-/opt/xensource/sm/scsiutil.pyc
+-/opt/xensource/sm/scsiutil.pyo
+-/opt/xensource/sm/scsi_host_rescan.py
+-/opt/xensource/sm/scsi_host_rescan.pyc
+-/opt/xensource/sm/scsi_host_rescan.pyo
+-/opt/xensource/sm/snapwatchd/_xslib.so
+-/opt/xensource/sm/snapwatchd/snapwatchd
+-/opt/xensource/sm/snapwatchd/xslib.py
+-/opt/xensource/sm/snapwatchd/xslib.pyc
+-/opt/xensource/sm/snapwatchd/xslib.pyo
+-/opt/xensource/sm/sysdevice.py
+-/opt/xensource/sm/sysdevice.pyc
+-/opt/xensource/sm/sysdevice.pyo
+-/opt/xensource/sm/udevSR
+-/opt/xensource/sm/udevSR.py
+-/opt/xensource/sm/udevSR.pyc
+-/opt/xensource/sm/udevSR.pyo
+-/opt/xensource/sm/updatempppathd.py
+-/opt/xensource/sm/updatempppathd.pyc
+-/opt/xensource/sm/updatempppathd.pyo
+-/opt/xensource/sm/util.py
+-/opt/xensource/sm/util.pyc
+-/opt/xensource/sm/util.pyo
+-/opt/xensource/sm/vhdutil.py
+-/opt/xensource/sm/vhdutil.pyc
+-/opt/xensource/sm/vhdutil.pyo
+-/opt/xensource/sm/vss_control
+-/opt/xensource/sm/xs_errors.py
+-/opt/xensource/sm/xs_errors.pyc
+-/opt/xensource/sm/xs_errors.pyo
++/usr/lib/xcp/debug/tp
++/usr/lib/xcp/lib/check-device-sharing
++/usr/lib/xcp/lib/dcopy
++/usr/lib/xcp/lib/local-device-change
++/usr/lib/xcp/sm/DummySR
++/usr/lib/xcp/sm/DummySR.py
++/usr/lib/xcp/sm/DummySR.pyc
++/usr/lib/xcp/sm/DummySR.pyo
++/usr/lib/xcp/sm/EXTSR
++/usr/lib/xcp/sm/EXTSR.py
++/usr/lib/xcp/sm/EXTSR.pyc
++/usr/lib/xcp/sm/EXTSR.pyo
++/usr/lib/xcp/sm/FileSR
++/usr/lib/xcp/sm/FileSR.py
++/usr/lib/xcp/sm/FileSR.pyc
++/usr/lib/xcp/sm/FileSR.pyo
++/usr/lib/xcp/sm/HBASR
++/usr/lib/xcp/sm/HBASR.py
++/usr/lib/xcp/sm/HBASR.pyc
++/usr/lib/xcp/sm/HBASR.pyo
++/usr/lib/xcp/sm/ISCSISR
++/usr/lib/xcp/sm/ISCSISR.py
++/usr/lib/xcp/sm/ISCSISR.pyc
++/usr/lib/xcp/sm/ISCSISR.pyo
++/usr/lib/xcp/sm/ISOSR
++/usr/lib/xcp/sm/ISOSR.py
++/usr/lib/xcp/sm/ISOSR.pyc
++/usr/lib/xcp/sm/ISOSR.pyo
++/usr/lib/xcp/sm/LUNperVDI.py
++/usr/lib/xcp/sm/LUNperVDI.pyc
++/usr/lib/xcp/sm/LUNperVDI.pyo
++/usr/lib/xcp/sm/LVHDSR.py
++/usr/lib/xcp/sm/LVHDSR.pyc
++/usr/lib/xcp/sm/LVHDSR.pyo
++/usr/lib/xcp/sm/LVHDoHBASR.py
++/usr/lib/xcp/sm/LVHDoHBASR.pyc
++/usr/lib/xcp/sm/LVHDoHBASR.pyo
++/usr/lib/xcp/sm/LVHDoISCSISR.py
++/usr/lib/xcp/sm/LVHDoISCSISR.pyc
++/usr/lib/xcp/sm/LVHDoISCSISR.pyo
++/usr/lib/xcp/sm/LVMSR
++/usr/lib/xcp/sm/LVMoHBASR
++/usr/lib/xcp/sm/LVMoISCSISR
++/usr/lib/xcp/sm/NFSSR
++/usr/lib/xcp/sm/NFSSR.py
++/usr/lib/xcp/sm/NFSSR.pyc
++/usr/lib/xcp/sm/NFSSR.pyo
++/usr/lib/xcp/sm/SHMSR.py
++/usr/lib/xcp/sm/SHMSR.pyc
++/usr/lib/xcp/sm/SHMSR.pyo
++/usr/lib/xcp/sm/SR.py
++/usr/lib/xcp/sm/SR.pyc
++/usr/lib/xcp/sm/SR.pyo
++/usr/lib/xcp/sm/SRCommand.py
++/usr/lib/xcp/sm/SRCommand.pyc
++/usr/lib/xcp/sm/SRCommand.pyo
++/usr/lib/xcp/sm/VDI.py
++/usr/lib/xcp/sm/VDI.pyc
++/usr/lib/xcp/sm/VDI.pyo
++/usr/lib/xcp/sm/XE_SR_ERRORCODES.xml
++/usr/lib/xcp/sm/blktap2.py
++/usr/lib/xcp/sm/blktap2.pyc
++/usr/lib/xcp/sm/blktap2.pyo
++/usr/lib/xcp/sm/cleanup.py
++/usr/lib/xcp/sm/cleanup.pyc
++/usr/lib/xcp/sm/cleanup.pyo
++/usr/lib/xcp/sm/devscan.py
++/usr/lib/xcp/sm/devscan.pyc
++/usr/lib/xcp/sm/devscan.pyo
++/usr/lib/xcp/sm/fjournaler.py
++/usr/lib/xcp/sm/fjournaler.pyc
++/usr/lib/xcp/sm/fjournaler.pyo
++/usr/lib/xcp/sm/flock.py
++/usr/lib/xcp/sm/flock.pyc
++/usr/lib/xcp/sm/flock.pyo
++/usr/lib/xcp/sm/ipc.py
++/usr/lib/xcp/sm/ipc.pyc
++/usr/lib/xcp/sm/ipc.pyo
++/usr/lib/xcp/sm/iscsilib.py
++/usr/lib/xcp/sm/iscsilib.pyc
++/usr/lib/xcp/sm/iscsilib.pyo
++/usr/lib/xcp/sm/journaler.py
++/usr/lib/xcp/sm/journaler.pyc
++/usr/lib/xcp/sm/journaler.pyo
++/usr/lib/xcp/sm/lcache.py
++/usr/lib/xcp/sm/lcache.pyc
++/usr/lib/xcp/sm/lcache.pyo
++/usr/lib/xcp/sm/lock.py
++/usr/lib/xcp/sm/lock.pyc
++/usr/lib/xcp/sm/lock.pyo
++/usr/lib/xcp/sm/lvhdutil.py
++/usr/lib/xcp/sm/lvhdutil.pyc
++/usr/lib/xcp/sm/lvhdutil.pyo
++/usr/lib/xcp/sm/lvmanager.py
++/usr/lib/xcp/sm/lvmanager.pyc
++/usr/lib/xcp/sm/lvmanager.pyo
++/usr/lib/xcp/sm/lvmcache.py
++/usr/lib/xcp/sm/lvmcache.pyc
++/usr/lib/xcp/sm/lvmcache.pyo
++/usr/lib/xcp/sm/lvutil.py
++/usr/lib/xcp/sm/lvutil.pyc
++/usr/lib/xcp/sm/lvutil.pyo
++/usr/lib/xcp/sm/metadata.py
++/usr/lib/xcp/sm/metadata.pyc
++/usr/lib/xcp/sm/metadata.pyo
++/usr/lib/xcp/sm/srmetadata.py
++/usr/lib/xcp/sm/srmetadata.pyc
++/usr/lib/xcp/sm/srmetadata.pyo
++/usr/lib/xcp/sm/mpathHBA
++/usr/lib/xcp/sm/mpath_cli.py
++/usr/lib/xcp/sm/mpath_cli.pyc
++/usr/lib/xcp/sm/mpath_cli.pyo
++/usr/lib/xcp/sm/mpath_dmp.py
++/usr/lib/xcp/sm/mpath_dmp.pyc
++/usr/lib/xcp/sm/mpath_dmp.pyo
++/usr/lib/xcp/sm/mpath_null.py
++/usr/lib/xcp/sm/mpath_null.pyc
++/usr/lib/xcp/sm/mpath_null.pyo
++/usr/lib/xcp/sm/mpathcount.py
++/usr/lib/xcp/sm/mpathcount.pyc
++/usr/lib/xcp/sm/mpathcount.pyo
++/usr/lib/xcp/sm/mpathutil.py
++/usr/lib/xcp/sm/mpathutil.pyc
++/usr/lib/xcp/sm/mpathutil.pyo
++/usr/lib/xcp/sm/mpp_luncheck.py
++/usr/lib/xcp/sm/mpp_luncheck.pyc
++/usr/lib/xcp/sm/mpp_luncheck.pyo
++/usr/lib/xcp/sm/mpp_mpathutil.py
++/usr/lib/xcp/sm/mpp_mpathutil.pyc
++/usr/lib/xcp/sm/mpp_mpathutil.pyo
++/usr/lib/xcp/sm/nfs.py
++/usr/lib/xcp/sm/nfs.pyc
++/usr/lib/xcp/sm/nfs.pyo
++/usr/lib/xcp/sm/refcounter.py
++/usr/lib/xcp/sm/refcounter.pyc
++/usr/lib/xcp/sm/refcounter.pyo
++/usr/lib/xcp/sm/resetvdis.py
++/usr/lib/xcp/sm/resetvdis.pyc
++/usr/lib/xcp/sm/resetvdis.pyo
++/usr/lib/xcp/sm/runvmpr
++/usr/lib/xcp/sm/scsiutil.py
++/usr/lib/xcp/sm/scsiutil.pyc
++/usr/lib/xcp/sm/scsiutil.pyo
++/usr/lib/xcp/sm/scsi_host_rescan.py
++/usr/lib/xcp/sm/scsi_host_rescan.pyc
++/usr/lib/xcp/sm/scsi_host_rescan.pyo
++/usr/lib/xcp/sm/snapwatchd/_xslib.so
++/usr/lib/xcp/sm/snapwatchd/snapwatchd
++/usr/lib/xcp/sm/snapwatchd/xslib.py
++/usr/lib/xcp/sm/snapwatchd/xslib.pyc
++/usr/lib/xcp/sm/snapwatchd/xslib.pyo
++/usr/lib/xcp/sm/sysdevice.py
++/usr/lib/xcp/sm/sysdevice.pyc
++/usr/lib/xcp/sm/sysdevice.pyo
++/usr/lib/xcp/sm/udevSR
++/usr/lib/xcp/sm/udevSR.py
++/usr/lib/xcp/sm/udevSR.pyc
++/usr/lib/xcp/sm/udevSR.pyo
++/usr/lib/xcp/sm/updatempppathd.py
++/usr/lib/xcp/sm/updatempppathd.pyc
++/usr/lib/xcp/sm/updatempppathd.pyo
++/usr/lib/xcp/sm/util.py
++/usr/lib/xcp/sm/util.pyc
++/usr/lib/xcp/sm/util.pyo
++/usr/lib/xcp/sm/vhdutil.py
++/usr/lib/xcp/sm/vhdutil.pyc
++/usr/lib/xcp/sm/vhdutil.pyo
++/usr/lib/xcp/sm/vss_control
++/usr/lib/xcp/sm/xs_errors.py
++/usr/lib/xcp/sm/xs_errors.pyc
++/usr/lib/xcp/sm/xs_errors.pyo
+ /sbin/mpathutil
+-"/opt/xensource/debug/XenCert/READ ME FIRST.txt"
+-/opt/xensource/debug/XenCert/StorageHandler.py
+-/opt/xensource/debug/XenCert/StorageHandler.pyc
+-/opt/xensource/debug/XenCert/StorageHandler.pyo
+-/opt/xensource/debug/XenCert/StorageHandlerUtil.py
+-/opt/xensource/debug/XenCert/StorageHandlerUtil.pyc
+-/opt/xensource/debug/XenCert/StorageHandlerUtil.pyo
+-/opt/xensource/debug/XenCert/XenCert
+-"/opt/xensource/debug/XenCert/XenCert 2 0 Guide_6 0.docx"
+-/opt/xensource/debug/XenCert/XenCertCommon.py
+-/opt/xensource/debug/XenCert/XenCertCommon.pyc
+-/opt/xensource/debug/XenCert/XenCertCommon.pyo
+-"/opt/xensource/debug/XenCert/XenCert_6 0_Verification_Results_CheckList.docx"
+-/opt/xensource/debug/XenCert/blockunblockHBAPort.sh.brocade
+-/opt/xensource/debug/XenCert/blockunblockHBAPort.sh.cisco
+-/opt/xensource/debug/XenCert/blockunblockHBAPort.sh.qlogic
+-/opt/xensource/debug/XenCert/blockunblockhbapaths-brocade
+-/opt/xensource/debug/XenCert/blockunblockhbapaths-cisco
+-/opt/xensource/debug/XenCert/blockunblockhbapaths-qlogic
+-/opt/xensource/debug/XenCert/blockunblockiscsipaths
+-/opt/xensource/debug/XenCert/blockunblockpaths
+-/opt/xensource/debug/XenCert/diskdatatest
+-/opt/xensource/debug/XenCert/isl_config_netapp.conf
++"/usr/lib/xcp/debug/XenCert/READ ME FIRST.txt"
++/usr/lib/xcp/debug/XenCert/StorageHandler.py
++/usr/lib/xcp/debug/XenCert/StorageHandler.pyc
++/usr/lib/xcp/debug/XenCert/StorageHandler.pyo
++/usr/lib/xcp/debug/XenCert/StorageHandlerUtil.py
++/usr/lib/xcp/debug/XenCert/StorageHandlerUtil.pyc
++/usr/lib/xcp/debug/XenCert/StorageHandlerUtil.pyo
++/usr/lib/xcp/debug/XenCert/XenCert
++"/usr/lib/xcp/debug/XenCert/XenCert 2 0 Guide_6 0.docx"
++/usr/lib/xcp/debug/XenCert/XenCertCommon.py
++/usr/lib/xcp/debug/XenCert/XenCertCommon.pyc
++/usr/lib/xcp/debug/XenCert/XenCertCommon.pyo
++"/usr/lib/xcp/debug/XenCert/XenCert_6 0_Verification_Results_CheckList.docx"
++/usr/lib/xcp/debug/XenCert/blockunblockHBAPort.sh.brocade
++/usr/lib/xcp/debug/XenCert/blockunblockHBAPort.sh.cisco
++/usr/lib/xcp/debug/XenCert/blockunblockHBAPort.sh.qlogic
++/usr/lib/xcp/debug/XenCert/blockunblockhbapaths-brocade
++/usr/lib/xcp/debug/XenCert/blockunblockhbapaths-cisco
++/usr/lib/xcp/debug/XenCert/blockunblockhbapaths-qlogic
++/usr/lib/xcp/debug/XenCert/blockunblockiscsipaths
++/usr/lib/xcp/debug/XenCert/blockunblockpaths
++/usr/lib/xcp/debug/XenCert/diskdatatest
++/usr/lib/xcp/debug/XenCert/isl_config_netapp.conf
+ 
+ 
+ %changelog
+--- a/mpathroot/mpathroot.init
++++ b/mpathroot/mpathroot.init
+@@ -42,7 +42,7 @@
+ 		logger -t "${TAG}" "Updating multipath root status"
+ 		echo -n $"Updating multipath root status: "
+ 		if wait_for_xapi; then
+-		    /opt/xensource/sm/mpathcount.py
++		    /usr/lib/xcp/sm/mpathcount.py
+ 			success $"OK"
+ 			exit 0
+ 		else
+--- a/scripts/local-device-change
++++ b/scripts/local-device-change
+@@ -19,9 +19,9 @@
+ 
+ /usr/bin/logger "local-device-change DEVICE=$DEVICE ACTION=$ACTION"
+ 
+-CDROMMON="/opt/xensource/libexec/cdrommon"
++CDROMMON="/usr/lib/xcp/lib/cdrommon"
+ 
+-. /etc/xensource-inventory
++. /etc/xcp/inventory
+ 
+ function remove_vdi {
+     local R_VDI=$1
+--- a/snapwatchd/Makefile
++++ b/snapwatchd/Makefile
+@@ -1,7 +1,7 @@
+ XS_INCLUDE ?= /usr/include
+ XS_LIB     ?= -lxenstore
+ 
+-PREFIX ?= /opt/xensource/sm/snapwatchd
++PREFIX ?= /usr/lib/xcp/sm/snapwatchd
+ INITDIR ?= /etc/rc.d/init.d
+ DESTDIR ?= 
+ 
+--- a/snapwatchd/snapwatchd
++++ b/snapwatchd/snapwatchd
+@@ -19,7 +19,7 @@
+ import xml.dom.minidom
+ import datetime, time
+ import resource
+-sys.path.insert(0, "/opt/xensource/sm")
++sys.path.insert(0, "/usr/lib/xcp/sm")
+ import util
+ import gc
+ import xs_errors
+@@ -171,7 +171,7 @@
+     return vdi_uuids
+ 
+ def get_localhost_uuid():
+-    filename = '/etc/xensource-inventory'
++    filename = '/etc/xcp/inventory'
+     try:
+         f = open(filename, 'r')
+     except:
+--- a/snapwatchd/snapwatchd.init
++++ b/snapwatchd/snapwatchd.init
+@@ -9,7 +9,7 @@
+ # processname: snapwatchd
+ # pidfile: /var/run/snapwatchd.pid
+ 
+-DAEMON=/opt/xensource/sm/snapwatchd/snapwatchd
++DAEMON=/usr/lib/xcp/sm/snapwatchd/snapwatchd
+ prog=`basename $DAEMON`
+ pidfile=/var/run/${prog}.pid
+ logfile=/var/log/SMlog
+--- a/tests/XE_api_library.sh
++++ b/tests/XE_api_library.sh
+@@ -1512,7 +1512,7 @@
+     DUMMY_SR_TYPE=$1
+     subject="Creating dummy SR type (${DUMMY_SR_TYPE})"
+     debug_test "$subject"
+-    cmd="$REM_CMD ln -s /opt/xensource/sm/LVMSR /opt/xensource/sm/${DUMMY_SR_TYPE}SR &> /dev/null"
++    cmd="$REM_CMD ln -s /usr/lib/xcp/sm/LVMSR /usr/lib/xcp/sm/${DUMMY_SR_TYPE}SR &> /dev/null"
+     run $cmd
+     if [ $RUN_RC -gt 0 ]; then
+         debug_result 2
+@@ -1616,7 +1616,7 @@
+     UPLOAD="/tmp/`date +%s-%N`"
+ 
+     echo "import sys" >> $UPLOAD
+-    echo "sys.path.insert(0, '/opt/xensource/sm')" >> $UPLOAD
++    echo "sys.path.insert(0, '/usr/lib/xcp/sm')" >> $UPLOAD
+     echo "import scsiutil" >> $UPLOAD
+     echo "" >> $UPLOAD
+     echo "try:" >> $UPLOAD
+@@ -1628,7 +1628,7 @@
+     cmd="chmod +x $UPLOAD"
+     run $cmd
+ 
+-    cmd="/usr/bin/scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -i ${SSH_PRIVATE_KEY} $UPLOAD root@$1:/etc/xensource/SCSIutil.smrt"
++    cmd="/usr/bin/scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -i ${SSH_PRIVATE_KEY} $UPLOAD root@$1:/etc/xcp/SCSIutil.smrt"
+     run $cmd
+     if [ $RUN_RC -ne 0 ]; then
+ 	debug_result 1
+--- a/tests/globals.sh
++++ b/tests/globals.sh
+@@ -26,7 +26,7 @@
+ fi
+ 
+ if [ -z ${CMD} ]; then
+-    CMD="/opt/xensource/bin/xe"
++    CMD="/usr/bin/xe"
+ fi
+ 
+ if [ -z ${CLONE_DEBUG} ]; then
+--- a/tests/lvhd_test/snapshot_stress.py
++++ b/tests/lvhd_test/snapshot_stress.py
+@@ -4,7 +4,7 @@
+ import random
+ import pickle
+ 
+-sys.path.append("/opt/xensource/sm")
++sys.path.append("/usr/lib/xcp/sm")
+ import cleanup
+ 
+ class VDIAction:
+@@ -266,7 +266,7 @@
+         print "%s rerun <path> <vdi_uuid>" % sys.argv[0]
+ 
+     def xe(cmd, *args):
+-        argv = [ "/opt/xensource/bin/xe", cmd ]
++        argv = [ "/usr/bin/xe", cmd ]
+         argv += args
+         stdin, stdout = os.popen4(argv)
+         return stdout.readlines()
+--- a/tests/lvhd_test/storagemanager.py
++++ b/tests/lvhd_test/storagemanager.py
+@@ -6,7 +6,7 @@
+ import xmlrpclib
+ 
+ import tutil
+-sys.path.append("/opt/xensource/sm")
++sys.path.append("/usr/lib/xcp/sm")
+ import util
+ import lvutil
+ import vhdutil
+@@ -737,7 +737,7 @@
+ 
+     def _getThisHost(self):
+         uuid = None
+-        f = open("/etc/xensource-inventory", 'r')
++        f = open("/etc/xcp/inventory", 'r')
+         for line in f.readlines():
+             if line.startswith("INSTALLATION_UUID"):
+                 uuid = line.split("'")[1]
+@@ -746,7 +746,7 @@
+ 
+     def _getThisDom0(self):
+         uuid = None
+-        f = open("/etc/xensource-inventory", 'r')
++        f = open("/etc/xcp/inventory", 'r')
+         for line in f.readlines():
+             if line.startswith("CONTROL_DOMAIN_UUID"):
+                 uuid = line.split("'")[1]
+--- a/tests/lvhd_test/testsm.py
++++ b/tests/lvhd_test/testsm.py
+@@ -11,7 +11,7 @@
+ import tutil
+ import storagemanager
+ 
+-sys.path.append("/opt/xensource/sm")
++sys.path.append("/usr/lib/xcp/sm")
+ from ipc import IPCFlag
+ import LVHDSR
+ import lvhdutil
+--- a/tests/test1.sh
++++ b/tests/test1.sh
+@@ -515,7 +515,7 @@
+     subject="Writing disk test pattern"
+     debug_test "$subject"
+ 
+-    cmd="$REM_CMD /opt/xensource/debug/tp $1 $2 $3 $4"
++    cmd="$REM_CMD /usr/lib/xcp/debug/tp $1 $2 $3 $4"
+     run "$cmd"
+     if [ $RUN_RC -gt 0 ]; then
+         debug_result 1
+@@ -591,11 +591,11 @@
+     fi
+     LOOP=10
+ 
+-    cmd="$REM_CMD test -f /opt/xensource/debug/tp"
++    cmd="$REM_CMD test -f /usr/lib/xcp/debug/tp"
+     run "$cmd"
+     if [ $RUN_RC -gt 0 ]; then
+         debug "The test pattern binary is missing."
+-        debug "Please install tp under /opt/xensource/debug and re-run."
++        debug "Please install tp under /usr/lib/xcp/debug and re-run."
+         debug "Exiting quietly."
+         return
+     fi
+--- a/tests/test_dcopy.sh
++++ b/tests/test_dcopy.sh
+@@ -10,20 +10,20 @@
+ 
+ check_dcopy_binaries()
+ {
+-    cmd="$REM_CMD test -f /opt/xensource/debug/tp"
++    cmd="$REM_CMD test -f /usr/lib/xcp/debug/tp"
+     run "$cmd"
+     if [ $RUN_RC -gt 0 ]; then 
+ 	debug "The test pattern binary is missing."
+-	debug "Please install tp under /opt/xensource/debug and re-run."
++	debug "Please install tp under /usr/lib/xcp/debug and re-run."
+ 	debug "Exiting quietly."
+ 	exit
+     fi
+ 
+-    cmd="$REM_CMD test -f /opt/xensource/libexec/dcopy"
++    cmd="$REM_CMD test -f /usr/lib/xcp/lib/dcopy"
+     run "$cmd"
+     if [ $RUN_RC -gt 0 ]; then 
+ 	debug "The dcopy binary is missing."
+-	debug "Please install dcopy under /opt/xensource/libexec and re-run."
++	debug "Please install dcopy under /usr/lib/xcp/lib and re-run."
+ 	debug "Exiting quietly."
+ 	exit
+     fi
+@@ -81,7 +81,7 @@
+     subject="Writing disk test pattern"
+     debug_test "$subject"
+ 
+-    cmd="$REM_CMD /opt/xensource/debug/tp $1 $2 $3 $4"
++    cmd="$REM_CMD /usr/lib/xcp/debug/tp $1 $2 $3 $4"
+     run "$cmd"
+     if [ $RUN_RC -gt 0 ]; then
+ 	debug_result 1
+@@ -100,7 +100,7 @@
+     subject="Copying disk contents"
+     debug_test "$subject"
+ 
+-    cmd="$REM_CMD /opt/xensource/libexec/dcopy $1 $2 $3"
++    cmd="$REM_CMD /usr/lib/xcp/lib/dcopy $1 $2 $3"
+     run "$cmd"
+     if [ $RUN_RC -gt 0 ]; then
+ 	debug_result 1
+--- a/tests/test_iscsi_refcount.sh
++++ b/tests/test_iscsi_refcount.sh
+@@ -92,7 +92,7 @@
+     subject="Querying SCSIid for LUN${1}"
+     debug_test "$subject"
+     ADDR=`echo ${ISCSI_RECID} | cut -d',' -f1`
+-    cmd="$REM_CMD python /etc/xensource/SCSIutil.smrt /dev/iscsi/${LISCSI_TARGET_ID}/${ADDR}/LUN${1}"
++    cmd="$REM_CMD python /etc/xcp/SCSIutil.smrt /dev/iscsi/${LISCSI_TARGET_ID}/${ADDR}/LUN${1}"
+     run $cmd
+     if [ $RUN_RC -ne 0 ]; then
+ 	debug_result 1
+--- a/tests/vmprtest
++++ b/tests/vmprtest
+@@ -14,7 +14,7 @@
+ import time
+ import commands
+ from optparse import OptionParser
+-sys.path.insert(0, '/opt/xensource/sm')
++sys.path.insert(0, '/usr/lib/xcp/sm')
+ import util
+ import re
+ import datetime

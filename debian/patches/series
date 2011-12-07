@@ -1,7 +1,7 @@
-install-dirs
-lvm2-path
-fpic-on-xslib
-remove-xencert
-vhd-util-path
-fix-local-device-change
-fix-makefile
+0001-install-dirs.patch
+0002-lvm2-path.patch
+0003-fpic-on-xslib.patch
+0004-remove-xencert.patch
+0005-vhd-util-path.patch
+0006-fix-local-device-change.patch
+0007-fix-makefile.patch

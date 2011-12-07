@@ -1,6 +1,16 @@
+From: Jon Ludlam <jonathan.ludlam@eu.citrix.com>
+Date: Thu, 8 Dec 2011 17:06:01 +0000
+Subject: vhd-util-path
+
+---
+ drivers/vhdutil.py |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/vhdutil.py b/drivers/vhdutil.py
+index 10b6994..6ddcd32 100644
 --- a/drivers/vhdutil.py
 +++ b/drivers/vhdutil.py
-@@ -23,7 +23,7 @@
+@@ -23,7 +23,7 @@ import zlib
  
  MAX_VHD_JOURNAL_SIZE = 6 * 1024 * 1024 # 2MB VHD block size, max 2TB VHD size
  MAX_CHAIN_SIZE = 30 # max VHD parent chain size
@@ -9,7 +19,7 @@
  OPT_LOG_ERR = "--debug"
  VHD_BLOCK_SIZE = 2 * 1024 * 1024
  VHD_FOOTER_SIZE = 512
-@@ -301,7 +301,7 @@
+@@ -301,7 +301,7 @@ def _parseVHDInfo(line, extractUuidFunction):
      return vhdInfo
  
  def _getVHDParentNoCheck(path):
@@ -18,3 +28,4 @@
      text = util.pread(cmd)
      util.SMlog(text)
      for line in text.split('\n'):
+-- 

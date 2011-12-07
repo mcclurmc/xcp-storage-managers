@@ -1,0 +1,22 @@
+From: Jon Ludlam <jonathan.ludlam@eu.citrix.com>
+Date: Thu, 8 Dec 2011 17:06:01 +0000
+Subject: fpic-on-xslib
+
+---
+ snapwatchd/Makefile |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/snapwatchd/Makefile b/snapwatchd/Makefile
+index 98cb1a9..addcbfb 100644
+--- a/snapwatchd/Makefile
++++ b/snapwatchd/Makefile
+@@ -8,7 +8,7 @@ DESTDIR ?=
+ PYTHON_INCLUDE ?= /usr/include/python2.4
+ 
+ CFLAGS ?= -O2
+-CFLAGS += -I$(PYTHON_INCLUDE) -I$(XS_INCLUDE)
++CFLAGS += -I$(PYTHON_INCLUDE) -I$(XS_INCLUDE) -fPIC
+ 
+ SWIG ?= swig
+ 
+-- 
