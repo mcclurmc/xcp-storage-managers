@@ -7,3 +7,9 @@ export DH_OPTIONS
 
 %:
 	dh $@ 
+
+override_dh_fixperms:
+	dh_testroot
+	dh_fixperms
+	rm -rf debian/xcp-storage-managers/sbin
+	chmod -x debian/xcp-storage-managers/usr/lib/xcp/sm/XE_SR_ERRORCODES.xml
