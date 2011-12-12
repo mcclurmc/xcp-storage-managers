@@ -5,3 +5,4 @@
 0005-vhd-util-path.patch
 0006-fix-local-device-change.patch
 0007-fix-makefile.patch
+remove-primary-disk-dependency

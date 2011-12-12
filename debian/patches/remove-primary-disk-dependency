@@ -1,0 +1,11 @@
+--- a/drivers/util.py
++++ b/drivers/util.py
+@@ -519,7 +519,7 @@
+     for line in filter(match_rootdev, f.readlines()):
+         rootdev = line.split("'")[1]
+     if not rootdev:
+-        raise xs_errors.XenError('NoRootDev')
++        return "/dev/null"
+     return rootdev
+ 
+ def getrootdevID():
