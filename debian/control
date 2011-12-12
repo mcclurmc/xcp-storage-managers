@@ -1,7 +1,7 @@
 Source: xcp-storage-managers
 Section: libs
 Priority: extra
-Maintainer: PKG-XEN-Devel <pkg-xen-devel@lists.alioth.debian.org>
+Maintainer: PKG-Xen Devel <pkg-xen-devel@lists.alioth.debian.org>
 Uploaders: Thomas Goirand <zigo@debian.org>, Jon Ludlam <jonathan.ludlam@eu.citrix.com>
 Build-Depends: debhelper (>= 8), swig, python-all-dev, libxen-dev, python-all (>= 2.6.6-3~)
 Standards-Version: 3.9.2
