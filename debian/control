@@ -3,7 +3,7 @@ Section: libs
 Priority: extra
 Maintainer: PKG-XEN-Devel <pkg-xen-devel@lists.alioth.debian.org>
 Uploaders: Thomas Goirand <zigo@debian.org>, Jon Ludlam <jonathan.ludlam@eu.citrix.com>
-Build-Depends: debhelper (>= 8.0.0), swig, python2.6-dev, libxen-dev, python-all (>= 2.6.6-3~)
+Build-Depends: debhelper (>= 8), swig, python2.6-dev, libxen-dev, python-all (>= 2.6.6-3~)
 Standards-Version: 3.9.2
 Homepage: http://www.xen.org/products/cloudxen.html
 
