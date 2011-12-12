@@ -1,3 +1,9 @@
+xcp-storage-managers (0.1-2ubuntu1) oneiric precise; urgency=low
+
+  * Ubuntu stamp
+
+ -- Mike McClurg <mike.mcclurg@citrix.com>  Mon, 12 Dec 2011 11:06:45 +0000
+
 xcp-storage-managers (0.1-2) unstable; urgency=low
 
   * New FHS compliant layout
