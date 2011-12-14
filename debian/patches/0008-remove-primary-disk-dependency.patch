@@ -1,0 +1,22 @@
+From: PKG-Xen Devel <pkg-xen-devel@lists.alioth.debian.org>
+Date: Wed, 14 Dec 2011 18:07:23 +0000
+Subject: remove-primary-disk-dependency
+
+---
+ drivers/util.py |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/drivers/util.py b/drivers/util.py
+index 54b99ac..bf1f8ab 100644
+--- a/drivers/util.py
++++ b/drivers/util.py
+@@ -519,7 +519,7 @@ def getrootdev():
+     for line in filter(match_rootdev, f.readlines()):
+         rootdev = line.split("'")[1]
+     if not rootdev:
+-        raise xs_errors.XenError('NoRootDev')
++        return "/dev/null"
+     return rootdev
+ 
+ def getrootdevID():
+-- 

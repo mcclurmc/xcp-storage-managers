@@ -8,7 +8,7 @@ Subject: fix-makefile
  2 files changed, 14 insertions(+), 13 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 1c15229..a980c40 100644
+index a1ff8c5..fbfbbf5 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -67,9 +67,10 @@ SM_STAGING := $(DESTDIR)
