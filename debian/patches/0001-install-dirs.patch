@@ -3,7 +3,7 @@ Date: Thu, 8 Dec 2011 17:06:00 +0000
 Subject: install-dirs
 
 ---
- Makefile                             |   10 +-
+ Makefile                             |   12 +-
  XenCert/StorageHandlerUtil.py        |    4 +-
  XenCert/blockunblockhbapaths-brocade |    4 +-
  XenCert/blockunblockhbapaths-cisco   |    4 +-
@@ -46,11 +46,13 @@ Subject: install-dirs
  tests/test_dcopy.sh                  |   12 +-
  tests/test_iscsi_refcount.sh         |    2 +-
  tests/vmprtest                       |    2 +-
- 43 files changed, 282 insertions(+), 282 deletions(-)
+ 43 files changed, 283 insertions(+), 283 deletions(-)
 
+diff --git a/Makefile b/Makefile
+index 096baa2..a42b056 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -55,12 +55,12 @@
+@@ -55,12 +55,12 @@ CRON_JOBS += ringwatch
  
  SM_XML := XE_SR_ERRORCODES
  
@@ -69,6 +71,8 @@ Subject: install-dirs
  CRON_DEST := /etc/cron.d/
  
  SM_STAGING := $(DESTDIR)
+diff --git a/XenCert/StorageHandlerUtil.py b/XenCert/StorageHandlerUtil.py
+index 2fa27cc..5eee285 100644
 --- a/XenCert/StorageHandlerUtil.py
 +++ b/XenCert/StorageHandlerUtil.py
 @@ -9,7 +9,7 @@
@@ -80,7 +84,7 @@ Subject: install-dirs
  import scsiutil
  import util
  import glob
-@@ -803,7 +803,7 @@
+@@ -803,7 +803,7 @@ def get_path_status(scsi_id, onlyActive = False):
      return (retVal, list)	
  
  def _get_localhost_uuid():
@@ -89,6 +93,8 @@ Subject: install-dirs
      try:
          f = open(filename, 'r')
      except:
+diff --git a/XenCert/blockunblockhbapaths-brocade b/XenCert/blockunblockhbapaths-brocade
+index c3afafa..2a7b102 100644
 --- a/XenCert/blockunblockhbapaths-brocade
 +++ b/XenCert/blockunblockhbapaths-brocade
 @@ -7,8 +7,8 @@
@@ -102,6 +108,8 @@ Subject: install-dirs
  import util
  import xslib
  import random
+diff --git a/XenCert/blockunblockhbapaths-cisco b/XenCert/blockunblockhbapaths-cisco
+index 48a7c0a..21617ef 100644
 --- a/XenCert/blockunblockhbapaths-cisco
 +++ b/XenCert/blockunblockhbapaths-cisco
 @@ -7,8 +7,8 @@
@@ -115,6 +123,8 @@ Subject: install-dirs
  import util
  import xslib
  import random
+diff --git a/XenCert/blockunblockhbapaths-qlogic b/XenCert/blockunblockhbapaths-qlogic
+index aff63da..8bfccb4 100644
 --- a/XenCert/blockunblockhbapaths-qlogic
 +++ b/XenCert/blockunblockhbapaths-qlogic
 @@ -7,8 +7,8 @@
@@ -128,6 +138,8 @@ Subject: install-dirs
  import util
  import xslib
  import random
+diff --git a/XenCert/blockunblockiscsipaths b/XenCert/blockunblockiscsipaths
+index 150a3ae..8f11271 100644
 --- a/XenCert/blockunblockiscsipaths
 +++ b/XenCert/blockunblockiscsipaths
 @@ -7,8 +7,8 @@
@@ -141,6 +153,8 @@ Subject: install-dirs
  import util
  import xslib
  import random
+diff --git a/XenCert/blockunblockpaths b/XenCert/blockunblockpaths
+index 3293c0d..6cb35dc 100644
 --- a/XenCert/blockunblockpaths
 +++ b/XenCert/blockunblockpaths
 @@ -12,8 +12,8 @@
@@ -154,6 +168,8 @@ Subject: install-dirs
  import util
  import xslib
  import os
+diff --git a/dcopy/Makefile b/dcopy/Makefile
+index 11ac607..649796d 100644
 --- a/dcopy/Makefile
 +++ b/dcopy/Makefile
 @@ -1,6 +1,6 @@
@@ -165,6 +181,8 @@ Subject: install-dirs
  
  
  OPTS := -D _GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -Wall
+diff --git a/drivers/02-vhdcleanup b/drivers/02-vhdcleanup
+index 8c799ed..8a0ecf2 100644
 --- a/drivers/02-vhdcleanup
 +++ b/drivers/02-vhdcleanup
 @@ -15,8 +15,8 @@
@@ -178,9 +196,11 @@ Subject: install-dirs
  
  start() {
      echo -n $"Fixing refcounts on new master: "
+diff --git a/drivers/SR.py b/drivers/SR.py
+index 5010862..36be3a9 100755
 --- a/drivers/SR.py
 +++ b/drivers/SR.py
-@@ -448,7 +448,7 @@
+@@ -448,7 +448,7 @@ class SR(object):
                  self.mpath = "false"
                  self.mpathhandle = "null"
                  
@@ -189,7 +209,7 @@ Subject: install-dirs
                  raise
          except:
              self.mpath = "false"
-@@ -473,7 +473,7 @@
+@@ -473,7 +473,7 @@ class SR(object):
              self.session.xenapi.SR.set_sm_config(self.sr_ref, sm_config)
  
              if self.mpath == "true" and len(SCSIid):
@@ -198,6 +218,8 @@ Subject: install-dirs
                  util.pread2(cmd)
          except:
              pass
+diff --git a/drivers/VASSR.py b/drivers/VASSR.py
+index 1a9b3a9..0daa423 100755
 --- a/drivers/VASSR.py
 +++ b/drivers/VASSR.py
 @@ -68,7 +68,7 @@
@@ -209,9 +231,11 @@ Subject: install-dirs
  
  import SR
  import VDI
+diff --git a/drivers/blktap2.py b/drivers/blktap2.py
+index a057c9e..9da74f3 100755
 --- a/drivers/blktap2.py
 +++ b/drivers/blktap2.py
-@@ -34,7 +34,7 @@
+@@ -34,7 +34,7 @@ import vhdutil
  
  PLUGIN_TAP_PAUSE = "tapdisk-pause"
  
@@ -220,6 +244,8 @@ Subject: install-dirs
  NO_MULTIPLE_ATTACH = not (os.path.exists(ENABLE_MULTIPLE_ATTACH)) 
  
  def locking(excType, override=True):
+diff --git a/drivers/coalesce-leaf b/drivers/coalesce-leaf
+index 9785338..268cc34 100755
 --- a/drivers/coalesce-leaf
 +++ b/drivers/coalesce-leaf
 @@ -16,8 +16,8 @@
@@ -233,6 +259,8 @@ Subject: install-dirs
  import getopt
  import XenAPI
  import cleanup
+diff --git a/drivers/lvhd-thin b/drivers/lvhd-thin
+index a404103..4546d3b 100755
 --- a/drivers/lvhd-thin
 +++ b/drivers/lvhd-thin
 @@ -16,7 +16,7 @@
@@ -244,9 +272,11 @@ Subject: install-dirs
  import util
  import vhdutil
  import lvhdutil
+diff --git a/drivers/mpath_dmp.py b/drivers/mpath_dmp.py
+index 9471a9d..f8c7f3e 100755
 --- a/drivers/mpath_dmp.py
 +++ b/drivers/mpath_dmp.py
-@@ -29,7 +29,7 @@
+@@ -29,7 +29,7 @@ import re
  iscsi_mpath_file = "/etc/iscsi/iscsid-mpath.conf"
  iscsi_default_file = "/etc/iscsi/iscsid-default.conf"
  iscsi_file = "/etc/iscsi/iscsid.conf"
@@ -255,7 +285,7 @@ Subject: install-dirs
  
  DMPBIN = "/sbin/multipath"
  DEVMAPPERPATH = "/dev/mapper"
-@@ -40,7 +40,7 @@
+@@ -40,7 +40,7 @@ SYSFS_PATH='/sys/class/scsi_host'
  UMPD_PATH='/var/run/updatempppathd.pid'
  MP_INUSEDIR = "/dev/disk/mpInuse"
  
@@ -264,7 +294,7 @@ Subject: install-dirs
  
  def _is_mpath_daemon_running():
      cmd = ["/sbin/pidof", "-s", "/sbin/multipathd"]
-@@ -48,7 +48,7 @@
+@@ -48,7 +48,7 @@ def _is_mpath_daemon_running():
      return (rc==0)
  
  def _is_mpp_daemon_running():
@@ -273,9 +303,11 @@ Subject: install-dirs
      #(rc,stdout,stderr) = util.doexec(cmd)
      if os.path.exists(UMPD_PATH):
          return True
+diff --git a/drivers/mpathcount.py b/drivers/mpathcount.py
+index 49034aa..7c8d716 100755
 --- a/drivers/mpathcount.py
 +++ b/drivers/mpathcount.py
-@@ -83,7 +83,7 @@
+@@ -83,7 +83,7 @@ def match_host_id(s):
      return regex.search(s, 0)
  
  def get_localhost_uuid():
@@ -284,6 +316,8 @@ Subject: install-dirs
      try:
          f = open(filename, 'r')
      except:
+diff --git a/drivers/nfs-on-slave b/drivers/nfs-on-slave
+index d7ecc00..d439dd0 100644
 --- a/drivers/nfs-on-slave
 +++ b/drivers/nfs-on-slave
 @@ -12,7 +12,7 @@
@@ -295,6 +329,8 @@ Subject: install-dirs
  import util
  import os, glob, errno, re
  
+diff --git a/drivers/on-slave b/drivers/on-slave
+index 390e15e..13a1a47 100755
 --- a/drivers/on-slave
 +++ b/drivers/on-slave
 @@ -15,7 +15,7 @@
@@ -306,6 +342,8 @@ Subject: install-dirs
  import util
  import lock
  from lvmcache import LVMCache
+diff --git a/drivers/runvmpr b/drivers/runvmpr
+index f8dcfd8..f0aa5e5 100644
 --- a/drivers/runvmpr
 +++ b/drivers/runvmpr
 @@ -15,7 +15,7 @@
@@ -317,9 +355,11 @@ Subject: install-dirs
  def Print(message):
      util.VMPRlog(message)
      
+diff --git a/drivers/srmetadata.py b/drivers/srmetadata.py
+index 175e86c..cf04614 100644
 --- a/drivers/srmetadata.py
 +++ b/drivers/srmetadata.py
-@@ -17,7 +17,7 @@
+@@ -17,7 +17,7 @@ import util
  import metadata
  import os
  import sys
@@ -328,6 +368,8 @@ Subject: install-dirs
  from xslib import get_min_blk_size, open_file_for_write, open_file_for_read, \
      xs_file_write, xs_file_read, close_file
  import xs_errors
+diff --git a/drivers/tapdisk-pause b/drivers/tapdisk-pause
+index 9317950..8657937 100755
 --- a/drivers/tapdisk-pause
 +++ b/drivers/tapdisk-pause
 @@ -5,7 +5,7 @@
@@ -339,9 +381,11 @@ Subject: install-dirs
  import blktap2, util
  from lock import Lock
  import xs_errors
+diff --git a/drivers/updatempppathd.py b/drivers/updatempppathd.py
+index c7c931d..f8349f8 100755
 --- a/drivers/updatempppathd.py
 +++ b/drivers/updatempppathd.py
-@@ -91,7 +91,7 @@
+@@ -91,7 +91,7 @@ def UpdatePaths():
  		    DEBUG("Some path status has changed for SCSI ID %s, updating PBD." % scsiid) 
  		    entry = "[" + str(activePaths) + ", " + str(totalPaths) + "]"
                      DEBUG(entry)
@@ -350,9 +394,11 @@ Subject: install-dirs
                      util.pread2(cmd)
  
  		    # Now update the cache with this updated path status
+diff --git a/drivers/util.py b/drivers/util.py
+index bbd7a0b..54b99ac 100644
 --- a/drivers/util.py
 +++ b/drivers/util.py
-@@ -30,8 +30,8 @@
+@@ -30,8 +30,8 @@ import exceptions
  import traceback
  import glob
  
@@ -363,7 +409,7 @@ Subject: install-dirs
  
  IORETRY_MAX = 20 # retries
  IORETRY_PERIOD = 1.0 # seconds
-@@ -509,7 +509,7 @@
+@@ -509,7 +509,7 @@ def match_rootdev(s):
      return regex.search(s, 0)
  
  def getrootdev():
@@ -372,7 +418,7 @@ Subject: install-dirs
      try:
          f = open(filename, 'r')
      except:
-@@ -548,7 +548,7 @@
+@@ -548,7 +548,7 @@ def get_localAPI_session():
  
  def get_this_host():
      uuid = None
@@ -381,7 +427,7 @@ Subject: install-dirs
      for line in f.readlines():
          if line.startswith("INSTALLATION_UUID"):
              uuid = line.split("'")[1]
-@@ -557,7 +557,7 @@
+@@ -557,7 +557,7 @@ def get_this_host():
  
  # XXX: this function doesn't do what it claims to do
  def get_localhost_uuid(session):
@@ -390,7 +436,7 @@ Subject: install-dirs
      try:
          f = open(filename, 'r')
      except:
-@@ -967,7 +967,7 @@
+@@ -967,7 +967,7 @@ def p_id_fork():
              print "Fork failed: %s (%d)" % (e.strerror,e.errno)
              sys.exit(-1)
          if (p_id == 0):
@@ -399,6 +445,8 @@ Subject: install-dirs
              os.umask(0)
          else:
              os._exit(0)                             
+diff --git a/drivers/vmpr b/drivers/vmpr
+index 39455f8..b56116a 100755
 --- a/drivers/vmpr
 +++ b/drivers/vmpr
 @@ -16,7 +16,7 @@
@@ -410,6 +458,8 @@ Subject: install-dirs
  import util
  import time
  from threading import Thread
+diff --git a/drivers/vss_control b/drivers/vss_control
+index 366e24a..494fd46 100755
 --- a/drivers/vss_control
 +++ b/drivers/vss_control
 @@ -15,8 +15,8 @@
@@ -423,9 +473,11 @@ Subject: install-dirs
  import util
  import xslib
  import time 
+diff --git a/drivers/xs_errors.py b/drivers/xs_errors.py
+index c0c554d..83d3909 100755
 --- a/drivers/xs_errors.py
 +++ b/drivers/xs_errors.py
-@@ -19,7 +19,7 @@
+@@ -19,7 +19,7 @@ import xml.dom.minidom
  import SR
  import util
  
@@ -434,11 +486,15 @@ Subject: install-dirs
  class XenError(object):
      def __init__(self, key, opterr=None):
          # Check the XML definition file exists
+diff --git a/etc/cron.d/vmpr b/etc/cron.d/vmpr
+index 43f3fa9..2522da9 100644
 --- a/etc/cron.d/vmpr
 +++ b/etc/cron.d/vmpr
 @@ -1 +1 @@
 -*/15 * * * * root /opt/xensource/sm/runvmpr
 +*/15 * * * * root /usr/lib/xcp/sm/runvmpr
+diff --git a/iscsi-mgt/host/XE_ops.sh b/iscsi-mgt/host/XE_ops.sh
+index c32cbe5..2f21a81 100755
 --- a/iscsi-mgt/host/XE_ops.sh
 +++ b/iscsi-mgt/host/XE_ops.sh
 @@ -1,12 +1,12 @@
@@ -456,9 +512,11 @@ Subject: install-dirs
  fi
  
  LINE_LEN=40
+diff --git a/mk/sm.spec.in b/mk/sm.spec.in
+index 3c047a8..658a0e2 100644
 --- a/mk/sm.spec.in
 +++ b/mk/sm.spec.in
-@@ -34,212 +34,212 @@
+@@ -34,212 +34,212 @@ rm -rf $RPM_BUILD_ROOT
  /etc/cron.d/*
  /etc/rc.d/init.d/snapwatchd
  /etc/rc.d/init.d/mpathroot
@@ -874,9 +932,11 @@ Subject: install-dirs
  
  
  %changelog
+diff --git a/mpathroot/mpathroot.init b/mpathroot/mpathroot.init
+index 3f87cd7..4efeb2d 100644
 --- a/mpathroot/mpathroot.init
 +++ b/mpathroot/mpathroot.init
-@@ -42,7 +42,7 @@
+@@ -42,7 +42,7 @@ start() {
  		logger -t "${TAG}" "Updating multipath root status"
  		echo -n $"Updating multipath root status: "
  		if wait_for_xapi; then
@@ -885,9 +945,11 @@ Subject: install-dirs
  			success $"OK"
  			exit 0
  		else
+diff --git a/scripts/local-device-change b/scripts/local-device-change
+index 9943112..57fec20 100755
 --- a/scripts/local-device-change
 +++ b/scripts/local-device-change
-@@ -19,9 +19,9 @@
+@@ -19,9 +19,9 @@ DEVICE=$1 # foo
  
  /usr/bin/logger "local-device-change DEVICE=$DEVICE ACTION=$ACTION"
  
@@ -899,6 +961,8 @@ Subject: install-dirs
  
  function remove_vdi {
      local R_VDI=$1
+diff --git a/snapwatchd/Makefile b/snapwatchd/Makefile
+index a03847e..98cb1a9 100644
 --- a/snapwatchd/Makefile
 +++ b/snapwatchd/Makefile
 @@ -1,7 +1,7 @@
@@ -910,9 +974,11 @@ Subject: install-dirs
  INITDIR ?= /etc/rc.d/init.d
  DESTDIR ?= 
  
+diff --git a/snapwatchd/snapwatchd b/snapwatchd/snapwatchd
+index d581b45..103e38a 100755
 --- a/snapwatchd/snapwatchd
 +++ b/snapwatchd/snapwatchd
-@@ -19,7 +19,7 @@
+@@ -19,7 +19,7 @@ import XenAPI
  import xml.dom.minidom
  import datetime, time
  import resource
@@ -921,7 +987,7 @@ Subject: install-dirs
  import util
  import gc
  import xs_errors
-@@ -171,7 +171,7 @@
+@@ -171,7 +171,7 @@ def _getSnapUUIDlist(h,uuid):
      return vdi_uuids
  
  def get_localhost_uuid():
@@ -930,6 +996,8 @@ Subject: install-dirs
      try:
          f = open(filename, 'r')
      except:
+diff --git a/snapwatchd/snapwatchd.init b/snapwatchd/snapwatchd.init
+index 4146a69..d7bfcb2 100755
 --- a/snapwatchd/snapwatchd.init
 +++ b/snapwatchd/snapwatchd.init
 @@ -9,7 +9,7 @@
@@ -941,9 +1009,11 @@ Subject: install-dirs
  prog=`basename $DAEMON`
  pidfile=/var/run/${prog}.pid
  logfile=/var/log/SMlog
+diff --git a/tests/XE_api_library.sh b/tests/XE_api_library.sh
+index c1fc8fb..c27a2da 100755
 --- a/tests/XE_api_library.sh
 +++ b/tests/XE_api_library.sh
-@@ -1512,7 +1512,7 @@
+@@ -1512,7 +1512,7 @@ copy_lvm_plugin()
      DUMMY_SR_TYPE=$1
      subject="Creating dummy SR type (${DUMMY_SR_TYPE})"
      debug_test "$subject"
@@ -952,7 +1022,7 @@ Subject: install-dirs
      run $cmd
      if [ $RUN_RC -gt 0 ]; then
          debug_result 2
-@@ -1616,7 +1616,7 @@
+@@ -1616,7 +1616,7 @@ install_scsiID_helper() {
      UPLOAD="/tmp/`date +%s-%N`"
  
      echo "import sys" >> $UPLOAD
@@ -961,7 +1031,7 @@ Subject: install-dirs
      echo "import scsiutil" >> $UPLOAD
      echo "" >> $UPLOAD
      echo "try:" >> $UPLOAD
-@@ -1628,7 +1628,7 @@
+@@ -1628,7 +1628,7 @@ install_scsiID_helper() {
      cmd="chmod +x $UPLOAD"
      run $cmd
  
@@ -970,9 +1040,11 @@ Subject: install-dirs
      run $cmd
      if [ $RUN_RC -ne 0 ]; then
  	debug_result 1
+diff --git a/tests/globals.sh b/tests/globals.sh
+index 28e05d9..5028b4e 100644
 --- a/tests/globals.sh
 +++ b/tests/globals.sh
-@@ -26,7 +26,7 @@
+@@ -26,7 +26,7 @@ if [ -z ${USERNAME} ]; then
  fi
  
  if [ -z ${CMD} ]; then
@@ -981,9 +1053,11 @@ Subject: install-dirs
  fi
  
  if [ -z ${CLONE_DEBUG} ]; then
+diff --git a/tests/lvhd_test/snapshot_stress.py b/tests/lvhd_test/snapshot_stress.py
+index fba435e..15e699d 100755
 --- a/tests/lvhd_test/snapshot_stress.py
 +++ b/tests/lvhd_test/snapshot_stress.py
-@@ -4,7 +4,7 @@
+@@ -4,7 +4,7 @@ import sys
  import random
  import pickle
  
@@ -992,7 +1066,7 @@ Subject: install-dirs
  import cleanup
  
  class VDIAction:
-@@ -266,7 +266,7 @@
+@@ -266,7 +266,7 @@ if __name__ == "__main__":
          print "%s rerun <path> <vdi_uuid>" % sys.argv[0]
  
      def xe(cmd, *args):
@@ -1001,9 +1075,11 @@ Subject: install-dirs
          argv += args
          stdin, stdout = os.popen4(argv)
          return stdout.readlines()
+diff --git a/tests/lvhd_test/storagemanager.py b/tests/lvhd_test/storagemanager.py
+index bf6efe3..b7c0260 100644
 --- a/tests/lvhd_test/storagemanager.py
 +++ b/tests/lvhd_test/storagemanager.py
-@@ -6,7 +6,7 @@
+@@ -6,7 +6,7 @@ import time
  import xmlrpclib
  
  import tutil
@@ -1012,7 +1088,7 @@ Subject: install-dirs
  import util
  import lvutil
  import vhdutil
-@@ -737,7 +737,7 @@
+@@ -737,7 +737,7 @@ class StorageManagerCLI(StorageManager):
  
      def _getThisHost(self):
          uuid = None
@@ -1021,7 +1097,7 @@ Subject: install-dirs
          for line in f.readlines():
              if line.startswith("INSTALLATION_UUID"):
                  uuid = line.split("'")[1]
-@@ -746,7 +746,7 @@
+@@ -746,7 +746,7 @@ class StorageManagerCLI(StorageManager):
  
      def _getThisDom0(self):
          uuid = None
@@ -1030,9 +1106,11 @@ Subject: install-dirs
          for line in f.readlines():
              if line.startswith("CONTROL_DOMAIN_UUID"):
                  uuid = line.split("'")[1]
+diff --git a/tests/lvhd_test/testsm.py b/tests/lvhd_test/testsm.py
+index 609397f..d7902cd 100755
 --- a/tests/lvhd_test/testsm.py
 +++ b/tests/lvhd_test/testsm.py
-@@ -11,7 +11,7 @@
+@@ -11,7 +11,7 @@ import random
  import tutil
  import storagemanager
  
@@ -1041,9 +1119,11 @@ Subject: install-dirs
  from ipc import IPCFlag
  import LVHDSR
  import lvhdutil
+diff --git a/tests/test1.sh b/tests/test1.sh
+index 62c3a03..cf44134 100755
 --- a/tests/test1.sh
 +++ b/tests/test1.sh
-@@ -515,7 +515,7 @@
+@@ -515,7 +515,7 @@ generate_pattern()
      subject="Writing disk test pattern"
      debug_test "$subject"
  
@@ -1052,7 +1132,7 @@ Subject: install-dirs
      run "$cmd"
      if [ $RUN_RC -gt 0 ]; then
          debug_result 1
-@@ -591,11 +591,11 @@
+@@ -591,11 +591,11 @@ run_vdi_snapshot_tests() {
      fi
      LOOP=10
  
@@ -1066,6 +1146,8 @@ Subject: install-dirs
          debug "Exiting quietly."
          return
      fi
+diff --git a/tests/test_dcopy.sh b/tests/test_dcopy.sh
+index ebb2650..97a7eba 100755
 --- a/tests/test_dcopy.sh
 +++ b/tests/test_dcopy.sh
 @@ -10,20 +10,20 @@
@@ -1093,7 +1175,7 @@ Subject: install-dirs
  	debug "Exiting quietly."
  	exit
      fi
-@@ -81,7 +81,7 @@
+@@ -81,7 +81,7 @@ generate_pattern()
      subject="Writing disk test pattern"
      debug_test "$subject"
  
@@ -1102,7 +1184,7 @@ Subject: install-dirs
      run "$cmd"
      if [ $RUN_RC -gt 0 ]; then
  	debug_result 1
-@@ -100,7 +100,7 @@
+@@ -100,7 +100,7 @@ copy_pattern()
      subject="Copying disk contents"
      debug_test "$subject"
  
@@ -1111,9 +1193,11 @@ Subject: install-dirs
      run "$cmd"
      if [ $RUN_RC -gt 0 ]; then
  	debug_result 1
+diff --git a/tests/test_iscsi_refcount.sh b/tests/test_iscsi_refcount.sh
+index d9c5f79..b0ebe4b 100755
 --- a/tests/test_iscsi_refcount.sh
 +++ b/tests/test_iscsi_refcount.sh
-@@ -92,7 +92,7 @@
+@@ -92,7 +92,7 @@ get_SCSIid_fromLUN()
      subject="Querying SCSIid for LUN${1}"
      debug_test "$subject"
      ADDR=`echo ${ISCSI_RECID} | cut -d',' -f1`
@@ -1122,9 +1206,11 @@ Subject: install-dirs
      run $cmd
      if [ $RUN_RC -ne 0 ]; then
  	debug_result 1
+diff --git a/tests/vmprtest b/tests/vmprtest
+index 8a5fd0a..87c0a23 100755
 --- a/tests/vmprtest
 +++ b/tests/vmprtest
-@@ -14,7 +14,7 @@
+@@ -14,7 +14,7 @@ import sys
  import time
  import commands
  from optparse import OptionParser
@@ -1133,3 +1219,4 @@ Subject: install-dirs
  import util
  import re
  import datetime
+-- 
