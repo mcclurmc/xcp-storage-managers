@@ -3360,6 +3360,7 @@ class StorageHandlerISL(StorageHandler):
                         checkPoints += 1                        
                     else:
                         # Resize not supported
+                        PrintOnSameLine(", VDI resize[Skipping, not Supported]")
                         PrintOnSameLine(", VDI destroy")
                         self.Destroy_VDI(vdi_ref, sr_ref)
                         checkPoints += 1
@@ -3435,6 +3436,8 @@ class StorageHandlerISL(StorageHandler):
                                 displayOperationStatus(False)
                     else:
                         # VDI resize not supported
+                        PrintOnSameLine(", VDI multiple resize[Skipping, not Supported]")
+                        totalCheckPoints += 1
                         checkPoints += 1
                     PrintOnSameLine(", VDI destroy")
                     self.Destroy_VDI(vdi_ref, sr_ref)
