@@ -11,11 +11,9 @@ Signed-off-by: Mike McClurg <mike.mcclurg@citrix.com>
  Makefile |    4 +++-
  1 files changed, 3 insertions(+), 1 deletions(-)
 
-diff --git a/Makefile b/Makefile
-index fbfbbf5..323c973 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -12,6 +12,8 @@ SM_DRIVERS += LVHDoISCSI
+@@ -12,6 +12,8 @@
  SM_DRIVERS += LVHDoHBA
  SM_DRIVERS += SHM
  
@@ -24,7 +22,7 @@ index fbfbbf5..323c973 100644
  SM_LIBS := SR
  SM_LIBS += SRCommand
  SM_LIBS += VDI
-@@ -93,7 +95,7 @@ install:
+@@ -93,13 +95,13 @@
  	for i in $(SM_XML); do \
  	  install -m 755 drivers/$$i.xml \
  	    $(SM_STAGING)$(SM_DEST); done
@@ -32,5 +30,14 @@ index fbfbbf5..323c973 100644
 +	cd $(SM_STAGING)$(SM_DEST) && for i in $(SM_DRIVERS_ENABLED); do \
  	  ln -sf $$i"SR.py" $$i"SR"; \
  	done
- 	rm $(SM_STAGING)$(SM_DEST)/SHMSR
--- 
+-	rm $(SM_STAGING)$(SM_DEST)/SHMSR
+-	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDSR && ln -sf LVHDSR.py LVMSR
+-	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDoISCSISR && ln -sf LVHDoISCSISR.py LVMoISCSISR
+-	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDoHBASR && ln -sf LVHDoHBASR.py LVMoHBASR
++#	rm $(SM_STAGING)$(SM_DEST)/SHMSR
++#	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDSR && ln -sf LVHDSR.py LVMSR
++#	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDoISCSISR && ln -sf LVHDoISCSISR.py LVMoISCSISR
++#	cd $(SM_STAGING)$(SM_DEST) && rm -f LVHDoHBASR && ln -sf LVHDoHBASR.py LVMoHBASR
+ 	#ln -sf $(SM_DEST)mpathutil.py $(SM_STAGING)/sbin/mpathutil
+ 	install -m 755 drivers/02-vhdcleanup $(SM_STAGING)$(MASTER_SCRIPT_DEST)
+ 	install -m 755 drivers/lvhd-thin $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)

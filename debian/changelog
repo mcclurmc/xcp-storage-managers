@@ -1,4 +1,4 @@
-xcp-storage-managers (0.1.1-1) unstable; urgency=low
+xcp-storage-managers (0.1.1-2) unstable; urgency=low
 
   * New FHS compliant layout
   * Initial release (Closes: #646722)
