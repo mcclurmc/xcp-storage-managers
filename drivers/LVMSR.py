@@ -1,9 +1,14 @@
 #!/usr/bin/env python
-# Copyright (c) 2005-2007 XenSource, Inc. All use and distribution of this
-# copyrighted material is governed by and subject to terms and conditions
-# as licensed by XenSource, Inc. All other rights reserved.
-# Xen, XenSource and XenEnterprise are either registered trademarks or
-# trademarks of XenSource Inc. in the United States and/or other countries.
+# Copyright (C) 2010-2011 Citrix Ltd.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published
+# by the Free Software Foundation; version 2.1 only.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Lesser General Public License for more details.
 #
 #
 # LVMSR: local-LVM storage repository
