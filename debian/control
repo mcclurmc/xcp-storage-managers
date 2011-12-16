@@ -12,7 +12,7 @@ Homepage: http://www.xen.org/products/cloudxen.html
 
 Package: xcp-storage-managers
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, python (>= 2.6), uuid-runtime, blktap-utils
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, uuid-runtime, blktap-utils
 Recommends: lvm2, nfs-common
 Description: storage backends for XCP
  The Xen Cloud Platform (XCP) is an open source enterprise-ready server

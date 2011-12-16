@@ -98,6 +98,7 @@ class LVHDoISCSISR(LVHDSR.LVHDSR):
                             tgt_ip = util._convertDNS(tgt)
                         except:
                             raise xs_errors.XenError('DNSError')
+                        iscsilib.ensure_daemon_running_ok(iscsi.localIQN)
                         map = iscsilib.discovery(tgt_ip,iscsi.port,iscsi.chapuser,iscsi.chappassword,targetIQN=IQN)
                         util.SMlog("Discovery for IP %s returned %s" % (tgt,map))
                         for i in range(0,len(map)):
@@ -124,7 +125,7 @@ class LVHDoISCSISR(LVHDSR.LVHDSR):
                     dconf['multiSession'] = IQNstring
                     self.session.xenapi.PBD.set_device_config(pbd, dconf)
             except:
-                pass
+                util.logException("LVHDoISCSISR.load")
         self.iscsi = self.iscsiSRs[0]
 
         # Be extremely careful not to throw exceptions here since this function

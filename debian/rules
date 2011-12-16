@@ -13,3 +13,6 @@ override_dh_fixperms:
 	dh_fixperms
 	rm -rf debian/xcp-storage-managers/sbin
 	chmod -x debian/xcp-storage-managers/usr/lib/xcp/sm/XE_SR_ERRORCODES.xml
+
+override_dh_python2:
+	dh_python2 /usr/lib/xcp/sm

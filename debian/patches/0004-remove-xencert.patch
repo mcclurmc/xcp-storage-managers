@@ -7,7 +7,7 @@ Subject: remove-xencert
  1 files changed, 0 insertions(+), 1 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index fbe0213..1c15229 100644
+index a42b056..a1ff8c5 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -122,7 +122,6 @@ install:
