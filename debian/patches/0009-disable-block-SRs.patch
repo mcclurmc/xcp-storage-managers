@@ -2,27 +2,29 @@ From: Mike McClurg <mike.mcclurg@citrix.com>
 Date: Thu, 8 Dec 2011 15:18:46 +0000
 Subject: disable block SRs
 
-We suspect that block SRs are broken in Kronos, so we'll disable them for now.
-We're just removing the symlink to the SR backend Python scripts, so brave
-users could just recreate the symlinks to reenable the SRs.
+We suspect that shared block SRs are broken in Kronos, so we'll disable them
+for now. We're just removing the symlink to the SR backend Python scripts, so
+brave users could just recreate the symlinks to reenable the SRs.
 
 Signed-off-by: Mike McClurg <mike.mcclurg@citrix.com>
 ---
- Makefile |    4 +++-
- 1 files changed, 3 insertions(+), 1 deletions(-)
+ Makefile |   12 +++++++-----
+ 1 files changed, 7 insertions(+), 5 deletions(-)
 
+diff --git a/Makefile b/Makefile
+index fbfbbf5..7b1bed3 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -12,6 +12,8 @@
+@@ -12,6 +12,8 @@ SM_DRIVERS += LVHDoISCSI
  SM_DRIVERS += LVHDoHBA
  SM_DRIVERS += SHM
  
-+SM_DRIVERS_ENABLED := File NFS EXT Dummy ISO
++SM_DRIVERS_ENABLED := File NFS EXT Dummy ISO LVHD
 +
  SM_LIBS := SR
  SM_LIBS += SRCommand
  SM_LIBS += VDI
-@@ -93,13 +95,13 @@
+@@ -93,13 +95,13 @@ install:
  	for i in $(SM_XML); do \
  	  install -m 755 drivers/$$i.xml \
  	    $(SM_STAGING)$(SM_DEST); done
@@ -41,3 +43,4 @@ Signed-off-by: Mike McClurg <mike.mcclurg@citrix.com>
  	#ln -sf $(SM_DEST)mpathutil.py $(SM_STAGING)/sbin/mpathutil
  	install -m 755 drivers/02-vhdcleanup $(SM_STAGING)$(MASTER_SCRIPT_DEST)
  	install -m 755 drivers/lvhd-thin $(SM_STAGING)$(PLUGIN_SCRIPT_DEST)
+-- 
