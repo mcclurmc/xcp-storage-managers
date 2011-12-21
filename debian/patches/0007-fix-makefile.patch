@@ -59,7 +59,7 @@ index addcbfb..db64ea8 100644
  DESTDIR ?= 
  
 -PYTHON_INCLUDE ?= /usr/include/python2.4
-+PYTHON_INCLUDE ?= /usr/include/python2.6
++PYTHON_INCLUDE ?= /usr/include/python2.7
  
  CFLAGS ?= -O2
  CFLAGS += -I$(PYTHON_INCLUDE) -I$(XS_INCLUDE) -fPIC

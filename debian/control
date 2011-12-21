@@ -3,9 +3,9 @@ Section: libs
 Priority: extra
 Maintainer: PKG-Xen Devel <pkg-xen-devel@lists.alioth.debian.org>
 Uploaders: Thomas Goirand <zigo@debian.org>, Jon Ludlam <jonathan.ludlam@eu.citrix.com>, Mike McClurg <mike.mcclurg@citrix.com>
-Build-Depends: debhelper (>= 8), swig, python-all-dev, libxen-dev, python-all (>= 2.6.6-3~)
+Build-Depends: debhelper (>= 8), swig, python-all-dev (>= 2.7), libxen-dev, python-all (>= 2.7)
 Standards-Version: 3.9.2
-X-Python-Version: >= 2.6
+X-Python-Version: >= 2.7
 VCS-Git: http://anonscm.debian.org/git/pkg-xen/xcp-storage-managers.git
 VCS-Browser: http://anonscm.debian.org/gitweb/?p=pkg-xen/xcp-storage-managers.git
 Homepage: http://www.xen.org/products/cloudxen.html

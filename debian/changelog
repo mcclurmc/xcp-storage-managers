@@ -1,3 +1,9 @@
+xcp-storage-managers (0.1.1-4) oneiric; urgency=low
+
+  * Use python2.7 rather than 2.6
+
+ -- Jonathan Ludlam <jonathan.ludlam@eu.citrix.com>  Wed, 21 Dec 2011 12:56:55 +0000
+
 xcp-storage-managers (0.1.1-3) unstable; urgency=low
 
   * Added a watch file.
