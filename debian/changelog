@@ -1,3 +1,9 @@
+xcp-storage-managers (0.1.1-5) unstable; urgency=low
+
+  * xapi-autobuilder automatic changelog bump
+
+ -- Mike McClurg <mike.mcclurg@citrix.com>  Thu, 22 Dec 2011 12:49:48 +0000
+
 xcp-storage-managers (0.1.1-4) oneiric; urgency=low
 
   * Use python2.7 rather than 2.6
