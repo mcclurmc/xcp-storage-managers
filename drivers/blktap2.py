@@ -197,7 +197,7 @@ class TapCtl(object):
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
         except OSError, e:
-            raise cls.CommandFailure(cmd, errno=e.errno)
+            raise cls.CommandFailure(cmd, status=e.errno)
 
         return cls(cmd, p)
 
