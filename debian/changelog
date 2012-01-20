@@ -1,3 +1,9 @@
+xcp-storage-managers (0.1.2-2) unstable; urgency=low
+
+  * BUG: remove --master arg from calls to lvm
+
+ -- Mike McClurg <mike.mcclurg@citrix.com>  Fri, 20 Jan 2012 17:29:32 +0000
+
 xcp-storage-managers (0.1.2-1) unstable; urgency=low
 
   * Upstream version bump
