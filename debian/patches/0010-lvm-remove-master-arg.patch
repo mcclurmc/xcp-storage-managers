@@ -1,0 +1,31 @@
+From: Mike McClurg <mike.mcclurg@citrix.com>
+Date: Fri, 20 Jan 2012 17:27:41 +0000
+Subject: lvm-remove-master-arg
+
+---
+ drivers/lvutil.py |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/lvutil.py b/drivers/lvutil.py
+index a6c9914..eca7c15 100755
+--- a/drivers/lvutil.py
++++ b/drivers/lvutil.py
+@@ -299,7 +299,7 @@ def createVG(root, vgname):
+                 pass
+             raise xs_errors.XenError('LVMGroupCreate')
+     try:
+-        cmd = [CMD_VGCHANGE, "-an", "--master", vgname]
++        cmd = [CMD_VGCHANGE, "-an", vgname]
+         util.pread2(cmd)
+     except util.CommandException, inst:
+         raise xs_errors.XenError('LVMUnMount', \
+@@ -341,7 +341,7 @@ def setActiveVG(path, active):
+     val = "n"
+     if active:
+         val = "y"
+-    cmd = [CMD_VGCHANGE, "-a" + val, "--master", path]
++    cmd = [CMD_VGCHANGE, "-a" + val, path]
+     text = util.pread2(cmd)
+ 
+ def create(name, size, vgname, tag = None, activate = True):
+-- 

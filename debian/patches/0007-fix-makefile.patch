@@ -51,7 +51,7 @@ index a1ff8c5..fbfbbf5 100644
  
  .PHONY: clean
 diff --git a/snapwatchd/Makefile b/snapwatchd/Makefile
-index addcbfb..db64ea8 100644
+index addcbfb..4cdefe2 100644
 --- a/snapwatchd/Makefile
 +++ b/snapwatchd/Makefile
 @@ -5,7 +5,7 @@ PREFIX ?= /usr/lib/xcp/sm/snapwatchd

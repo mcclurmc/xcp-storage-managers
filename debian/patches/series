@@ -7,3 +7,4 @@
 0007-fix-makefile.patch
 0008-remove-primary-disk-dependency.patch
 0009-disable-block-SRs.patch
+0010-lvm-remove-master-arg.patch
