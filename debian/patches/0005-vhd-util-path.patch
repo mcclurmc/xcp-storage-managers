@@ -4,7 +4,7 @@ Subject: vhd-util-path
 
 ---
  drivers/vhdutil.py |    4 ++--
- 1 files changed, 2 insertions(+), 2 deletions(-)
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/vhdutil.py b/drivers/vhdutil.py
 index 10b6994..6ddcd32 100644

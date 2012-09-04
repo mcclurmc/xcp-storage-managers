@@ -6,7 +6,7 @@ Subject: fix-local-device-change
 # Parent 48aa86a502ee5df1519d3ea42528c77d8fcf9ff6
 ---
  scripts/local-device-change |    2 +-
- 1 files changed, 1 insertions(+), 1 deletions(-)
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/scripts/local-device-change b/scripts/local-device-change
 index 57fec20..2929bf1 100755

@@ -1,3 +1,9 @@
+xcp-storage-managers (0.1.2-3) unstable; urgency=low
+
+  * Add patch to fix CDROM hotplug bug (LP: #1045739 )
+
+ -- Mike McClurg <mike.mcclurg@citrix.com>  Tue, 04 Sep 2012 11:45:21 +0100
+
 xcp-storage-managers (0.1.2-2) unstable; urgency=low
 
   * BUG: remove --master arg from calls to lvm

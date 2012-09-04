@@ -1,0 +1,30 @@
+From: Mike McClurg <mike.mcclurg@citrix.com>
+Date: Tue, 4 Sep 2012 10:57:09 +0100
+Subject: Fix guest CDROM hotplug
+
+The ISOSR driver erroneously tagged all ISO VDIs as 'file' types when it should
+have tagged them as 'phy' types. The XenServer hotplug scripts are quite
+simple, and don't distinguish between these two types. The upstream Xen 4.1
+hotplug scripts, however, are quite robust, and would refuse to plug the CDROM
+devices into the guest because the backend paths that contained the CDROM
+images were block devices and not files.
+
+Signed-off-by: Mike McClurg <mike.mcclurg@citrix.com>
+---
+ drivers/ISOSR.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/ISOSR.py b/drivers/ISOSR.py
+index 35601ed..c1e3004 100755
+--- a/drivers/ISOSR.py
++++ b/drivers/ISOSR.py
+@@ -191,7 +191,7 @@ class ISOSR(SR.SR):
+             self.path = self.mountpoint
+ 
+         # Some info we need:
+-        self.sr_vditype = 'file'
++        self.sr_vditype = 'phy'
+         self.credentials = None
+  
+     def attach(self, sr_uuid):
+-- 

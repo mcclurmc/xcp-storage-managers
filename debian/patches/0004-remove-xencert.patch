@@ -4,7 +4,7 @@ Subject: remove-xencert
 
 ---
  Makefile |    1 -
- 1 files changed, 0 insertions(+), 1 deletions(-)
+ 1 file changed, 1 deletion(-)
 
 diff --git a/Makefile b/Makefile
 index a42b056..a1ff8c5 100644

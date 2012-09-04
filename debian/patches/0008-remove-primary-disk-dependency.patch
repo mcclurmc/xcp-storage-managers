@@ -4,7 +4,7 @@ Subject: remove-primary-disk-dependency
 
 ---
  drivers/util.py |    2 +-
- 1 files changed, 1 insertions(+), 1 deletions(-)
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/util.py b/drivers/util.py
 index 54b99ac..bf1f8ab 100644

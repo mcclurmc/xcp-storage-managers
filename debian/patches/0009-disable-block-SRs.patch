@@ -9,7 +9,7 @@ brave users could just recreate the symlinks to reenable the SRs.
 Signed-off-by: Mike McClurg <mike.mcclurg@citrix.com>
 ---
  Makefile |   12 +++++++-----
- 1 files changed, 7 insertions(+), 5 deletions(-)
+ 1 file changed, 7 insertions(+), 5 deletions(-)
 
 diff --git a/Makefile b/Makefile
 index fbfbbf5..7b1bed3 100644
